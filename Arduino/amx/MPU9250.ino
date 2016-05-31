@@ -37,7 +37,7 @@ int GyroAddress = 0x68;
 int mpuInit(boolean mode)
 {
   int ecode;
-   Serial.print("Gyro Init\n");
+   if (printDiags) Serial.print("Gyro Init\n");
    if(mode==0)
   {
      ecode = I2Cwrite(GyroAddress, 0x6B, 0x40);  //Sleep mode, internal 8 MHz oscillator  //another mode is cycle where it wakes up periodically to take a value
@@ -96,7 +96,7 @@ byte I2Cwrite(byte addr, byte reg, byte val)
   Wire.write(reg);  // gyro scale, sample rate and LPF
   Wire.write(val);  
   byte ecode=Wire.endTransmission(); //end transmission
-  Serial.print(ecode);
+  if (printDiags) Serial.print(ecode);
   delay(5);
   return ecode;
 }
@@ -131,8 +131,6 @@ void Read_Gyro(int numbytestoread)
       buffer[n] = Wire.read();  // receive one byte
     }
   }
-  
- //  Serial.println(i);
 }
 
 int getGyroFIFO()
@@ -156,22 +154,15 @@ int getGyroFIFO()
     FIFO_CNT[i]= Wire.read();  // receive one byte
     i++;
   }
-  
- 
   fifopts=FIFO_CNT[0]<<8|FIFO_CNT[1];
- //if(fifopts>500)
-   //  Serial.println(fifopts);
    
  return fifopts; 
-  
 }
 
  /* This initialization is similar to the one in ak8975.c. */
 int setup_compass(void)
 {
-
    byte data;
-   
    /* Set up master mode, master clock, and ES bit. */
     data = 0x40;
     if (I2Cwrite(GyroAddress, 0x24, data))

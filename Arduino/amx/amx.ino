@@ -1,5 +1,5 @@
 //
-// Record sound as .wav on a SD card
+// AMX--Audio, Motion, Light, Pressure datalogger
 //
 // Loggerhead Instruments
 // 2016
@@ -19,7 +19,7 @@
  * 1 Hz Interrupt
  * -MS5803
  * -Keller Pressure sensor
- * -RGB light sensor (add sleep)
+ * -RGB light sensor
  * 
  * burn wire 1 & 2
  * play sound
@@ -51,6 +51,8 @@ Adafruit_SSD1306 display(OLED_RESET);
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
+
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 
 unsigned long baud = 115200;
 
@@ -185,14 +187,16 @@ int16_t islGreen;
 // Pressure/Temp
 byte Tbuff[3];
 byte Pbuff[3];
+float depth, temperature;
+boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
-unsigned int PSENS; //pressure sensitivity
-unsigned int POFF;  //Pressure offset
-unsigned int TCSENS; //Temp coefficient of pressure sensitivity
-unsigned int TCOFF; //Temp coefficient of pressure offset
-unsigned int TREF;  //Ref temperature
-unsigned int TEMPSENS; //Temperature sensitivity coefficient
+uint16_t PSENS; //pressure sensitivity
+uint16_t POFF;  //Pressure offset
+uint16_t TCSENS; //Temp coefficient of pressure sensitivity
+uint16_t TCOFF; //Temp coefficient of pressure offset
+uint16_t TREF;  //Ref temperature
+uint16_t TEMPSENS; //Temperature sensitivity coefficient
 
 void setup() {
   Serial.begin(baud);
@@ -227,6 +231,7 @@ void setup() {
   
   mpuInit(1);
   islInit(); // RGB light sensor
+  pressInit();
 
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   t = getTeensy3Time();
@@ -1021,6 +1026,26 @@ void pollGyro(){
     Serial.print(islRed); Serial.print("\t");
     Serial.print(islGreen); Serial.print("\t");
     Serial.println(islBlue); 
+
+
+    if(togglePress){
+      readPress();
+      updateTemp();
+      togglePress = 0;
+    }
+    else{
+      readTemp();
+      updatePress();
+      togglePress = 1;
+    }
+    
+    calcPressTemp();
+    Serial.print("Depth/Temp: "); Serial.print("\t");
+    Serial.print(depth); Serial.print("\t");
+    Serial.println(temperature);
+
+
+    
     
   // Write data buffer
 //  digitalWrite(LED_GRN,HIGH);
@@ -1029,4 +1054,6 @@ void pollGyro(){
 //  SidRec[0].samples+=(BUFFERSIZE/2);   
   }
 }
+
+
 
