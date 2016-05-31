@@ -404,6 +404,7 @@ void loop() {
           Serial.println(snooze_second);
           delay(500);
           mpuInit(0);  //gyro to sleep
+          islSleep(); // RGB light sensor
           snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
           Snooze.sleep( snooze_config );
           
@@ -413,6 +414,7 @@ void loop() {
           display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
           digitalWrite(hydroPowPin, HIGH); // hydrophone on
           cam_wake();
+          islInit(); // RGB light sensor
           }
       
       mpuInit(1);  //start gyro

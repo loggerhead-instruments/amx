@@ -43,7 +43,6 @@ int _addr = 0x44;
 #define CFG1_16BIT 0x00
 #define CFG1_12BIT 0x10
 
-
 // Unless you want the interrupt pin to be an input that triggers sensor sampling, leave this on normal
 #define CFG1_ADC_SYNC_NORMAL 0x00
 #define CFG1_ADC_SYNC_TO_INT 0x20
@@ -87,15 +86,21 @@ int _addr = 0x44;
 #define FLAG_CONV_B 0x30
 
 bool islInit(){
-  config(CFG1_MODE_RGB | CFG1_10KLUX, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT);
-  
+  bool ret = true;
+  ret = config(CFG1_MODE_RGB | CFG1_10KLUX, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT); 
+  return ret;
 }
 
-bool islRead(){
+bool islSleep(){
+  bool ret = true;
+  ret = config(CFG1_MODE_POWERDOWN, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT);
+  return ret;
+}
+
+void islRead(){
   islRed = read16(RED_L);
   islGreen = read16(GREEN_L);
   islBlue = read16(BLUE_L);
-  
 }
 
 // Generic I2C read register (single byte)
