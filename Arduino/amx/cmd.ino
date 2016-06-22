@@ -23,7 +23,33 @@ int ProcCmd(char *pCmd)
 
 	switch(*pCV)
 	{                     
-    // Set of Real Time Clock
+    // IMU
+		case ('I' + ('M'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      imu_period = lv1;
+      break;
+    }
+
+    // Keller Pressure and Temperature
+    case ('K' + ('P'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      pressure_period = lv1;
+      pressure_sensor = 2;
+      break;
+    }
+
+    // Measurement Specialities Pressure and Temperature
+    case ('M' + ('P'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      pressure_period = lv1;
+      pressure_sensor = 1;
+      break;
+    }
+    
+		// Set of Real Time Clock
 		case ('T' + ('M'<<8)):
 		{
          //set time
@@ -76,7 +102,7 @@ int ProcCmd(char *pCmd)
 	return TRUE;
 }
 
-void LoadScript()
+boolean LoadScript()
 {
   char s[30];
   char c;
@@ -127,8 +153,9 @@ void LoadScript()
   {   
     Serial.println("setup.txt not opened");
     display.println("no setup file");
+    return 0;
   }
- return;	
+ return 1;	
 }
 
 

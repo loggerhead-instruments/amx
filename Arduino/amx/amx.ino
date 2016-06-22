@@ -121,6 +121,7 @@ boolean pressureFlag = 0;
 boolean audioFlag = 1;
 boolean CAMON = 0;
 
+byte pressure_sensor; //0=none, 1=MS5802, 2=Keller PA7LD
 float pressure_period = 1.0;
 float imu_period = 0.1;
 float audio_srate = 44100.0;
@@ -289,13 +290,13 @@ void setup() {
   digitalWrite(ledWhite, LOW);
 
   // Check for external USB connection to microSD
-  while(1){
+  while(digitalRead(usbSense)){
     display.println("USB <->");
-    Serial.println(digitalRead(usbSense));
     display.display();
     delay(1000);
   }
-  digitalWrite(SDSW, LOW); 
+  
+  digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
   delay(200);
   // Initialize the SD card
   SPI.setMOSI(7);
@@ -306,7 +307,7 @@ void setup() {
     
     while (1) {
       cDisplay();
-      display.println("SD error");
+      display.println("SD error. Restart.");
       displayClock(getTeensy3Time(), BOTTOM);
       display.display();
       delay(1000);
@@ -318,10 +319,10 @@ void setup() {
   mpuInit(1);
   islInit(); // RGB light sensor
   pressInit();
+   
+  if (!LoadScript())  // if no script file, go to manual settings
+      manualSettings();
   
-  //LoadScript();
-
-  manualSettings();
   cDisplay();
   
   t = getTeensy3Time();
@@ -547,6 +548,9 @@ void stopRecording() {
 void FileInit()
 {
    t = getTeensy3Time();
+
+   // only audio save as wav file, otherwise save as AMX file
+   
    // open file 
    sprintf(filename,"%02d%02d%02d%02d.wav",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
@@ -1089,31 +1093,31 @@ void pollGyro(){
     Serial.print(islGreen); Serial.print("\t");
     Serial.println(islBlue); 
 
-/*
-    kellerRead();
-    kellerConvert();  // start conversion for next reading
-*/
-
-    // MS5803
-    if(togglePress){
-      readPress();
-      updateTemp();
-      togglePress = 0;
+    // MS5803 pressure and temperature
+    if (pressure_sensor==1){
+      if(togglePress){
+        readPress();
+        updateTemp();
+        togglePress = 0;
+      }
+      else{
+        readTemp();
+        updatePress();
+        togglePress = 1;
+      }
+      calcPressTemp();
     }
-    else{
-      readTemp();
-      updatePress();
-      togglePress = 1;
-    }
-    calcPressTemp();
 
+    // Keller PA7LD pressure and temperature
+    if (pressure_sensor==2){
+      kellerRead();
+      kellerConvert();  // start conversion for next reading
+      calcPressTemp();
+    }
     
     Serial.print("Depth/Temp: "); Serial.print("\t");
     Serial.print(depth); Serial.print("\t");
     Serial.println(temperature);
-
-
-    
     
   // Write data buffer
 //  digitalWrite(LED_GRN,HIGH);
