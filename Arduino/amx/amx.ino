@@ -21,8 +21,11 @@
  * -Keller Pressure sensor
  * -RGB light sensor
  * 
+ * scan for available sensors
+ * 
  * burn wire 1 & 2
  * play sound
+ *
  * 
  * UTC and timezone time stamps
  * 
@@ -52,7 +55,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 unsigned long baud = 115200;
 
@@ -77,19 +80,18 @@ const int myInput = AUDIO_INPUT_LINEIN;
 // Pin Assignments
 const int CAM_POW = 1;
 const int hydroPowPin = 2;
-// OpenCam
-//const int UP = 2;
-//const int DOWN = 3;
-//const int SELECT = 6;
-//const int reset_pin = 4;
 
 // AMX
 const int UP = 4;
-const int DOWN = 5;
+const int DOWN = 3;
 const int SELECT = 8;
 const int displayPow = 20;
-const int LED_green = 17;
-const int LED_red = 16;
+const int ledGreen = 17;
+const int ledRed = 16;
+const int BURN1 = 3;
+const int SDSW = 0;
+const int ledWhite = 21;
+const int usbSense = 6;
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -200,20 +202,27 @@ uint16_t TEMPSENS; //Temperature sensitivity coefficient
 
 void setup() {
   Serial.begin(baud);
-  delay(1000);
+  delay(500);
   Wire.begin();
 
   pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
-  pinMode(LED_green, OUTPUT);
-  pinMode(LED_red, OUTPUT);
-  
+  pinMode(ledGreen, OUTPUT);
+  pinMode(ledRed, OUTPUT);
+  pinMode(BURN1, OUTPUT);
+  pinMode(ledWhite, OUTPUT);
+  pinMode(SDSW, OUTPUT);
+  pinMode(usbSense, INPUT);
+
+  digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(CAM_POW,  LOW);
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);
-  digitalWrite(LED_green, LOW);
-  digitalWrite(LED_red, LOW);
+  digitalWrite(ledGreen, LOW);
+  digitalWrite(ledRed, LOW);
+  digitalWrite(BURN1, LOW);
+  digitalWrite(ledWhite, HIGH);
 
   //setup display and controls
   pinMode(UP, INPUT);
@@ -223,15 +232,45 @@ void setup() {
   digitalWrite(DOWN, HIGH);
   digitalWrite(SELECT, HIGH);
 
-  // Audio connections require memory, and the record queue
-  // uses this memory to buffer incoming audio.
-  AudioMemory(150);
-  AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
-  delay(1000);
+  delay(500);
+
+  // an attempt to run MCLK to reset audio chip
+  // enable MCLK output
+  #if F_CPU == 96000000 || F_CPU == 48000000 || F_CPU == 24000000
+  // PLL is at 96 MHz in these modes
+    #define MCLK_MULT 2
+    #define MCLK_DIV  17
+  #elif F_CPU == 72000000
+    #define MCLK_MULT 8
+    #define MCLK_DIV  51
+  #elif F_CPU == 120000000
+    #define MCLK_MULT 8
+    #define MCLK_DIV  85
+  #elif F_CPU == 144000000
+    #define MCLK_MULT 4
+    #define MCLK_DIV  51
+  #elif F_CPU == 168000000
+    #define MCLK_MULT 8
+    #define MCLK_DIV  119
+  #elif F_CPU == 16000000
+    #define MCLK_MULT 12
+    #define MCLK_DIV  17
+  #else
+    #error "This CPU Clock Speed is not supported by the Audio library";
+  #endif
   
-  mpuInit(1);
-  islInit(); // RGB light sensor
-  pressInit();
+  #if F_CPU >= 20000000
+    #define MCLK_SRC  3  // the PLL
+  #else
+    #define MCLK_SRC  0  // system clock
+  #endif
+
+  I2S0_MCR = I2S_MCR_MICS(MCLK_SRC) | I2S_MCR_MOE;
+  I2S0_MDR = I2S_MDR_FRACT((MCLK_MULT-1)) | I2S_MDR_DIVIDE((MCLK_DIV-1));
+  delay(10);
+  I2S0_MCR = I2S_MCR_MICS(0);
+  I2S0_MDR = 0;
+  delay(100);      
 
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   t = getTeensy3Time();
@@ -240,12 +279,24 @@ void setup() {
   stopTime = startTime + rec_dur;
 
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+  delay(100);
   cDisplay();
   display.println("Loggerhead");
   Serial.println("Loggerhead");
   display.display();
-  delay(1000);
+  delay(500);
 
+  digitalWrite(ledWhite, LOW);
+
+  // Check for external USB connection to microSD
+  while(1){
+    display.println("USB <->");
+    Serial.println(digitalRead(usbSense));
+    display.display();
+    delay(1000);
+  }
+  digitalWrite(SDSW, LOW); 
+  delay(200);
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
@@ -263,6 +314,11 @@ void setup() {
   }
   SdFile::dateTimeCallback(file_date_time);
 
+  kellerInit();  
+  mpuInit(1);
+  islInit(); // RGB light sensor
+  pressInit();
+  
   //LoadScript();
 
   manualSettings();
@@ -331,7 +387,11 @@ void setup() {
       digitalWrite(displayPow, HIGH);
       display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display   
   }
-        
+  // Audio connections require memory, and the record queue
+  // uses this memory to buffer incoming audio.
+  AudioMemory(150);
+  AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
+  
   digitalWrite(hydroPowPin, HIGH);
   cam_wake();
   mode = 0;
@@ -449,14 +509,14 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
-    digitalWrite(LED_green, HIGH);
+    digitalWrite(ledGreen, HIGH);
     memcpy(buffer, queue1.readBuffer(), 256);
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
     queue1.freeBuffer();
     frec.write(buffer, 512);
     buf_count += 1;
-    digitalWrite(LED_green, LOW);
+    digitalWrite(ledGreen, LOW);
     pollGyro();
   }
 }
@@ -543,7 +603,8 @@ void cam_wake() {
 void cam_start() {
   digitalWrite(CAM_POW, HIGH);
   delay(500);  // simulate Flywire button press
-  digitalWrite(CAM_POW, LOW);          
+  digitalWrite(CAM_POW, LOW);  
+  digitalWrite(ledWhite, HIGH);        
 }
 
 void cam_off() {
@@ -551,6 +612,7 @@ void cam_off() {
   delay(3000); //power down camera (if still on)
   digitalWrite(CAM_POW, LOW);           
   CAMON=0;
+  digitalWrite(ledWhite, LOW);
 }
 
 void AudioInit(){
@@ -1027,7 +1089,12 @@ void pollGyro(){
     Serial.print(islGreen); Serial.print("\t");
     Serial.println(islBlue); 
 
+/*
+    kellerRead();
+    kellerConvert();  // start conversion for next reading
+*/
 
+    // MS5803
     if(togglePress){
       readPress();
       updateTemp();
@@ -1038,8 +1105,9 @@ void pollGyro(){
       updatePress();
       togglePress = 1;
     }
-    
     calcPressTemp();
+
+    
     Serial.print("Depth/Temp: "); Serial.print("\t");
     Serial.print(depth); Serial.print("\t");
     Serial.println(temperature);
