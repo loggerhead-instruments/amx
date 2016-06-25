@@ -133,7 +133,7 @@ void Read_Gyro(int numbytestoread)
   }
 }
 
-int getGyroFIFO()
+int getImuFifo()
 {
  int fifopts; 
   // read FIFO size

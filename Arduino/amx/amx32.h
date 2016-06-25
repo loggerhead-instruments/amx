@@ -5,7 +5,12 @@
 #define DFORM_I24 3
 #define DFORM_SHORT 2
 #define DFORM_FLOAT32 5
-#define SID_MAX 4
+#define SID_MAX 5
+#define SENSOR_MAX 5
+
+#define RAW_SID 0
+#define HISTOGRAM_SID 1
+#define STR_MAX 9
 
 struct TIME_HEAD
 {
@@ -20,10 +25,10 @@ struct TIME_HEAD
 };
 
 struct SENSOR{
-    char chipName[10]; // name of sensor e.g. MPU9250
+    char chipName[STR_MAX]; // name of sensor e.g. MPU9250
     ULONG nChan;       //number of channels used (e.g. MPU9250 might have 9 for accel, mag, and gyro)
-    char name[12][10]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
-    char units[12][10];// units of each channel (e.g. g, mGauss, degPerSec)
+    char name[12][STR_MAX]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
+    char units[12][STR_MAX];// units of each channel (e.g. g, mGauss, degPerSec)
     float cal[12];     //calibration coefficient for each channel when multiplied by this value get data in specified units
 };
 
@@ -36,13 +41,12 @@ struct DF_HEAD
 
 struct SID_SPEC
 {
-	ULONG	SID;
+	char	SID[STR_MAX];
+    unsigned int sidType; // 0 = raw, 1 = summary  histogram
 	ULONG 	nBytes;	  // Size in bytes of this record (excluding header)
-	ULONG	numChan;  // Number of expected channels in store
 	SENSOR  sensor;	  // used to encode what data are saved: bitmask bit (accel3, mag3, gyro3, press, temperature, mic)
 	ULONG	dForm;	  // short, long, or I24
-	ULONG	period;	  // Sample period us
-	ULONG 	recPts;   // Number of points per channel per sid_rec buffer
+	float	srate;	  // Sample rate (Hz)
 };
 
 struct SID_REC

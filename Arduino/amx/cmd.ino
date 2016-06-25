@@ -27,28 +27,43 @@ int ProcCmd(char *pCmd)
 		case ('I' + ('M'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
-      imu_period = lv1;
+      imu_srate = lv1;
+      fileType = 1;
+      imuFlag = 1;
       break;
     }
 
     // Keller Pressure and Temperature
     case ('K' + ('P'<<8)):
     {
-      sscanf(&pCmd[3],"%d",&lv1);
-      pressure_period = lv1;
       pressure_sensor = 2;
+      fileType = 1;
       break;
     }
 
     // Measurement Specialities Pressure and Temperature
     case ('M' + ('P'<<8)):
     {
-      sscanf(&pCmd[3],"%d",&lv1);
-      pressure_period = lv1;
       pressure_sensor = 1;
+      fileType = 1;
+      break;
+    }
+
+    // RGB light sensor setup
+    case ('L' + ('T'<<8)):
+    {
+      rgbFlag = 1;
+      fileType = 1;
       break;
     }
     
+    // Disable LEDS
+    case ('L' + ('D'<<8)):
+    {
+        LEDSON=0;
+        break;
+    }
+
 		// Set of Real Time Clock
 		case ('T' + ('M'<<8)):
 		{

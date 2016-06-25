@@ -26,6 +26,10 @@
  * burn wire 1 & 2
  * play sound
  *
+ * reset function
+ * 
+ * hydorphone sensitivity + gain to set sensor.cal for audio
+ * allow setting of gyro and accelerometer range and update sidSpec calibrations
  * 
  * UTC and timezone time stamps
  * 
@@ -41,12 +45,13 @@
 #include <Wire.h>
 #include <SPI.h>
 //#include <SdFat.h>
-#include <datafile32.h>
+#include "amx32.h"
 #include <Snooze.h>
 #include <TimeLib.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
+#include <TimerOne.h>
 
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
@@ -117,15 +122,17 @@ time_t t;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 0;
-boolean pressureFlag = 0;
+boolean rgbFlag = 0;
+byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD
 boolean audioFlag = 1;
 boolean CAMON = 0;
+boolean LEDSON=1;
+boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
+byte fileType = 0; //0=wav, 1=amx
 
-byte pressure_sensor; //0=none, 1=MS5802, 2=Keller PA7LD
-float pressure_period = 1.0;
-float imu_period = 0.1;
+float sensor_srate = 1.0;
+float imu_srate = 100.0;
 float audio_srate = 44100.0;
-float audio_period = 1/audio_srate;
 
 int recMode = MODE_NORMAL;
 long rec_dur = 60;
@@ -165,12 +172,18 @@ HdrStruct wav_hdr;
 unsigned int rms;
 float hydroCal = -164;
 
+// Header for amx files
+DF_HEAD dfh;
+SID_SPEC sidSpec[SID_MAX];
+SID_REC sidRec[SID_MAX];
+SENSOR sensor[SENSOR_MAX]; //structure to hold sensor specifications. e.g. MPU9250, MS5803, PA47LD, ISL29125
+
 unsigned char prev_dtr = 0;
 
 // IMU
 int FIFOpts;
 #define BUFFERSIZE 140 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
-byte buffer[BUFFERSIZE]; //Double buffer used to store IMU sensor data before writes in bytes
+byte buffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
@@ -201,7 +214,28 @@ uint16_t TCOFF; //Temp coefficient of pressure offset
 uint16_t TREF;  //Ref temperature
 uint16_t TEMPSENS; //Temperature sensitivity coefficient
 
+// Pressure, Temp double buffer
+#define PTBUFFERSIZE 40
+float PTbuffer[PTBUFFERSIZE];
+byte time2writePT=0; 
+int ptCounter = 0;
+volatile byte bufferposPT=0;
+byte halfbufPT = PTBUFFERSIZE/2;
+boolean firstwrittenPT;
+
+// RGB buffer
+#define RGBBUFFERSIZE 60
+unsigned short RGBbuffer[PTBUFFERSIZE];
+byte time2writeRGB=0; 
+int RGBCounter = 0;
+volatile byte bufferposRGB=0;
+byte halfbufRGB = RGBBUFFERSIZE/2;
+boolean firstwrittenRGB;
+
 void setup() {
+  dfh.Version = 1000;
+  dfh.UserID = 5555;
+
   Serial.begin(baud);
   delay(500);
   Wire.begin();
@@ -314,14 +348,16 @@ void setup() {
     }
   }
   SdFile::dateTimeCallback(file_date_time);
+   
+  if (!LoadScript())  // if no script file, go to manual settings
+      manualSettings();
 
+  setupDataStructures();
+  
   kellerInit();  
   mpuInit(1);
   islInit(); // RGB light sensor
   pressInit();
-   
-  if (!LoadScript())  // if no script file, go to manual settings
-      manualSettings();
   
   cDisplay();
   
@@ -396,6 +432,8 @@ void setup() {
   digitalWrite(hydroPowPin, HIGH);
   cam_wake();
   mode = 0;
+
+  if (fileType) Timer1.initialize(100000); // initialize with 100 ms period
 }
 
 //
@@ -445,7 +483,44 @@ void loop() {
   
   // Record mode
   if (mode == 1) {
-    continueRecording();  // download data
+    continueRecording();  // download data  
+
+    // write Pressure & Temperature to file
+    if(time2writePT==1)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT)==-1) resetFunc(); 
+      time2writePT=0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+    }
+    if(time2writePT==2)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT)==-1) resetFunc();     
+      time2writePT=0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+    }   
+
+    // write RGB values to file
+    if(time2writeRGB==1)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
+      time2writeRGB = 0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+    }
+    if(time2writeRGB==2)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
+      time2writeRGB=0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+    } 
+      
     if(buf_count >= nbufs_per_file){       // time to stop?
       stopRecording();
 
@@ -493,6 +568,7 @@ void startRecording() {
   Serial.println("startRecording");
   FileInit();
   resetGyroFIFO();
+  if (fileType) Timer1.attachInterrupt(sampleSensors);
   if (frec) {
     buf_count = 0;
     queue1.begin();
@@ -518,7 +594,10 @@ void continueRecording() {
     frec.write(buffer, 512);
     buf_count += 1;
     digitalWrite(ledGreen, LOW);
-    pollGyro();
+  }
+  if (pollImu()){
+    //write data block
+    
   }
 }
 
@@ -536,6 +615,10 @@ void stopRecording() {
     queue1.freeBuffer();
   }
   AudioMemoryUsageMaxReset();
+  if (fileType) Timer1.detachInterrupt();
+
+  // to do: add flush for PTbuffer and Gyro
+  
   //frec.timestamp(T_WRITE,(uint16_t) year(t),month(t),day(t),hour(t),minute(t),second);
   frec.close();
   delay(100);
@@ -543,6 +626,171 @@ void stopRecording() {
   //Serial.println(rms);
   digitalWrite(hydroPowPin, LOW);
 }
+
+// increment PTbuffer position by 1 sample. This does not check for overflow, because collected at a slow rate
+void incrementPTbufpos(){
+  bufferposPT++;
+   if(bufferposPT==PTBUFFERSIZE)
+   {
+     bufferposPT=0;
+     time2writePT=2;  // set flag to write second half
+     firstwrittenPT=0; 
+   }
+ 
+  if((bufferposPT>=halfbufPT) & !firstwrittenPT)  //at end of first buffer
+  {
+    time2writePT=1; 
+    firstwrittenPT=1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
+
+void incrementRGBbufpos(){
+  bufferposRGB++;
+   if(bufferposRGB==RGBBUFFERSIZE)
+   {
+     bufferposRGB = 0;
+     time2writeRGB= 2;  // set flag to write second half
+     firstwrittenRGB = 0; 
+   }
+ 
+  if((bufferposPT>=halfbufRGB) & !firstwrittenRGB)  //at end of first buffer
+  {
+    time2writeRGB = 1; 
+    firstwrittenRGB = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
+
+void setupDataStructures(void){
+  // setup sidSpec and sidSpec buffers...hard coded for now
+  
+  // audio
+  strncpy(sensor[0].chipName, "SGTL5000", STR_MAX);
+  sensor[0].nChan = 1;
+  strncpy(sensor[0].name[0], "audio1", STR_MAX);
+  strncpy(sensor[0].name[1], "audio2", STR_MAX);
+  strncpy(sensor[0].name[2], "audio3", STR_MAX);
+  strncpy(sensor[0].name[3], "audio4", STR_MAX);
+  strncpy(sensor[0].units[0], "Pa", STR_MAX);
+  strncpy(sensor[0].units[1], "Pa", STR_MAX);
+  strncpy(sensor[0].units[2], "Pa", STR_MAX);
+  strncpy(sensor[0].units[3], "Pa", STR_MAX);
+  sensor[0].cal[0] = 1.0; // this needs to be set based on hydrophone sensitivity + chip gain
+  sensor[0].cal[1] = 1.0;
+  sensor[0].cal[2] = 1.0;
+  sensor[0].cal[3] = 1.0;
+
+  // Pressure/Temperature
+  if(pressure_sensor == 1) {
+    strncpy(sensor[1].chipName, "MS5803", STR_MAX);
+    sensor[1].nChan = 2;
+    strncpy(sensor[1].name[0], "pressure", STR_MAX);
+    strncpy(sensor[1].name[1], "temp", STR_MAX);
+    strncpy(sensor[1].units[0], "mBar", STR_MAX);
+    strncpy(sensor[1].units[1], "degreesC", STR_MAX);
+    sensor[1].cal[0] = 1.0;
+    sensor[1].cal[1] = 1.0;
+  }
+  else{
+    strncpy(sensor[1].chipName, "PA7LD", STR_MAX);
+    sensor[1].nChan = 2;
+    strncpy(sensor[1].name[0], "pressure", STR_MAX);
+    strncpy(sensor[1].name[1], "temp", STR_MAX);
+    strncpy(sensor[1].units[0], "mBar", STR_MAX);
+    strncpy(sensor[1].units[1], "degreesC", STR_MAX);
+    sensor[1].cal[0] = 1.0;
+    sensor[1].cal[1] = 1.0;
+  }
+
+  
+  // RGB light
+  strncpy(sensor[2].chipName, "ISL29125", STR_MAX);
+  sensor[2].nChan = 3;
+  strncpy(sensor[2].name[0], "red", STR_MAX);
+  strncpy(sensor[2].name[1], "green", STR_MAX);
+  strncpy(sensor[2].name[2], "blue", STR_MAX);
+  strncpy(sensor[2].units[0], "uWpercm2", STR_MAX);
+  strncpy(sensor[2].units[1], "uWpercm2", STR_MAX);
+  strncpy(sensor[2].units[2], "uWpercm2", STR_MAX);
+  sensor[2].cal[0] = 20.0 / 65536.0;
+  sensor[2].cal[1] = 18.0 / 65536.0;
+  sensor[2].cal[2] = 30.0 / 65536.0;
+
+
+  // IMU
+  strncpy(sensor[3].chipName, "MPU9250", STR_MAX);
+  sensor[3].nChan = 10;
+  strncpy(sensor[3].name[0], "accelX", STR_MAX);
+  strncpy(sensor[3].name[1], "accelY", STR_MAX);
+  strncpy(sensor[3].name[2], "accelZ", STR_MAX);
+  strncpy(sensor[3].name[3], "temp-21C", STR_MAX);
+  strncpy(sensor[3].name[4], "gyroX", STR_MAX);
+  strncpy(sensor[3].name[5], "gyroY", STR_MAX);
+  strncpy(sensor[3].name[6], "gyroZ", STR_MAX);
+  strncpy(sensor[3].name[7], "magX", STR_MAX);
+  strncpy(sensor[3].name[8], "magY", STR_MAX);
+  strncpy(sensor[3].name[9], "magZ", STR_MAX);
+  strncpy(sensor[3].units[0], "g", STR_MAX);
+  strncpy(sensor[3].units[1], "g", STR_MAX);
+  strncpy(sensor[3].units[2], "g", STR_MAX);
+  strncpy(sensor[3].units[3], "degreesC", STR_MAX);
+  strncpy(sensor[3].units[4], "degPerS", STR_MAX);
+  strncpy(sensor[3].units[5], "degPerS", STR_MAX);
+  strncpy(sensor[3].units[6], "degPerS", STR_MAX);
+  strncpy(sensor[3].units[7], "uT", STR_MAX);
+  strncpy(sensor[3].units[8], "uT", STR_MAX);
+  strncpy(sensor[3].units[9], "uT", STR_MAX);
+  
+  float accelFullRange = 16.0; //ACCEL_FS_SEL 2g(00), 4g(01), 8g(10), 16g(11)
+  int gyroFullRange = 1000.0;  // FS_SEL 250deg/s (0), 500 (1), 1000(2), 2000 (3)
+  int magFullRange = 4800.0;  // fixed
+  
+  sensor[3].cal[0] = accelFullRange / 32768.0;
+  sensor[3].cal[1] = accelFullRange / 32768.0;
+  sensor[3].cal[2] = accelFullRange / 32768.0;
+  sensor[3].cal[3] = 1.0 / 337.87;
+  sensor[3].cal[4] = gyroFullRange / 32768.0;
+  sensor[3].cal[5] = gyroFullRange / 32768.0;
+  sensor[3].cal[6] = gyroFullRange / 32768.0;
+  sensor[3].cal[7] = magFullRange / 32768.0;
+  sensor[3].cal[8] = magFullRange / 32768.0;
+  sensor[3].cal[9] = magFullRange / 32768.0;
+}
+
+
+int addSid(int i, char* sid,  unsigned int sidType, unsigned long nElements, SENSOR sensor, unsigned long dForm, float srate)
+{
+  unsigned long nBytes;
+//  memcpy(&_sid, sid, 5);
+//
+//  memset(&sidSpec[i], 0, sizeof(SID_SPEC));
+//        nBytes<<1;  //multiply by two because halfbuf
+
+  switch(dForm)
+  {
+    case DFORM_SHORT:
+      nBytes == nElements * 2;
+      break;            
+    case DFORM_LONG:
+      nBytes == nElements * 4;  //32 bit values
+      break;            
+    case DFORM_I24:
+      nBytes == nElements * 3;  //24 bit values
+      break;
+    case DFORM_FLOAT32:
+      nBytes == nElements * 4;
+      break;
+  }
+
+  strncpy(sidSpec[i].SID, sid, STR_MAX);
+  sidSpec[i].sidType = sidType;
+  sidSpec[i].nBytes = nBytes;
+  sidSpec[i].dForm = dForm;
+  sidSpec[i].srate = srate;
+  sidSpec[i].sensor = sensor;  
+  
+  if(frec.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
+}
+
 
 
 void FileInit()
@@ -552,39 +800,62 @@ void FileInit()
    // only audio save as wav file, otherwise save as AMX file
    
    // open file 
-   sprintf(filename,"%02d%02d%02d%02d.wav",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+   if(fileType==0)
+      sprintf(filename,"%02d%02d%02d%02d.wav",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+    else
+      sprintf(filename,"%02d%02d%02d%02d.amx",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+    
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
    Serial.println(filename);
    delay(100);
    
    while (!frec){
     file_count += 1;
-    sprintf(filename,"F%06d.wav",file_count); //if can't open just use count
+    if(fileType==0)
+      sprintf(filename,"F%06d.wav",file_count); //if can't open just use count
+      else
+      sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
     frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
     Serial.println(filename);
     delay(10);
    }
-  
-  //intialize .wav file header
-  sprintf(wav_hdr.rId,"RIFF");
-  wav_hdr.rLen=36;
-  sprintf(wav_hdr.wId,"WAVE");
-  sprintf(wav_hdr.fId,"fmt ");
-  wav_hdr.fLen=0x10;
-  wav_hdr.nFormatTag=1;
-  wav_hdr.nChannels=1;
-  wav_hdr.nSamplesPerSec=audio_srate;
-  wav_hdr.nAvgBytesPerSec=audio_srate*2;
-  wav_hdr.nBlockAlign=2;
-  wav_hdr.nBitsPerSamples=16;
-  sprintf(wav_hdr.dId,"data");
-  wav_hdr.rLen = 36 + nbufs_per_file * 256 * 2;
-  wav_hdr.dLen = nbufs_per_file * 256 * 2;
-  t = getTeensy3Time();
 
-  frec.write((uint8_t *)&wav_hdr,44);
-  Serial.print("Buffers: ");
-  Serial.println(nbufs_per_file);
+  if(fileType==0){
+      //intialize .wav file header
+      sprintf(wav_hdr.rId,"RIFF");
+      wav_hdr.rLen=36;
+      sprintf(wav_hdr.wId,"WAVE");
+      sprintf(wav_hdr.fId,"fmt ");
+      wav_hdr.fLen=0x10;
+      wav_hdr.nFormatTag=1;
+      wav_hdr.nChannels=1;
+      wav_hdr.nSamplesPerSec=audio_srate;
+      wav_hdr.nAvgBytesPerSec=audio_srate*2;
+      wav_hdr.nBlockAlign=2;
+      wav_hdr.nBitsPerSamples=16;
+      sprintf(wav_hdr.dId,"data");
+      wav_hdr.rLen = 36 + nbufs_per_file * 256 * 2;
+      wav_hdr.dLen = nbufs_per_file * 256 * 2;
+      t = getTeensy3Time();
+    
+      frec.write((uint8_t *)&wav_hdr, 44);
+      Serial.print("Buffers: ");
+      Serial.println(nbufs_per_file);
+  }
+
+  //amx file header
+  if(fileType==1){
+    // write DF_HEAD
+    frec.write((uint8_t *) &dfh, sizeof(dfh));
+    
+    // write SID_SPEC depending on sensors chosen
+    addSid(0, "AUDIO", RAW_SID, 512, sensor[0], DFORM_SHORT, audio_srate);
+    if (pressure_sensor>0) addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
+    if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB, sensor[2], DFORM_SHORT, sensor_srate);
+    if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE, sensor[3], DFORM_SHORT, imu_srate);
+    addSid(4, "END", 0, 0, sensor[4], 0, 0);
+  }
+
 }
 
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
@@ -730,335 +1001,67 @@ unsigned long RTCToUNIXTime(TIME_HEAD *tm){
     return Ticks;
 }
 
-
-
-
-/* DISPLAY FUNCTIONS
- *  
- */
-void printDigits(int digits){
-  // utility function for digital clock display: prints preceding colon and leading 0
-  display.print(":");
-  printZero(digits);
-  display.print(digits);
-}
-
-void printZero(int val){
-  if(val<10) display.print('0');
-}
-
-#define noSet 0
-#define setRecDur 1
-#define setRecSleep 2
-#define setYear 3
-#define setMonth 4
-#define setDay 5
-#define setHour 6
-#define setMinute 7
-#define setSecond 8
-#define setMode 9
-#define setStartHour 10
-#define setStartMinute 11
-#define setEndHour 12
-#define setEndMinute 13
-
-void manualSettings(){
-  boolean startRec = 0, startUp, startDown;
-  readEEPROM();
-  
-  // make sure settings valid (if EEPROM corrupted or not set yet)
-  if (rec_dur < 0 | rec_dur>100000) rec_dur = 60;
-  if (rec_int<0 | rec_int>100000) rec_int = 60;
-  if (startHour<0 | startHour>23) startHour = 0;
-  if (startMinute<0 | startMinute>59) startMinute = 0;
-  if (endHour<0 | endHour>23) endHour = 0;
-  if (endMinute<0 | endMinute>59) endMinute = 0;
-  if (recMode<0 | recMode>1) recMode = 0;
-  
-  while(startRec==0){
-    static int curSetting = noSet;
-    static int newYear, newMonth, newDay, newHour, newMinute, newSecond, oldYear, oldMonth, oldDay, oldHour, oldMinute, oldSecond;
+void sampleSensors(void){  //interrupt at 10 Hz
+  ptCounter++;
     
-    // Check for mode change
-    boolean selectVal = digitalRead(SELECT);
-    if(selectVal==0){
-      curSetting += 1;
-      if((recMode==MODE_NORMAL & curSetting>9) | (recMode==MODE_DIEL & curSetting>13)) curSetting = 0;
-    }
-
-    cDisplay();
-
-    t = getTeensy3Time();
-    switch (curSetting){
-      case noSet:
-        if (settingsChanged) {
-          writeEEPROM();
-          settingsChanged = 0;
+  if(ptCounter>=(1.0 / sensor_srate) / 0.1){
+      ptCounter = 0;
+      if (rgbFlag){
+        islRead();  
+        RGBbuffer[bufferposRGB]=islRed;
+        incrementPTbufpos();
+        RGBbuffer[bufferposRGB]=islGreen;
+        incrementRGBbufpos();
+        RGBbuffer[bufferposRGB]=islBlue;
+        incrementRGBbufpos();
+        // Serial.print("RGB:");Serial.print("\t");
+        //Serial.print(islRed); Serial.print("\t");
+        //Serial.print(islGreen); Serial.print("\t");
+        //Serial.println(islBlue); 
+      }
+      
+      // MS5803 pressure and temperature
+      if (pressure_sensor==1){
+        if(togglePress){
+          readPress();
+          updateTemp();
+          togglePress = 0;
         }
-        display.print("UP+DN->Rec"); 
-        // Check for start recording
-        startUp = digitalRead(UP);
-        startDown = digitalRead(DOWN);
-        if(startUp==0 & startDown==0) {
-          cDisplay();
-          writeEEPROM(); //save settings
-          display.print("Starting..");
-          display.display();
-          delay(1500);
-          startRec = 1;  //start recording
+        else{
+          readTemp();
+          updatePress();
+          togglePress = 1;
         }
-        break;
-      case setRecDur:
-        rec_dur = updateVal(rec_dur, 1, 3600);
-        display.print("Rec:");
-        display.print(rec_dur);
-        display.println("s");
-        break;
-      case setRecSleep:
-        rec_int = updateVal(rec_int, 0, 3600 * 24);
-        display.print("Slp:");
-        display.print(rec_int);
-        display.println("s");
-        break;
-      case setYear:
-        oldYear = year(t);
-        newYear = updateVal(oldYear,2000, 2100);
-        if(oldYear!=newYear) setTeensyTime(hour(t), minute(t), second(t), day(t), month(t), newYear);
-        display.print("Year:");
-        display.print(year(getTeensy3Time()));
-        break;
-      case setMonth:
-        oldMonth = month(t);
-        newMonth = updateVal(oldMonth, 1, 12);
-        if(oldMonth != newMonth) setTeensyTime(hour(t), minute(t), second(t), day(t), newMonth, year(t));
-        display.print("Month:");
-        display.print(month(getTeensy3Time()));
-        break;
-      case setDay:
-        oldDay = day(t);
-        newDay = updateVal(oldDay, 1, 31);
-        if(oldDay!=newDay) setTeensyTime(hour(t), minute(t), second(t), newDay, month(t), year(t));
-        display.print("Day:");
-        display.print(day(getTeensy3Time()));
-        break;
-      case setHour:
-        oldHour = hour(t);
-        newHour = updateVal(oldHour, 0, 23);
-        if(oldHour!=newHour) setTeensyTime(newHour, minute(t), second(t), day(t), month(t), year(t));
-        display.print("Hour:");
-        display.print(hour(getTeensy3Time()));
-        break;
-      case setMinute:
-        oldMinute = minute(t);
-        newMinute = updateVal(oldMinute, 0, 59);
-        if(oldMinute!=newMinute) setTeensyTime(hour(t), newMinute, second(t), day(t), month(t), year(t));
-        display.print("Minute:");
-        display.print(minute(getTeensy3Time()));
-        break;
-      case setSecond:
-        oldSecond = second(t);
-        newSecond = updateVal(oldSecond, 0, 59);
-        if(oldSecond!=newSecond) setTeensyTime(hour(t), minute(t), newSecond, day(t), month(t), year(t));
-        display.print("Second:");
-        display.print(second(getTeensy3Time()));
-        break;
-      case setMode:
-        display.print("Mode:");
-        recMode = updateVal(recMode, 0, 1);
-        if (recMode==MODE_NORMAL)  display.print("Norm");
-        if (recMode==MODE_DIEL) display.print("Diel");
-        break;
-      case setStartHour:
-        startHour = updateVal(startHour, 0, 23);
-        display.print("Strt HH:");
-        printZero(startHour);
-        display.print(startHour);
-        break;
-      case setStartMinute:
-        startMinute = updateVal(startMinute, 0, 59);
-        display.print("Strt MM:");
-        printZero(startMinute);
-        display.print(startMinute);
-        break;
-      case setEndHour:
-        endHour = updateVal(endHour, 0, 23);
-        display.print("End HH:");
-        printZero(endHour);
-        display.print(endHour);
-        break;
-      case setEndMinute:
-        endMinute = updateVal(endMinute, 0, 59);
-        display.print("End MM:");
-        printZero(endMinute);
-        display.print(endMinute);
-        break;
-    }
-    displaySettings();
-    displayClock(getTeensy3Time(), BOTTOM);
-    display.display();
-    delay(200);
-  }
-}
-
-void setTeensyTime(int hr, int mn, int sc, int dy, int mh, int yr){
-  tmElements_t tm;
-  tm.Year = yr - 1970;
-  tm.Month = mh;
-  tm.Day = dy;
-  tm.Hour = hr;
-  tm.Minute = mn;
-  tm.Second = sc;
-  time_t newtime;
-  newtime = makeTime(tm); 
-  Teensy3Clock.set(newtime); 
-}
+        calcPressTemp();    
+        PTbuffer[bufferposPT]=depth;
+        incrementPTbufpos();
+        PTbuffer[bufferposPT]=temperature;
+        incrementPTbufpos();
+        //Serial.print("Depth/Temp: "); Serial.print("\t");
+        //Serial.print(depth); Serial.print("\t");
+        //Serial.println(temperature);
+      }
   
-int updateVal(long curVal, long minVal, long maxVal){
-  boolean upVal = digitalRead(UP);
-  boolean downVal = digitalRead(DOWN);
-  static int heldDown = 0;
-  static int heldUp = 0;
-  if(upVal==0){
-    settingsChanged = 1;
-      if (heldUp > 10) {
-        curVal += 10;
-        if (heldUp > 20) curVal += 90;
+      // Keller PA7LD pressure and temperature
+      if (pressure_sensor==2){
+        kellerRead();
+        kellerConvert();  // start conversion for next reading
+        calcPressTemp();
+//        Serial.print("Depth/Temp: "); Serial.print("\t");
+//        Serial.print(depth); Serial.print("\t");
+//        Serial.println(temperature);
       }
-      else curVal += 1;
-      heldUp += 1;
-    }
-    else heldUp = 0;
-    
-    if(downVal==0){
-      settingsChanged = 1;
-      if (heldDown > 10) {
-        curVal -= 10;
-        if (heldDown > 20) curVal -= 90;
-      }
-      else
-        curVal -= 1;
-      heldDown += 1;
-    }
-    else heldDown = 0;
-
-    if (curVal < minVal) curVal = maxVal;
-    if (curVal > maxVal) curVal = minVal;
-    return curVal;
-}
-
-void cDisplay(){
-    display.clearDisplay();
-    display.setTextColor(WHITE);
-    display.setTextSize(2);
-    display.setCursor(0,0);
-}
-
-void displaySettings(){
-  //t = Teensy3Clock.get();
-  t = getTeensy3Time();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 18);
-  display.print("Mode:");
-  if (recMode==MODE_NORMAL) display.println("Normal");
-  if (recMode==MODE_DIEL) {
-    display.println("Diel");
-  }
-  display.print("Rec:");
-  display.print(rec_dur);
-  display.println("s");
-  display.print("Sleep:");
-  display.print(rec_int);
-  display.println("s");
-  if (recMode==MODE_DIEL) {
-    display.print("Active: ");
-    printZero(startHour);
-    display.print(startHour);
-    printDigits(startMinute);
-    display.print("-");
-    printZero(endHour);
-    display.print(endHour);
-    printDigits(endMinute);
-    display.println();
   }
 }
 
-void displayClock(time_t t, int loc){
-  display.setTextSize(1);
-  display.setCursor(0,loc);
-  display.print(year(t));
-  display.print('-');
-  display.print(month(t));
-  display.print('-');
-  display.print(day(t));
-  display.print("  ");
-  printZero(hour());
-  display.print(hour(t));
-  printDigits(minute(t));
-  printDigits(second(t));
-}
-
-void printTime(time_t t){
-  Serial.print(year(t));
-  Serial.print('-');
-  Serial.print(month(t));
-  Serial.print('-');
-  Serial.print(day(t));
-  Serial.print(" ");
-  Serial.print(hour(t));
-  Serial.print(':');
-  Serial.print(minute(t));
-  Serial.print(':');
-  Serial.println(second(t));
-}
-
-void readEEPROM(){
-  rec_dur = readEEPROMlong(0);
-  rec_int = readEEPROMlong(4);
-  startHour = EEPROM.read(8);
-  startMinute = EEPROM.read(9);
-  endHour = EEPROM.read(10);
-  endMinute = EEPROM.read(11);
-  recMode = EEPROM.read(12);
-}
-
-union {
-  byte b[4];
-  long lval;
-}u;
-
-long readEEPROMlong(int address){
-  u.b[0] = EEPROM.read(address);
-  u.b[1] = EEPROM.read(address + 1);
-  u.b[2] = EEPROM.read(address + 2);
-  u.b[3] = EEPROM.read(address + 3);
-  return u.lval;
-}
-
-void writeEEPROMlong(int address, long val){
-  u.lval = val;
-  EEPROM.write(address, u.b[0]);
-  EEPROM.write(address + 1, u.b[1]);
-  EEPROM.write(address + 2, u.b[2]);
-  EEPROM.write(address + 3, u.b[3]);
-}
-
-void writeEEPROM(){
-  writeEEPROMlong(0, rec_dur);  //long
-  writeEEPROMlong(4, rec_int);  //long
-  EEPROM.write(8, startHour); //byte
-  EEPROM.write(9, startMinute); //byte
-  EEPROM.write(10, endHour); //byte
-  EEPROM.write(11, endMinute); //byte
-  EEPROM.write(12, recMode); //byte
-}
-
-void pollGyro(){
-  FIFOpts=getGyroFIFO();
+boolean pollImu(){
+  FIFOpts=getImuFifo();
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
+     return true;
      
+    /* 
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
     accel_x = (int16_t) ((int16_t)buffer[0] << 8 | buffer[1]);    
@@ -1086,46 +1089,14 @@ void pollGyro(){
     Serial.print(magnetom_y); Serial.print("\t");
     Serial.print(magnetom_z); Serial.print("\t");
     Serial.println((float) gyro_temp/337.87+21);
-
-    islRead();
-    Serial.print("RGB:");Serial.print("\t");
-    Serial.print(islRed); Serial.print("\t");
-    Serial.print(islGreen); Serial.print("\t");
-    Serial.println(islBlue); 
-
-    // MS5803 pressure and temperature
-    if (pressure_sensor==1){
-      if(togglePress){
-        readPress();
-        updateTemp();
-        togglePress = 0;
-      }
-      else{
-        readTemp();
-        updatePress();
-        togglePress = 1;
-      }
-      calcPressTemp();
-    }
-
-    // Keller PA7LD pressure and temperature
-    if (pressure_sensor==2){
-      kellerRead();
-      kellerConvert();  // start conversion for next reading
-      calcPressTemp();
-    }
-    
-    Serial.print("Depth/Temp: "); Serial.print("\t");
-    Serial.print(depth); Serial.print("\t");
-    Serial.println(temperature);
-    
-  // Write data buffer
-//  digitalWrite(LED_GRN,HIGH);
-//  file.write(&SidRec[0],sizeof(SID_REC));
-//  file.write(buffer, BUFFERSIZE);
-//  SidRec[0].samples+=(BUFFERSIZE/2);   
+    */
   }
+  return false;
 }
 
 
+
+void resetFunc(void){
+  
+}
 
