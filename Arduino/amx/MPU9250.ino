@@ -128,7 +128,7 @@ void Read_Gyro(int numbytestoread)
     Wire.requestFrom(GyroAddress, 1);    // request 1 bytes from device
     if(Wire.available())   // ((Wire.available())&&(i<6))
     { 
-      buffer[n] = Wire.read();  // receive one byte
+      imuBuffer[n] = Wire.read();  // receive one byte
     }
   }
 }

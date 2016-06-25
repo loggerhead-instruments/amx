@@ -183,7 +183,7 @@ unsigned char prev_dtr = 0;
 // IMU
 int FIFOpts;
 #define BUFFERSIZE 140 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
-byte buffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
@@ -591,13 +591,22 @@ void continueRecording() {
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
     queue1.freeBuffer();
-    frec.write(buffer, 512);
+    if (fileType==0){
+      frec.write(buffer, 512); //audio to .wav file
+    }
+    else{
+      frec.write((uint8_t *)&sidRec[0],sizeof(SID_REC)); //audio to .amx file
+      frec.write(buffer, 512); 
+    }
+      
     buf_count += 1;
     digitalWrite(ledGreen, LOW);
   }
-  if (pollImu()){
-    //write data block
-    
+  if (fileType){
+    if (pollImu()){
+      if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
+    }
   }
 }
 
