@@ -50,11 +50,17 @@ int ProcCmd(char *pCmd)
     }
 
     // RGB light sensor setup
-    case ('L' + ('T'<<8)):
+    case ('L' + ('S'<<8)):
     {
       rgbFlag = 1;
       fileType = 1;
       break;
+    }
+
+    // Enable bright LED
+    case ('B' + ('L'<<8)):
+    {
+      briteFlag = 1;
     }
     
     // Disable LEDS
@@ -77,6 +83,7 @@ int ProcCmd(char *pCmd)
          NewTime.month = tmonth;
          NewTime.year = tyear-2000;
          ULONG newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
+         startTime=RTCToUNIXTime(&NewTime);
          Teensy3Clock.set(newtime); 
          Serial.print("Clock Set: ");
          Serial.println(newtime);

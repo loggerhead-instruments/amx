@@ -60,7 +60,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 
 unsigned long baud = 115200;
 
@@ -126,6 +126,7 @@ boolean rgbFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD
 boolean audioFlag = 1;
 boolean CAMON = 0;
+boolean briteFlag = 0; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 0; //0=wav, 1=amx
@@ -203,7 +204,7 @@ int16_t islGreen;
 // Pressure/Temp
 byte Tbuff[3];
 byte Pbuff[3];
-float depth, temperature;
+volatile float depth, temperature;
 boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
@@ -217,7 +218,7 @@ uint16_t TEMPSENS; //Temperature sensitivity coefficient
 // Pressure, Temp double buffer
 #define PTBUFFERSIZE 40
 float PTbuffer[PTBUFFERSIZE];
-byte time2writePT=0; 
+byte time2writePT = 0; 
 int ptCounter = 0;
 volatile byte bufferposPT=0;
 byte halfbufPT = PTBUFFERSIZE/2;
@@ -225,7 +226,7 @@ boolean firstwrittenPT;
 
 // RGB buffer
 #define RGBBUFFERSIZE 60
-unsigned short RGBbuffer[PTBUFFERSIZE];
+unsigned short RGBbuffer[RGBBUFFERSIZE];
 byte time2writeRGB=0; 
 int RGBCounter = 0;
 volatile byte bufferposRGB=0;
@@ -367,7 +368,6 @@ void setup() {
     //startTime = ((t + 60)/10) * 10;  //move ahead and round to nearest 10 s
     startTime = t + 5; //start in 5 s
     stopTime = startTime + rec_dur;  // this will be set on start of recording
-    
   }
   if (recMode==MODE_DIEL) checkDielTime();  
   
@@ -426,7 +426,7 @@ void setup() {
   }
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
-  AudioMemory(150);
+  AudioMemory(100);
   AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
   
   digitalWrite(hydroPowPin, HIGH);
@@ -491,7 +491,7 @@ void loop() {
       if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT)==-1) resetFunc(); 
-      time2writePT=0;
+      time2writePT = 0;
       if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writePT==2)
@@ -499,7 +499,7 @@ void loop() {
       if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT)==-1) resetFunc();     
-      time2writePT=0;
+      time2writePT = 0;
       if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }   
 
@@ -517,7 +517,7 @@ void loop() {
       if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
-      time2writeRGB=0;
+      time2writeRGB = 0;
       if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     } 
       
@@ -600,9 +600,10 @@ void continueRecording() {
     }
       
     buf_count += 1;
+    Serial.println(buf_count);
     digitalWrite(ledGreen, LOW);
   }
-  if (fileType){
+  if (fileType & imuFlag){
     if (pollImu()){
       if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
@@ -845,11 +846,8 @@ void FileInit()
       sprintf(wav_hdr.dId,"data");
       wav_hdr.rLen = 36 + nbufs_per_file * 256 * 2;
       wav_hdr.dLen = nbufs_per_file * 256 * 2;
-      t = getTeensy3Time();
     
       frec.write((uint8_t *)&wav_hdr, 44);
-      Serial.print("Buffers: ");
-      Serial.println(nbufs_per_file);
   }
 
   //amx file header
@@ -865,6 +863,8 @@ void FileInit()
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
 
+  Serial.print("Buffers: ");
+  Serial.println(nbufs_per_file);
 }
 
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
@@ -888,7 +888,7 @@ void cam_start() {
   digitalWrite(CAM_POW, HIGH);
   delay(500);  // simulate Flywire button press
   digitalWrite(CAM_POW, LOW);  
-  digitalWrite(ledWhite, HIGH);        
+  if (briteFlag) digitalWrite(ledWhite, HIGH);        
 }
 
 void cam_off() {
@@ -896,7 +896,7 @@ void cam_off() {
   delay(3000); //power down camera (if still on)
   digitalWrite(CAM_POW, LOW);           
   CAMON=0;
-  digitalWrite(ledWhite, LOW);
+  if (briteFlag) digitalWrite(ledWhite, LOW);
 }
 
 void AudioInit(){
@@ -1017,11 +1017,11 @@ void sampleSensors(void){  //interrupt at 10 Hz
       ptCounter = 0;
       if (rgbFlag){
         islRead();  
-        RGBbuffer[bufferposRGB]=islRed;
+        RGBbuffer[bufferposRGB] = islRed;
         incrementPTbufpos();
-        RGBbuffer[bufferposRGB]=islGreen;
+        RGBbuffer[bufferposRGB] = islGreen;
         incrementRGBbufpos();
-        RGBbuffer[bufferposRGB]=islBlue;
+        RGBbuffer[bufferposRGB] = islBlue;
         incrementRGBbufpos();
         // Serial.print("RGB:");Serial.print("\t");
         //Serial.print(islRed); Serial.print("\t");
@@ -1041,21 +1041,20 @@ void sampleSensors(void){  //interrupt at 10 Hz
           updatePress();
           togglePress = 1;
         }
-        calcPressTemp();    
-        PTbuffer[bufferposPT]=depth;
+        calcPressTemp();
+        PTbuffer[bufferposPT] = depth;
         incrementPTbufpos();
-        PTbuffer[bufferposPT]=temperature;
+        PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
         //Serial.print("Depth/Temp: "); Serial.print("\t");
-        //Serial.print(depth); Serial.print("\t");
-        //Serial.println(temperature);
+        Serial.print(depth); Serial.print("\t");
+        Serial.println(temperature);
       }
   
       // Keller PA7LD pressure and temperature
       if (pressure_sensor==2){
         kellerRead();
         kellerConvert();  // start conversion for next reading
-        calcPressTemp();
 //        Serial.print("Depth/Temp: "); Serial.print("\t");
 //        Serial.print(depth); Serial.print("\t");
 //        Serial.println(temperature);

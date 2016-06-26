@@ -1,0 +1,19 @@
+// Example setup.txt file
+
+// Set time on power
+TM 2016-06-06 12:00:00
+
+// Enable IMU 100 Hz
+IM 100.0
+
+// MS Pressure
+MP
+
+// RGB light sensor
+LS
+
+// Rec duration
+RD 30
+
+// Rec interval
+RI 30
