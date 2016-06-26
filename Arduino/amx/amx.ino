@@ -5,7 +5,7 @@
 // 2016
 // David Mann
 // 
-// Modified from PJRC code
+// Modified from PJRC audio code
 // wav only parts will work with Teensy audio board
 // http://www.pjrc.com/store/teensy3_audio.html
 //
@@ -1018,7 +1018,7 @@ void sampleSensors(void){  //interrupt at 10 Hz
       if (rgbFlag){
         islRead();  
         RGBbuffer[bufferposRGB] = islRed;
-        incrementPTbufpos();
+        incrementRGBbufpos();
         RGBbuffer[bufferposRGB] = islGreen;
         incrementRGBbufpos();
         RGBbuffer[bufferposRGB] = islBlue;
