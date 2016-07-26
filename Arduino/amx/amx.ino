@@ -53,6 +53,10 @@
 #include <EEPROM.h>
 #include <TimerOne.h>
 
+#define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
+#define CPU_RESTART_VAL 0x5FA0004
+#define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
+
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
 #define BOTTOM 55
@@ -134,6 +138,9 @@ byte fileType = 0; //0=wav, 1=amx
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
+
+float audioIntervalSec = 512.0 / audio_srate; //buffer interval in seconds
+unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
 long rec_dur = 60;
@@ -225,8 +232,8 @@ byte halfbufPT = PTBUFFERSIZE/2;
 boolean firstwrittenPT;
 
 // RGB buffer
-#define RGBBUFFERSIZE 60
-unsigned short RGBbuffer[RGBBUFFERSIZE];
+#define RGBBUFFERSIZE 120
+byte RGBbuffer[RGBBUFFERSIZE];
 byte time2writeRGB=0; 
 int RGBCounter = 0;
 volatile byte bufferposRGB=0;
@@ -484,41 +491,40 @@ void loop() {
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
-
     // write Pressure & Temperature to file
     if(time2writePT==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT)==-1) resetFunc(); 
+      if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
     }
     if(time2writePT==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT)==-1) resetFunc();     
+      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
     }   
-
+  
     // write RGB values to file
     if(time2writeRGB==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
     }
     if(time2writeRGB==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
@@ -600,9 +606,41 @@ void continueRecording() {
     }
       
     buf_count += 1;
-    Serial.println(buf_count);
+    audioIntervalCount += 1;
+    
+   // Serial.println(buf_count);
     digitalWrite(ledGreen, LOW);
+
+    // we are updating these here because reading within interrupt causes board to seize
+    float audioDuration = audioIntervalCount * audioIntervalSec;
+    if (audioDuration > (1.0 /sensor_srate))
+    {
+      audioIntervalCount = 0;
+      if (rgbFlag) islRead(); 
+
+      // MS5803 pressure and temperature
+      if (pressure_sensor==1){
+        if(togglePress){
+          readPress();
+          updateTemp();
+          togglePress = 0;
+        }
+        else{
+          readTemp();
+          updatePress();
+          togglePress = 1;
+        }
+        calcPressTemp();
+      }
+  
+      // Keller PA7LD pressure and temperature
+      if (pressure_sensor==2){
+        kellerRead();
+        kellerConvert();  // start conversion for next reading
+      }
+    }
   }
+  
   if (fileType & imuFlag){
     if (pollImu()){
       if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
@@ -654,8 +692,12 @@ void incrementPTbufpos(){
   }
 }
 
-void incrementRGBbufpos(){
+void incrementRGBbufpos(unsigned short val){
+  RGBbuffer[bufferposRGB] = (uint8_t) val;
   bufferposRGB++;
+  RGBbuffer[bufferposRGB] = (uint8_t) val>>8;
+  bufferposRGB++;
+  
    if(bufferposRGB==RGBBUFFERSIZE)
    {
      bufferposRGB = 0;
@@ -663,7 +705,7 @@ void incrementRGBbufpos(){
      firstwrittenRGB = 0; 
    }
  
-  if((bufferposPT>=halfbufRGB) & !firstwrittenRGB)  //at end of first buffer
+  if((bufferposRGB>=halfbufRGB) & !firstwrittenRGB)  //at end of first buffer
   {
     time2writeRGB = 1; 
     firstwrittenRGB = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
@@ -1016,13 +1058,13 @@ void sampleSensors(void){  //interrupt at 10 Hz
   if(ptCounter>=(1.0 / sensor_srate) / 0.1){
       ptCounter = 0;
       if (rgbFlag){
-        islRead();  
-        RGBbuffer[bufferposRGB] = islRed;
-        incrementRGBbufpos();
-        RGBbuffer[bufferposRGB] = islGreen;
-        incrementRGBbufpos();
-        RGBbuffer[bufferposRGB] = islBlue;
-        incrementRGBbufpos();
+  //      islRead();  
+        //RGBbuffer[bufferposRGB] = islRed;
+        incrementRGBbufpos(islRed);
+        //RGBbuffer[bufferposRGB] = islGreen;
+        incrementRGBbufpos(islGreen);
+       // RGBbuffer[bufferposRGB] = islBlue;
+        incrementRGBbufpos(islBlue);
         // Serial.print("RGB:");Serial.print("\t");
         //Serial.print(islRed); Serial.print("\t");
         //Serial.print(islGreen); Serial.print("\t");
@@ -1030,34 +1072,14 @@ void sampleSensors(void){  //interrupt at 10 Hz
       }
       
       // MS5803 pressure and temperature
-      if (pressure_sensor==1){
-        if(togglePress){
-          readPress();
-          updateTemp();
-          togglePress = 0;
-        }
-        else{
-          readTemp();
-          updatePress();
-          togglePress = 1;
-        }
-        calcPressTemp();
+      if (pressure_sensor>0){
         PTbuffer[bufferposPT] = depth;
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
-        //Serial.print("Depth/Temp: "); Serial.print("\t");
+        Serial.print("Depth/Temp: "); Serial.print("\t");
         Serial.print(depth); Serial.print("\t");
         Serial.println(temperature);
-      }
-  
-      // Keller PA7LD pressure and temperature
-      if (pressure_sensor==2){
-        kellerRead();
-        kellerConvert();  // start conversion for next reading
-//        Serial.print("Depth/Temp: "); Serial.print("\t");
-//        Serial.print(depth); Serial.print("\t");
-//        Serial.println(temperature);
       }
   }
 }
@@ -1105,6 +1127,6 @@ boolean pollImu(){
 
 
 void resetFunc(void){
-  
+  CPU_RESTART
 }
 
