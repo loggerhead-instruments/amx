@@ -6,7 +6,6 @@
 // David Mann
 // 
 // Modified from PJRC audio code
-// wav only parts will work with Teensy audio board
 // http://www.pjrc.com/store/teensy3_audio.html
 //
 // Loggerhead AMX board is required for accelerometer, magnetometer, gyroscope, RGB light, pressure, and temperature sensors
@@ -139,7 +138,7 @@ float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
 
-float audioIntervalSec = 512.0 / audio_srate; //buffer interval in seconds
+float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
@@ -808,7 +807,6 @@ void setupDataStructures(void){
   sensor[3].cal[9] = magFullRange / 32768.0;
 }
 
-
 int addSid(int i, char* sid,  unsigned int sidType, unsigned long nElements, SENSOR sensor, unsigned long dForm, float srate)
 {
   unsigned long nBytes;
@@ -820,16 +818,16 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nElements, SEN
   switch(dForm)
   {
     case DFORM_SHORT:
-      nBytes == nElements * 2;
+      nBytes = nElements * 2;
       break;            
     case DFORM_LONG:
-      nBytes == nElements * 4;  //32 bit values
+      nBytes = nElements * 4;  //32 bit values
       break;            
     case DFORM_I24:
-      nBytes == nElements * 3;  //24 bit values
+      nBytes = nElements * 3;  //24 bit values
       break;
     case DFORM_FLOAT32:
-      nBytes == nElements * 4;
+      nBytes = nElements * 4;
       break;
   }
 
@@ -872,7 +870,7 @@ void FileInit()
     delay(10);
    }
 
-  if(fileType==0){
+   if(fileType==0){
       //intialize .wav file header
       sprintf(wav_hdr.rId,"RIFF");
       wav_hdr.rLen=36;
@@ -890,11 +888,19 @@ void FileInit()
       wav_hdr.dLen = nbufs_per_file * 256 * 2;
     
       frec.write((uint8_t *)&wav_hdr, 44);
-  }
+   }
 
-  //amx file header
-  if(fileType==1){
+   //amx file header
+   if(fileType==1){
     // write DF_HEAD
+    dfh.RecStartTime.sec = second();  
+    dfh.RecStartTime.minute = minute();  
+    dfh.RecStartTime.hour = hour();  
+    dfh.RecStartTime.day = 0;  
+    dfh.RecStartTime.mday = day();  
+    dfh.RecStartTime.month = month();  
+    dfh.RecStartTime.year = 2000 - year();  
+    dfh.RecStartTime.tzOffset = 0; //offset from GMT
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen

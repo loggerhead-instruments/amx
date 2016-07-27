@@ -25,24 +25,24 @@ struct TIME_HEAD
 };
 
 struct SENSOR{
-    char chipName[STR_MAX]; // name of sensor e.g. MPU9250
-    ULONG nChan;       //number of channels used (e.g. MPU9250 might have 9 for accel, mag, and gyro)
-    char name[12][STR_MAX]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
-    char units[12][STR_MAX];// units of each channel (e.g. g, mGauss, degPerSec)
-    float cal[12];     //calibration coefficient for each channel when multiplied by this value get data in specified units
+  char chipName[STR_MAX]; // name of sensor e.g. MPU9250
+  ULONG nChan;       //number of channels used (e.g. MPU9250 might have 9 for accel, mag, and gyro)
+  char name[12][STR_MAX]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
+  char units[12][STR_MAX];// units of each channel (e.g. g, mGauss, degPerSec)
+  float cal[12];     //calibration coefficient for each channel when multiplied by this value get data in specified units
 };
 
 struct DF_HEAD
 {
 	ULONG Version; // firmware version
-  	ULONG UserID;  //tag type
-  	TIME_HEAD RecStartTime;
+  ULONG UserID;  //tag type
+  TIME_HEAD RecStartTime;
 };
 
 struct SID_SPEC
 {
 	char	SID[STR_MAX];
-    unsigned int sidType; // 0 = raw, 1 = summary  histogram
+  unsigned int sidType; // 0 = raw, 1 = summary  histogram
 	ULONG 	nBytes;	  // Size in bytes of this record (excluding header)
 	SENSOR  sensor;	  // used to encode what data are saved: bitmask bit (accel3, mag3, gyro3, press, temperature, mic)
 	ULONG	dForm;	  // short, long, or I24
