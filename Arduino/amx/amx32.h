@@ -20,7 +20,7 @@ struct TIME_HEAD
 	byte 	day;  
 	byte 	mday;  
 	byte 	month;  
-	byte 	year;  
+	unsigned int 	year;  
 	short	tzOffset; //offset from GMT
 };
 

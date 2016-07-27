@@ -837,6 +837,8 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nElements, SEN
   sidSpec[i].dForm = dForm;
   sidSpec[i].srate = srate;
   sidSpec[i].sensor = sensor;  
+
+  Serial.println(nBytes);
   
   if(frec.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
 }
@@ -899,7 +901,7 @@ void FileInit()
     dfh.RecStartTime.day = 0;  
     dfh.RecStartTime.mday = day();  
     dfh.RecStartTime.month = month();  
-    dfh.RecStartTime.year = 2000 - year();  
+    dfh.RecStartTime.year = year();  
     dfh.RecStartTime.tzOffset = 0; //offset from GMT
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
