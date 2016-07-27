@@ -79,7 +79,7 @@ int ProcCmd(char *pCmd)
          NewTime.sec = tsec;
          NewTime.minute = tmin;
          NewTime.hour = thour;
-         NewTime.mday = tday;
+         NewTime.day = tday;
          NewTime.month = tmonth;
          NewTime.year = tyear-2000;
          ULONG newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
@@ -112,7 +112,7 @@ int ProcCmd(char *pCmd)
          NewTime.sec = tsec;
          NewTime.minute = tmin;
          NewTime.hour = thour;
-         NewTime.mday = tday;
+         NewTime.day = tday;
          NewTime.month = tmonth;
          NewTime.year = tyear-2000;
          startTime=RTCToUNIXTime(&NewTime);

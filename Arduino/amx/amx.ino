@@ -807,38 +807,36 @@ void setupDataStructures(void){
   sensor[3].cal[9] = magFullRange / 32768.0;
 }
 
-int addSid(int i, char* sid,  unsigned int sidType, unsigned long nElements, SENSOR sensor, unsigned long dForm, float srate)
+int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
 {
   unsigned long nBytes;
 //  memcpy(&_sid, sid, 5);
 //
 //  memset(&sidSpec[i], 0, sizeof(SID_SPEC));
 //        nBytes<<1;  //multiply by two because halfbuf
-
-  switch(dForm)
-  {
-    case DFORM_SHORT:
-      nBytes = nElements * 2;
-      break;            
-    case DFORM_LONG:
-      nBytes = nElements * 4;  //32 bit values
-      break;            
-    case DFORM_I24:
-      nBytes = nElements * 3;  //24 bit values
-      break;
-    case DFORM_FLOAT32:
-      nBytes = nElements * 4;
-      break;
-  }
+//
+//  switch(dForm)
+//  {
+//    case DFORM_SHORT:
+//      nBytes = nElements * 2;
+//      break;            
+//    case DFORM_LONG:
+//      nBytes = nElements * 4;  //32 bit values
+//      break;            
+//    case DFORM_I24:
+//      nBytes = nElements * 3;  //24 bit values
+//      break;
+//    case DFORM_FLOAT32:
+//      nBytes = nElements * 4;
+//      break;
+//  }
 
   strncpy(sidSpec[i].SID, sid, STR_MAX);
   sidSpec[i].sidType = sidType;
-  sidSpec[i].nBytes = nBytes;
+  sidSpec[i].nSamples = nSamples;
   sidSpec[i].dForm = dForm;
   sidSpec[i].srate = srate;
   sidSpec[i].sensor = sensor;  
-
-  Serial.println(nBytes);
   
   if(frec.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
 }
@@ -898,15 +896,14 @@ void FileInit()
     dfh.RecStartTime.sec = second();  
     dfh.RecStartTime.minute = minute();  
     dfh.RecStartTime.hour = hour();  
-    dfh.RecStartTime.day = 0;  
-    dfh.RecStartTime.mday = day();  
+    dfh.RecStartTime.day = day();  
     dfh.RecStartTime.month = month();  
-    dfh.RecStartTime.year = year();  
+    dfh.RecStartTime.year = (int16_t) year();  
     dfh.RecStartTime.tzOffset = 0; //offset from GMT
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen
-    addSid(0, "AUDIO", RAW_SID, 512, sensor[0], DFORM_SHORT, audio_srate);
+    addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
     if (pressure_sensor>0) addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
     if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB, sensor[2], DFORM_SHORT, sensor_srate);
     if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE, sensor[3], DFORM_SHORT, imu_srate);
@@ -1050,7 +1047,7 @@ unsigned long RTCToUNIXTime(TIME_HEAD *tm){
     }
 
     // Calculate Day Ticks
-    Ticks += (tm->mday - 1) * SECONDS_IN_DAY;
+    Ticks += (tm->day - 1) * SECONDS_IN_DAY;
 
     // Calculate Time Ticks CHANGES ARE HERE
     Ticks += (ULONG)tm->hour * SECONDS_IN_HOUR;
