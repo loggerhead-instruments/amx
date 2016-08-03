@@ -87,7 +87,7 @@ const int SELECT = 8;
 const int displayPow = 20;
 const int ledGreen = 17;
 const int ledRed = 16;
-const int BURN1 = 3;
+const int BURN1 = 5;
 const int SDSW = 0;
 const int ledWhite = 21;
 const int usbSense = 6;
@@ -113,6 +113,7 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 time_t startTime;
 time_t stopTime;
 time_t t;
+time_t burnTime;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 0;
@@ -448,6 +449,9 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
+      if(t >= burnTime){
+        digitalWrite(BURN1, HIGH);
+      }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
         

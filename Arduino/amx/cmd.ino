@@ -89,6 +89,22 @@ int ProcCmd(char *pCmd)
          Serial.println(newtime);
          break;
       }
+
+    case ('B' + ('T'<<8)):
+    {
+         //set time
+         sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
+         TIME_HEAD NewTime;
+         NewTime.sec = tsec;
+         NewTime.minute = tmin;
+         NewTime.hour = thour;
+         NewTime.day = tday;
+         NewTime.month = tmonth;
+         NewTime.year = tyear-2000;
+         ULONG newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
+         burnTime=RTCToUNIXTime(&NewTime);
+         break;
+      }
       
       case ('R' + ('D'<<8)):
       {
