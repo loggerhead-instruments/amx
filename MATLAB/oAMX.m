@@ -75,7 +75,11 @@ while(eofstat==00)
     cur_sid=(SID_REC(reccounter).nSID) + 1;
     if(cur_sid >0 & cur_sid<8)         
         if(SID_SPEC(cur_sid).DForm==2)
-            SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'int16');
+            if (SID_SPEC(cur_sid).SID(1)=='I')
+                SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'int16', 'ieee-be');
+            else
+                SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'int16');
+            end
         end
         if(SID_SPEC(cur_sid).DForm==5)
             SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'float32');  % 32-bit samples read in 8 bits at a time
