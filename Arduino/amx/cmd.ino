@@ -90,7 +90,7 @@ int ProcCmd(char *pCmd)
          break;
       }
 
-    case ('B' + ('T'<<8)):
+    case ('B' + ('W'<<8)):
     {
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
