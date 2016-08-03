@@ -247,7 +247,7 @@ void setup() {
   pinMode(BURN1, OUTPUT);
   pinMode(ledWhite, OUTPUT);
   pinMode(SDSW, OUTPUT);
-  pinMode(usbSense, INPUT);
+
 
   digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(CAM_POW,  LOW);
@@ -258,6 +258,11 @@ void setup() {
   digitalWrite(BURN1, LOW);
   digitalWrite(ledWhite, LOW);
 
+
+  pinMode(usbSense, OUTPUT);
+  digitalWrite(usbSense, LOW); // make sure no pull-up
+  pinMode(usbSense, INPUT);
+  
   //setup display and controls
   pinMode(UP, INPUT);
   pinMode(DOWN, INPUT);
@@ -319,19 +324,20 @@ void setup() {
   cDisplay();
   display.println("Loggerhead");
   Serial.println("Loggerhead");
-  display.display();
-  delay(500);
-
-  
-
   display.println("USB <->");
   display.display();
   // Check for external USB connection to microSD
  while(digitalRead(usbSense)){
-    delay(1000);
+    delay(500);
   }
+
+  
+  pinMode(usbSense, OUTPUT);  //not using any more, set to OUTPUT
+  digitalWrite(usbSense, LOW); 
+  
   cDisplay();
   display.println("Loggerhead");
+  display.display();
   
   digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
   delay(200);
