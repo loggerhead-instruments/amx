@@ -53,6 +53,6 @@ struct SID_SPEC
 
 struct SID_REC
 {
-	ULONG	nSID;			      // This is record ID
-	unsigned long long resvd;     // reserved to potentially store samples to get timestamp of block or timestamp
+	uint32_t	nSID;			      // This is record ID
+	uint32_t NU[3];     // reserved to potentially store samples to get timestamp of block or timestamp
 };

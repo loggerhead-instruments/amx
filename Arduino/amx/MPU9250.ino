@@ -82,6 +82,7 @@ int mpuInit(boolean mode)
    I2Cwrite(GyroAddress, 0x26, 0x03);  // set address of compass register to read
    I2Cwrite(GyroAddress, 0x27, 0xD0 | 0x06);  // enable read of 6 bytes, with byte swapping
 */
+  if (printDiags) Serial.print(ecode);
    return ecode;
 }
 
@@ -119,7 +120,8 @@ void Read_Gyro(int numbytestoread)
     }
   }
   */
-  
+
+  // reading one byte at a time
   for(int n=0; n<numbytestoread; n++)
   {
     Wire.beginTransmission(GyroAddress); 

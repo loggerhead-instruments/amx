@@ -13,21 +13,12 @@
 
 /* To Do: 
  * 
- *  .AMX file if using motion sensors, audio only gets wav file
- * MPU9250 (buffer with interrupt)
- * 1 Hz Interrupt
- * -MS5803
- * -Keller Pressure sensor
- * -RGB light sensor
- * 
- * scan for available sensors
- * 
  * burn wire 1 & 2
  * play sound
  *
  * reset function
  * 
- * hydorphone sensitivity + gain to set sensor.cal for audio
+ * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and update sidSpec calibrations
  * 
  * UTC and timezone time stamps
@@ -103,7 +94,7 @@ const int usbSense = 6;
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
-// MEMCS 6t
+// MEMCS 6
 // MOSI 7
 // BCLK 9
 // SDCS 10
@@ -264,7 +255,7 @@ void setup() {
   digitalWrite(ledGreen, LOW);
   digitalWrite(ledRed, LOW);
   digitalWrite(BURN1, LOW);
-  digitalWrite(ledWhite, HIGH);
+  digitalWrite(ledWhite, LOW);
 
   //setup display and controls
   pinMode(UP, INPUT);
@@ -276,43 +267,45 @@ void setup() {
 
   delay(500);
 
-  // an attempt to run MCLK to reset audio chip
-  // enable MCLK output
-  #if F_CPU == 96000000 || F_CPU == 48000000 || F_CPU == 24000000
-  // PLL is at 96 MHz in these modes
-    #define MCLK_MULT 2
-    #define MCLK_DIV  17
-  #elif F_CPU == 72000000
-    #define MCLK_MULT 8
-    #define MCLK_DIV  51
-  #elif F_CPU == 120000000
-    #define MCLK_MULT 8
-    #define MCLK_DIV  85
-  #elif F_CPU == 144000000
-    #define MCLK_MULT 4
-    #define MCLK_DIV  51
-  #elif F_CPU == 168000000
-    #define MCLK_MULT 8
-    #define MCLK_DIV  119
-  #elif F_CPU == 16000000
-    #define MCLK_MULT 12
-    #define MCLK_DIV  17
-  #else
-    #error "This CPU Clock Speed is not supported by the Audio library";
-  #endif
-  
-  #if F_CPU >= 20000000
-    #define MCLK_SRC  3  // the PLL
-  #else
-    #define MCLK_SRC  0  // system clock
-  #endif
+// This causes audio to not record correctly
 
-  I2S0_MCR = I2S_MCR_MICS(MCLK_SRC) | I2S_MCR_MOE;
-  I2S0_MDR = I2S_MDR_FRACT((MCLK_MULT-1)) | I2S_MDR_DIVIDE((MCLK_DIV-1));
-  delay(10);
-  I2S0_MCR = I2S_MCR_MICS(0);
-  I2S0_MDR = 0;
-  delay(100);      
+//  // an attempt to run MCLK to reset audio chip
+//  // enable MCLK output
+//  #if F_CPU == 96000000 || F_CPU == 48000000 || F_CPU == 24000000
+//  // PLL is at 96 MHz in these modes
+//    #define MCLK_MULT 2
+//    #define MCLK_DIV  17
+//  #elif F_CPU == 72000000
+//    #define MCLK_MULT 8
+//    #define MCLK_DIV  51
+//  #elif F_CPU == 120000000
+//    #define MCLK_MULT 8
+//    #define MCLK_DIV  85
+//  #elif F_CPU == 144000000
+//    #define MCLK_MULT 4
+//    #define MCLK_DIV  51
+//  #elif F_CPU == 168000000
+//    #define MCLK_MULT 8
+//    #define MCLK_DIV  119
+//  #elif F_CPU == 16000000
+//    #define MCLK_MULT 12
+//    #define MCLK_DIV  17
+//  #else
+//    #error "This CPU Clock Speed is not supported by the Audio library";
+//  #endif
+//  
+//  #if F_CPU >= 20000000
+//    #define MCLK_SRC  3  // the PLL
+//  #else
+//    #define MCLK_SRC  0  // system clock
+//  #endif
+//
+//  I2S0_MCR = I2S_MCR_MICS(MCLK_SRC) | I2S_MCR_MOE;
+//  I2S0_MDR = I2S_MDR_FRACT((MCLK_MULT-1)) | I2S_MDR_DIVIDE((MCLK_DIV-1));
+//  delay(10);
+//  I2S0_MCR = I2S_MCR_MICS(0);
+//  I2S0_MDR = 0;
+//  delay(100);      
 
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   t = getTeensy3Time();
@@ -328,14 +321,16 @@ void setup() {
   display.display();
   delay(500);
 
-  digitalWrite(ledWhite, LOW);
+  
 
+  display.println("USB <->");
+  display.display();
   // Check for external USB connection to microSD
-  while(digitalRead(usbSense)){
-    display.println("USB <->");
-    display.display();
+ while(digitalRead(usbSense)){
     delay(1000);
   }
+  cDisplay();
+  display.println("Loggerhead");
   
   digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
   delay(200);
@@ -360,9 +355,10 @@ void setup() {
       manualSettings();
 
   setupDataStructures();
-  
+
+  int ecode;
   kellerInit();  
-  mpuInit(1);
+  ecode = mpuInit(1);
   islInit(); // RGB light sensor
   pressInit();
   
@@ -490,6 +486,7 @@ void loop() {
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
+
     // write Pressure & Temperature to file
     if(time2writePT==1)
     {
@@ -606,14 +603,19 @@ void continueRecording() {
       
     buf_count += 1;
     audioIntervalCount += 1;
-    
+
+    if (fileType & imuFlag){
+      if (pollImu()){
+        if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+        if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
+      }
+    }
    // Serial.println(buf_count);
     digitalWrite(ledGreen, LOW);
 
     // we are updating these here because reading within interrupt causes board to seize
     float audioDuration = audioIntervalCount * audioIntervalSec;
-    if (audioDuration > (1.0 /sensor_srate))
-    {
+    if (fileType & (audioDuration > (1.0 /sensor_srate))){
       audioIntervalCount = 0;
       if (rgbFlag) islRead(); 
 
@@ -637,13 +639,6 @@ void continueRecording() {
         kellerRead();
         kellerConvert();  // start conversion for next reading
       }
-    }
-  }
-  
-  if (fileType & imuFlag){
-    if (pollImu()){
-      if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
     }
   }
 }
@@ -725,10 +720,10 @@ void setupDataStructures(void){
   strncpy(sensor[0].units[1], "Pa", STR_MAX);
   strncpy(sensor[0].units[2], "Pa", STR_MAX);
   strncpy(sensor[0].units[3], "Pa", STR_MAX);
-  sensor[0].cal[0] = 1.0; // this needs to be set based on hydrophone sensitivity + chip gain
-  sensor[0].cal[1] = 1.0;
-  sensor[0].cal[2] = 1.0;
-  sensor[0].cal[3] = 1.0;
+  sensor[0].cal[0] = -180.0; // this needs to be set based on hydrophone sensitivity + chip gain
+  sensor[0].cal[1] = -180.0;
+  sensor[0].cal[2] = -180.0;
+  sensor[0].cal[3] = -180.0;
 
   // Pressure/Temperature
   if(pressure_sensor == 1) {
@@ -839,6 +834,11 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
   sidSpec[i].sensor = sensor;  
   
   if(frec.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
+
+  sidRec[i].nSID = i;
+  sidRec[i].NU[0] = 100; //put in something easy to find when searching raw file
+  sidRec[i].NU[1] = 200;
+  sidRec[i].NU[2] = 300; 
 }
 
 
@@ -905,8 +905,8 @@ void FileInit()
     // write SID_SPEC depending on sensors chosen
     addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
     if (pressure_sensor>0) addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-    if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE, sensor[3], DFORM_SHORT, imu_srate);
+    if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+    if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
 
@@ -1082,36 +1082,40 @@ void sampleSensors(void){  //interrupt at 10 Hz
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
-        Serial.print("Depth/Temp: "); Serial.print("\t");
-        Serial.print(depth); Serial.print("\t");
-        Serial.println(temperature);
+        if(printDiags){
+          Serial.print("Depth/Temp: "); Serial.print("\t");
+          Serial.print(depth); Serial.print("\t");
+          Serial.println(temperature);
+        }
       }
   }
 }
 
 boolean pollImu(){
   FIFOpts=getImuFifo();
+  //Serial.print("IMU FIFO pts: ");
+  //if (printDiags) Serial.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
-     return true;
+  
      
-    /* 
+    if (printDiags){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
-    accel_x = (int16_t) ((int16_t)buffer[0] << 8 | buffer[1]);    
-    accel_y = (int16_t) ((int16_t)buffer[2] << 8 | buffer[3]);   
-    accel_z = (int16_t) ((int16_t)buffer[4] << 8 | buffer[5]);    
+    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
+    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
+    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
     
-    gyro_temp = (int16_t) (((int16_t)buffer[6]) << 8 | buffer[7]);   
+    gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
    
-    gyro_x = (int16_t)  (((int16_t)buffer[8] << 8) | buffer[9]);   
-    gyro_y = (int16_t)  (((int16_t)buffer[10] << 8) | buffer[11]); 
-    gyro_z = (int16_t)  (((int16_t)buffer[12] << 8) | buffer[13]);   
+    gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
+    gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
+    gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
     
-    magnetom_x = (int16_t)  (((int16_t)buffer[14] << 8) | buffer[15]);   
-    magnetom_y = (int16_t)  (((int16_t)buffer[16] << 8) | buffer[17]);   
-    magnetom_z = (int16_t)  (((int16_t)buffer[18] << 8) | buffer[19]);  
+    magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
+    magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
+    magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
 
     Serial.print("a/g/m/t:\t");
     Serial.print( accel_x); Serial.print("\t");
@@ -1124,7 +1128,9 @@ boolean pollImu(){
     Serial.print(magnetom_y); Serial.print("\t");
     Serial.print(magnetom_z); Serial.print("\t");
     Serial.println((float) gyro_temp/337.87+21);
-    */
+    }
+    
+    return true;
   }
   return false;
 }
