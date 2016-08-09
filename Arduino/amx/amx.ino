@@ -331,6 +331,10 @@ void setup() {
     delay(500);
   }
 
+  // Power down USB if not using Serial monitor
+  if (printDiags==0){
+      usbDisable();
+  }
   
   pinMode(usbSense, OUTPUT);  //not using any more, set to OUTPUT
   digitalWrite(usbSense, LOW); 
@@ -564,6 +568,7 @@ void loop() {
           /// ... Sleeping ....
           
           // Waking up
+          if (printDiags==0) usbDisable();
           display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
           digitalWrite(hydroPowPin, HIGH); // hydrophone on
           cam_wake();
@@ -1150,4 +1155,5 @@ boolean pollImu(){
 void resetFunc(void){
   CPU_RESTART
 }
+
 
