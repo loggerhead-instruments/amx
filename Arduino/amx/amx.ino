@@ -85,12 +85,13 @@ const int UP = 4;
 const int DOWN = 3;
 const int SELECT = 8;
 const int displayPow = 20;
-const int ledGreen = 17;
-const int ledRed = 16;
+const int ledGreen = 16;
+const int ledRed = 17;
 const int BURN1 = 5;
 const int SDSW = 0;
 const int ledWhite = 21;
 const int usbSense = 6;
+const int vSense = A14;
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -247,6 +248,8 @@ void setup() {
   pinMode(BURN1, OUTPUT);
   pinMode(ledWhite, OUTPUT);
   pinMode(SDSW, OUTPUT);
+  pinMode(vSense, INPUT);
+  analogReference(DEFAULT);
 
 
   digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
@@ -338,7 +341,7 @@ void setup() {
   
   pinMode(usbSense, OUTPUT);  //not using any more, set to OUTPUT
   digitalWrite(usbSense, LOW); 
-  
+
   cDisplay();
   display.println("Loggerhead");
   display.display();
@@ -869,6 +872,13 @@ void FileInit()
       sprintf(filename,"%02d%02d%02d%02d.wav",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
     else
       sprintf(filename,"%02d%02d%02d%02d.amx",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+
+   // log file
+   File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE);
+   logFile.print(filename);
+   logFile.print(',');
+   logFile.println(7.5 * (float) analogRead(vSense) / 1024.0);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+   logFile.close();
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
    Serial.println(filename);
@@ -906,6 +916,7 @@ void FileInit()
    }
 
    //amx file header
+   dfh.voltage = 7.5 * (float) analogRead(vSense) / 1024.0;
    if(fileType==1){
     // write DF_HEAD
     dfh.RecStartTime.sec = second();  
