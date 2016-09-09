@@ -143,6 +143,7 @@ boolean settingsChanged = 0;
 
 long file_count;
 char filename[20];
+char dirname[7];
 int folderMonth;
 SnoozeBlock snooze_config;
 
@@ -879,7 +880,7 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
 void FileInit()
 {
    t = getTeensy3Time();
-   char dirname[7];
+   
    if (folderMonth != month(t)){
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
