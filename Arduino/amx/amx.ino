@@ -364,10 +364,10 @@ void setup() {
       
     }
   }
-  SdFile::dateTimeCallback(file_date_time);
+  //SdFile::dateTimeCallback(file_date_time);
    
-  //if (!LoadScript())  // if no script file, go to manual settings
-   //   manualSettings();
+  if (!LoadScript())  // if no script file, go to manual settings
+      manualSettings();
 
   setupDataStructures();
 
@@ -890,6 +890,7 @@ void FileInit()
       sprintf(filename,"%02d%02d%02d%02d.amx",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
 
    // log file
+   SdFile::dateTimeCallback(file_date_time);
    File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE);
    logFile.print(filename);
    logFile.print(',');
@@ -960,11 +961,9 @@ void FileInit()
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
 void file_date_time(uint16_t* date, uint16_t* time) 
 {
- /* t = getTeensy3Time();
+  t = getTeensy3Time();
   *date=FAT_DATE(year(t),month(t),day(t));
   *time=FAT_TIME(hour(t),minute(t),second(t));
-  *
-   */
 }
 
 void cam_wake() {
