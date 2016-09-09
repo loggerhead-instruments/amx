@@ -19,12 +19,8 @@
  * reset function
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
- * allow setting of gyro and accelerometer range and update sidSpec calibrations
+ * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
  * 
- * UTC and timezone time stamps
- * 
- * Time stamp on file
- * Long filename (use UNIX time)
  * Power Savings:
  * All unused pins to output mode
  * Disable USB
@@ -147,6 +143,7 @@ boolean settingsChanged = 0;
 
 long file_count;
 char filename[20];
+int folderMonth;
 SnoozeBlock snooze_config;
 
 // The file where data is recorded
@@ -458,6 +455,9 @@ void setup() {
   cam_wake();
   mode = 0;
 
+  // create first folder to hold data
+  folderMonth = -1;  //set to -1 so when first file made will create directory
+  
   if (fileType) Timer1.initialize(100000); // initialize with 100 ms period
 }
 
@@ -879,15 +879,22 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
 void FileInit()
 {
    t = getTeensy3Time();
+   char dirname[7];
+   if (folderMonth != month(t)){
+    folderMonth = month(t);
+    sprintf(dirname, "%04d-%02d", year(t), folderMonth);
+    SdFile::dateTimeCallback(file_date_time);
+    SD.mkdir(dirname);
+   }
    pinMode(vSense, INPUT);  // get ready to read voltage
 
    // only audio save as wav file, otherwise save as AMX file
    
    // open file 
    if(fileType==0)
-      sprintf(filename,"%02d%02d%02d%02d.wav",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+      sprintf(filename,"%s//%02d%02d%02d%02d.wav", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
     else
-      sprintf(filename,"%02d%02d%02d%02d.amx",day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+      sprintf(filename,"%s//%02d%02d%02d%02d.amx", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
 
    // log file
    SdFile::dateTimeCallback(file_date_time);
