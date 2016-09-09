@@ -36,7 +36,7 @@
 #include <SPI.h>
 //#include <SdFat.h>
 #include "amx32.h"
-#include <Snooze.h>
+#include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -135,8 +135,8 @@ float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 60;
-long rec_int = 60;
+long rec_dur = 10;
+long rec_int = 30;
 int wakeahead = 12;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
@@ -361,14 +361,23 @@ void setup() {
       displayClock(getTeensy3Time(), BOTTOM);
       display.display();
       delay(1000);
+      
     }
   }
   SdFile::dateTimeCallback(file_date_time);
    
-  if (!LoadScript())  // if no script file, go to manual settings
-      manualSettings();
+  //if (!LoadScript())  // if no script file, go to manual settings
+   //   manualSettings();
 
   setupDataStructures();
+
+  // disable buttons; not using any more
+  digitalWrite(UP, LOW);
+  digitalWrite(DOWN, LOW);
+  digitalWrite(SELECT, LOW);
+  pinMode(UP, OUTPUT);
+  pinMode(DOWN, OUTPUT);
+  pinMode(SELECT, OUTPUT);
 
   int ecode;
   kellerInit();  
@@ -553,20 +562,26 @@ void loop() {
 
       if( snooze_hour + snooze_minute + snooze_second >=10){
           digitalWrite(hydroPowPin, LOW); //hydrophone off
+          mpuInit(0);  //gyro to sleep
+          islSleep(); // RGB light sensor
+          audio_power_down();
           cam_off();
           cDisplay();
           display.display();
           delay(100);
           display.ssd1306_command(SSD1306_DISPLAYOFF); 
-          Serial.print("Snooze HH MM SS ");
-          Serial.print(snooze_hour);
-          Serial.print(snooze_minute);
-          Serial.println(snooze_second);
+          if(printDiags){
+            Serial.print("Snooze HH MM SS ");
+            Serial.print(snooze_hour);
+            Serial.print(snooze_minute);
+            Serial.println(snooze_second);
+          }
+          
           delay(500);
-          mpuInit(0);  //gyro to sleep
-          islSleep(); // RGB light sensor
+          
           snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
-          Snooze.sleep( snooze_config );
+          //Snooze.sleep( snooze_config );
+          Snooze.hibernate( snooze_config );
           
           /// ... Sleeping ....
           
@@ -574,11 +589,11 @@ void loop() {
           if (printDiags==0) usbDisable();
           display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
           digitalWrite(hydroPowPin, HIGH); // hydrophone on
+          audio_power_up();
           cam_wake();
           islInit(); // RGB light sensor
+          mpuInit(1);  //start gyro
           }
-      
-      mpuInit(1);  //start gyro
       mode = 0;
     }
   }
@@ -606,7 +621,7 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
-    digitalWrite(ledGreen, HIGH);
+    //digitalWrite(ledGreen, HIGH);
     memcpy(buffer, queue1.readBuffer(), 256);
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
@@ -629,7 +644,7 @@ void continueRecording() {
       }
     }
    // Serial.println(buf_count);
-    digitalWrite(ledGreen, LOW);
+   // digitalWrite(ledGreen, LOW);
 
     // we are updating these here because reading within interrupt causes board to seize
     float audioDuration = audioIntervalCount * audioIntervalSec;
@@ -864,6 +879,7 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
 void FileInit()
 {
    t = getTeensy3Time();
+   pinMode(vSense, INPUT);  // get ready to read voltage
 
    // only audio save as wav file, otherwise save as AMX file
    
@@ -917,6 +933,7 @@ void FileInit()
 
    //amx file header
    dfh.voltage = 7.5 * (float) analogRead(vSense) / 1024.0;
+   pinMode(vSense, OUTPUT);  // done reading voltage
    if(fileType==1){
     // write DF_HEAD
     dfh.RecStartTime.sec = second();  
@@ -974,7 +991,11 @@ void cam_off() {
 
 void AudioInit(){
     // Enable the audio shield, select input, and enable output
-  sgtl5000_1.enable();
+ // sgtl5000_1.enable();
+
+ // Instead of using audio library enable; do custom so only power up what is needed in sgtl5000_LHI
+  audio_enable();
+ 
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.0);
   sgtl5000_1.lineInLevel(0);  //default = 8
