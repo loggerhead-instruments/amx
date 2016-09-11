@@ -456,10 +456,10 @@ void audio_power_down(void){
   chipWrite(CHIP_DIG_POWER, 0x0000); // power up: everything
 }
 
-void audio_power_up(void){
-  chipWrite(CHIP_ANA_POWER, 0x00E2); // power up: adc
-  chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
-}
+//void audio_power_up(void){
+//  chipWrite(CHIP_ANA_POWER, 0x00E2); // power up: adc
+//  chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
+//}
 
 bool chipWrite(unsigned int reg, unsigned int val)
 {
