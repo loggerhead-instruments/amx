@@ -16,7 +16,10 @@
  * burn wire 1 & 2
  * play sound
  *
- * reset function
+ * manual settings: fast scroll--round to 10's
+ * reset function--but need to skip manual start...so, need auto-start if turn on but do nothing for 10 minutes.
+ * 
+ * record 10 s sleep 50 seconds: start on time rounded to 60 s.....try to align start time to an hour.
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -26,7 +29,7 @@
  * Disable USB
 */
 
-#include <SerialFlash.h>
+//#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <Wire.h>
 #include <SPI.h>
@@ -50,7 +53,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 unsigned long baud = 115200;
 
@@ -118,6 +121,7 @@ boolean rgbFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD
 boolean audioFlag = 1;
 boolean CAMON = 0;
+boolean camFlag = 0;
 boolean briteFlag = 0; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -133,7 +137,7 @@ unsigned int audioIntervalCount = 0;
 int recMode = MODE_NORMAL;
 long rec_dur = 10;
 long rec_int = 30;
-int wakeahead = 12;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -145,7 +149,10 @@ long file_count;
 char filename[20];
 char dirname[7];
 int folderMonth;
-SnoozeBlock snooze_config;
+//SnoozeBlock snooze_config;
+SnoozeAlarm alarm;
+SnoozeAudio snooze_audio;
+SnoozeBlock config_teensy32(snooze_audio, alarm);
 
 // The file where data is recorded
 File frec;
@@ -334,7 +341,7 @@ void setup() {
 
   // Power down USB if not using Serial monitor
   if (printDiags==0){
-      usbDisable();
+    //  usbDisable();
   }
   
   pinMode(usbSense, OUTPUT);  //not using any more, set to OUTPUT
@@ -364,8 +371,8 @@ void setup() {
   }
   //SdFile::dateTimeCallback(file_date_time);
    
-  if (!LoadScript())  // if no script file, go to manual settings
-      manualSettings();
+//  if (!LoadScript())  // if no script file, go to manual settings
+//      manualSettings();
 
   setupDataStructures();
 
@@ -420,7 +427,7 @@ void setup() {
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  
+  /*
   if (time_to_first_rec > 60)
   {
       ss = time_to_first_rec - wakeahead;
@@ -441,19 +448,20 @@ void setup() {
       Serial.println("Going to sleep.");
       delay(2000);
       digitalWrite(displayPow, LOW);
-      snooze_config.setAlarm(nap_hour, nap_minute, nap_second);
-      Snooze.sleep( snooze_config );
+     // snooze_config.setAlarm(nap_hour, nap_minute, nap_second);
+    //  Snooze.sleep( snooze_config );
       // ... sleeping ...
       digitalWrite(displayPow, HIGH);
       display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display   
   }
+  */
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
   AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
   
   digitalWrite(hydroPowPin, HIGH);
-  cam_wake();
+  if (camFlag) cam_wake();
   mode = 0;
 
   // create first folder to hold data
@@ -465,13 +473,21 @@ void setup() {
 //
 // MAIN LOOP
 //
-void loop() {
- 
-  t = getTeensy3Time();
+
+int recLoopCount;  //for debugging when does not start record
   
+void loop() {
   // Standby mode
   if(mode == 0)
   {
+      digitalWrite(ledRed, HIGH);
+      t = getTeensy3Time();
+      cDisplay();
+      display.println("Next Start");
+      displayClock(startTime, 20);
+      displayClock(t, BOTTOM);
+      display.display();
+      
       if(t >= burnTime){
         digitalWrite(BURN1, HIGH);
       }
@@ -497,23 +513,34 @@ void loop() {
         display.display();
 
         mode = 1;
-        
+
+        digitalWrite(ledRed, LOW);
         startRecording();
-        cam_start();
-      }
-      else{
-        cDisplay();
-        display.println("Next Start");
-        displayClock(startTime, 20);
-        displayClock(getTeensy3Time(), BOTTOM);
-        display.display();
+        if (camFlag)  cam_start();
       }
   }
-  
+
+
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
+    digitalWrite(ledGreen, HIGH);
 
+    
+    if(printDiags){  //this is to see if code still running when queue fails
+      recLoopCount++;
+      if(recLoopCount>50){
+        recLoopCount = 0;
+        t = getTeensy3Time();
+        cDisplay();
+        display.println("Rec");
+        displayClock(stopTime, 20);
+        displayClock(t, BOTTOM);
+        display.display();
+      }
+      
+    }
+    
     // write Pressure & Temperature to file
     if(time2writePT==1)
     {
@@ -552,6 +579,7 @@ void loop() {
       
     if(buf_count >= nbufs_per_file){       // time to stop?
       stopRecording();
+      digitalWrite(ledGreen, LOW);
 
       long ss = startTime - getTeensy3Time() - wakeahead;
       if (ss<0) ss=0;
@@ -566,7 +594,7 @@ void loop() {
           mpuInit(0);  //gyro to sleep
           islSleep(); // RGB light sensor
           audio_power_down();
-          cam_off();
+          if (camFlag) cam_off();
           cDisplay();
           display.display();
           delay(100);
@@ -578,23 +606,39 @@ void loop() {
             Serial.println(snooze_second);
           }
           
-          delay(500);
+          delay(100);
+
+         // AudioNoInterrupts();
+
           
-          snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
+          //snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
+          //delay(100);
           //Snooze.sleep( snooze_config );
-          Snooze.hibernate( snooze_config );
+          //Snooze.deepSleep(snooze_config);
+          //Snooze.hibernate( snooze_config);
+
+          alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+          Snooze.sleep(config_teensy32);
+
           
           /// ... Sleeping ....
           
           // Waking up
-          if (printDiags==0) usbDisable();
+         // if (printDiags==0) usbDisable();
           display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
           digitalWrite(hydroPowPin, HIGH); // hydrophone on
+ 
+        //  audio_enable();
+        //  AudioInterrupts();
+          
           audio_power_up();
-          cam_wake();
+          if (camFlag)  cam_wake();
           islInit(); // RGB light sensor
           mpuInit(1);  //start gyro
-          }
+          //sdInit();  //reinit SD because voltage can drop in hibernate
+       }
+
+          
       mode = 0;
     }
   }
@@ -605,14 +649,9 @@ void startRecording() {
   FileInit();
   resetGyroFIFO();
   if (fileType) Timer1.attachInterrupt(sampleSensors);
-  if (frec) {
-    buf_count = 0;
-    queue1.begin();
-  }
-  else
-  {
-    Serial.println("could not open file");
-  }
+  buf_count = 0;
+  queue1.begin();
+  Serial.println("Queue Begin");
 }
 
 void continueRecording() {
@@ -644,7 +683,11 @@ void continueRecording() {
         if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
       }
     }
-   // Serial.println(buf_count);
+    
+    if(printDiags){
+      Serial.print(".");
+   }
+   
    // digitalWrite(ledGreen, LOW);
 
     // we are updating these here because reading within interrupt causes board to seize
@@ -684,12 +727,8 @@ void stopRecording() {
   Serial.println(maxblocks);
   byte buffer[512];
   queue1.end();
-  while (queue1.available() > 0) {
-    memcpy(buffer, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-    memcpy(buffer+256, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-  }
+  //queue1.clear();
+
   AudioMemoryUsageMaxReset();
   if (fileType) Timer1.detachInterrupt();
 
@@ -700,7 +739,6 @@ void stopRecording() {
   delay(100);
   //calcRMS();
   //Serial.println(rms);
-  digitalWrite(hydroPowPin, LOW);
 }
 
 // increment PTbuffer position by 1 sample. This does not check for overflow, because collected at a slow rate
@@ -876,12 +914,30 @@ int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENS
 }
 
 
+/*
+void sdInit(){
+     if (!(SD.begin(10))) {
+    // stop here if no SD card, but print a message
+    Serial.println("Unable to access the SD card");
+    
+    while (1) {
+      cDisplay();
+      display.println("SD error. Restart.");
+      displayClock(getTeensy3Time(), BOTTOM);
+      display.display();
+      delay(1000);
+      
+    }
+  }
+}
+*/
 
 void FileInit()
 {
    t = getTeensy3Time();
    
    if (folderMonth != month(t)){
+    if(printDiags) Serial.println("New Folder");
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     SdFile::dateTimeCallback(file_date_time);
@@ -893,17 +949,21 @@ void FileInit()
    
    // open file 
    if(fileType==0)
-      sprintf(filename,"%s//%02d%02d%02d%02d.wav", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+      sprintf(filename,"%s/%02d%02d%02d%02d.wav", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
     else
-      sprintf(filename,"%s//%02d%02d%02d%02d.amx", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
+      sprintf(filename,"%s/%02d%02d%02d%02d.amx", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
 
    // log file
    SdFile::dateTimeCallback(file_date_time);
-   File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE);
-   logFile.print(filename);
-   logFile.print(',');
-   logFile.println(7.5 * (float) analogRead(vSense) / 1024.0);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
-   logFile.close();
+   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+      logFile.print(filename);
+      logFile.print(',');
+      logFile.println(7.5 * (float) analogRead(vSense) / 1024.0);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+      logFile.close();
+   }
+   else{
+    if(printDiags) Serial.print("Log open fail.");
+   }
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
    Serial.println(filename);
