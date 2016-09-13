@@ -187,8 +187,9 @@ int updateVal(long curVal, long minVal, long maxVal){
   if(upVal==0){
     settingsChanged = 1;
       if (heldUp > 10) {
+        curVal = (int) (curVal / 10) * 10;
         curVal += 10;
-        if (heldUp > 20) curVal += 90;
+        if (heldUp > 20) curVal += 100;
       }
       else curVal += 1;
       heldUp += 1;
@@ -198,8 +199,9 @@ int updateVal(long curVal, long minVal, long maxVal){
     if(downVal==0){
       settingsChanged = 1;
       if (heldDown > 10) {
+        curVal = (int) (curVal / 10) * 10;
         curVal -= 10;
-        if (heldDown > 20) curVal -= 90;
+        if (heldDown > 20) curVal -= 100;
       }
       else
         curVal -= 1;
