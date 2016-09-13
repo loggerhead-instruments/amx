@@ -81,7 +81,8 @@ const int hydroPowPin = 2;
 
 // AMX
 const int UP = 4;
-const int DOWN = 3;
+//const int DOWN = 3;  // new board pin
+const int DOWN = 5;
 const int SELECT = 8;
 const int displayPow = 20;
 const int ledGreen = 16;
@@ -371,8 +372,8 @@ void setup() {
   }
   //SdFile::dateTimeCallback(file_date_time);
    
-//  if (!LoadScript())  // if no script file, go to manual settings
-//      manualSettings();
+  if (!LoadScript())  // if no script file, go to manual settings
+      manualSettings();
 
   setupDataStructures();
 
@@ -480,7 +481,6 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
-      digitalWrite(ledRed, HIGH);
       t = getTeensy3Time();
       cDisplay();
       display.println("Next Start");
@@ -505,16 +505,15 @@ void loop() {
         Serial.print("Next Start:");
         printTime(startTime);
 
-        cDisplay();
-        display.println("Rec");
-        display.setTextSize(1);
-        display.print("Stop Time: ");
-        displayClock(stopTime, 30);
-        display.display();
+//        cDisplay();
+//        display.println("Rec");
+//        display.setTextSize(1);
+//        display.print("Stop Time: ");
+//        displayClock(stopTime, 30);
+//        display.display();
 
         mode = 1;
 
-        digitalWrite(ledRed, LOW);
         startRecording();
         if (camFlag)  cam_start();
       }
@@ -524,8 +523,6 @@ void loop() {
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
-    digitalWrite(ledGreen, HIGH);
-
     
     if(printDiags){  //this is to see if code still running when queue fails
       recLoopCount++;
@@ -533,12 +530,18 @@ void loop() {
         recLoopCount = 0;
         t = getTeensy3Time();
         cDisplay();
-        display.println("Rec");
-        displayClock(stopTime, 20);
+        if(rec_int > 0) {
+          display.println("Rec");
+          displayClock(stopTime, 20);
+        }
+        else{
+          display.println("Rec Contin");
+          display.setTextSize(1);
+          display.println(filename);
+        }
         displayClock(t, BOTTOM);
         display.display();
       }
-      
     }
     
     // write Pressure & Temperature to file
@@ -578,68 +581,75 @@ void loop() {
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
-      stopRecording();
-      digitalWrite(ledGreen, LOW);
-
-      long ss = startTime - getTeensy3Time() - wakeahead;
-      if (ss<0) ss=0;
-      snooze_hour = floor(ss/3600);
-      ss -= snooze_hour * 3600;
-      snooze_minute = floor(ss/60);
-      ss -= snooze_minute * 60;
-      snooze_second = ss;
-
-      if( snooze_hour + snooze_minute + snooze_second >=10){
-          digitalWrite(hydroPowPin, LOW); //hydrophone off
-          mpuInit(0);  //gyro to sleep
-          islSleep(); // RGB light sensor
-          audio_power_down();
-          if (camFlag) cam_off();
-          cDisplay();
-          display.display();
-          delay(100);
-          display.ssd1306_command(SSD1306_DISPLAYOFF); 
-          if(printDiags){
-            Serial.print("Snooze HH MM SS ");
-            Serial.print(snooze_hour);
-            Serial.print(snooze_minute);
-            Serial.println(snooze_second);
-          }
+      if(rec_int == 0){
+        frec.close();
+        FileInit();  // make a new file
+        buf_count = 0;
+      }
+      else{
+      
+                stopRecording();
           
-          delay(100);
-
-         // AudioNoInterrupts();
-
+                long ss = startTime - getTeensy3Time() - wakeahead;
+                if (ss<0) ss=0;
+                snooze_hour = floor(ss/3600);
+                ss -= snooze_hour * 3600;
+                snooze_minute = floor(ss/60);
+                ss -= snooze_minute * 60;
+                snooze_second = ss;
           
-          //snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
-          //delay(100);
-          //Snooze.sleep( snooze_config );
-          //Snooze.deepSleep(snooze_config);
-          //Snooze.hibernate( snooze_config);
-
-          alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
-          Snooze.sleep(config_teensy32);
-
+                if( snooze_hour + snooze_minute + snooze_second >=10){
+                    digitalWrite(hydroPowPin, LOW); //hydrophone off
+                    mpuInit(0);  //gyro to sleep
+                    islSleep(); // RGB light sensor
+                    audio_power_down();
+                    if (camFlag) cam_off();
+                    cDisplay();
+                    display.display();
+                    delay(100);
+                    display.ssd1306_command(SSD1306_DISPLAYOFF); 
+                    if(printDiags){
+                      Serial.print("Snooze HH MM SS ");
+                      Serial.print(snooze_hour);
+                      Serial.print(snooze_minute);
+                      Serial.println(snooze_second);
+                    }
+                    
+                    delay(100);
           
-          /// ... Sleeping ....
+                   // AudioNoInterrupts();
           
-          // Waking up
-         // if (printDiags==0) usbDisable();
-          display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
-          digitalWrite(hydroPowPin, HIGH); // hydrophone on
- 
-        //  audio_enable();
-        //  AudioInterrupts();
+                    
+                    //snooze_config.setAlarm(snooze_hour, snooze_minute, snooze_second);
+                    //delay(100);
+                    //Snooze.sleep( snooze_config );
+                    //Snooze.deepSleep(snooze_config);
+                    //Snooze.hibernate( snooze_config);
           
-          audio_power_up();
-          if (camFlag)  cam_wake();
-          islInit(); // RGB light sensor
-          mpuInit(1);  //start gyro
-          //sdInit();  //reinit SD because voltage can drop in hibernate
-       }
-
+                    alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+                    Snooze.sleep(config_teensy32);
           
-      mode = 0;
+                    
+                    /// ... Sleeping ....
+                    
+                    // Waking up
+                   // if (printDiags==0) usbDisable();
+                    display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+                    digitalWrite(hydroPowPin, HIGH); // hydrophone on
+           
+                  //  audio_enable();
+                  //  AudioInterrupts();
+                    
+                    audio_power_up();
+                    if (camFlag)  cam_wake();
+                    islInit(); // RGB light sensor
+                    mpuInit(1);  //start gyro
+                    //sdInit();  //reinit SD because voltage can drop in hibernate
+                 }
+          
+                    
+                mode = 0;
+      }
     }
   }
 }
