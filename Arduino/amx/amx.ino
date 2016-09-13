@@ -280,47 +280,7 @@ void setup() {
   digitalWrite(DOWN, HIGH);
   digitalWrite(SELECT, HIGH);
 
-  delay(500);
-
-// This causes audio to not record correctly
-
-//  // an attempt to run MCLK to reset audio chip
-//  // enable MCLK output
-//  #if F_CPU == 96000000 || F_CPU == 48000000 || F_CPU == 24000000
-//  // PLL is at 96 MHz in these modes
-//    #define MCLK_MULT 2
-//    #define MCLK_DIV  17
-//  #elif F_CPU == 72000000
-//    #define MCLK_MULT 8
-//    #define MCLK_DIV  51
-//  #elif F_CPU == 120000000
-//    #define MCLK_MULT 8
-//    #define MCLK_DIV  85
-//  #elif F_CPU == 144000000
-//    #define MCLK_MULT 4
-//    #define MCLK_DIV  51
-//  #elif F_CPU == 168000000
-//    #define MCLK_MULT 8
-//    #define MCLK_DIV  119
-//  #elif F_CPU == 16000000
-//    #define MCLK_MULT 12
-//    #define MCLK_DIV  17
-//  #else
-//    #error "This CPU Clock Speed is not supported by the Audio library";
-//  #endif
-//  
-//  #if F_CPU >= 20000000
-//    #define MCLK_SRC  3  // the PLL
-//  #else
-//    #define MCLK_SRC  0  // system clock
-//  #endif
-//
-//  I2S0_MCR = I2S_MCR_MICS(MCLK_SRC) | I2S_MCR_MOE;
-//  I2S0_MDR = I2S_MDR_FRACT((MCLK_MULT-1)) | I2S_MDR_DIVIDE((MCLK_DIV-1));
-//  delay(10);
-//  I2S0_MCR = I2S_MCR_MICS(0);
-//  I2S0_MDR = 0;
-//  delay(100);      
+  delay(500);    
 
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   t = getTeensy3Time();
@@ -396,8 +356,8 @@ void setup() {
   t = getTeensy3Time();
   if (startTime < t)
   {  
-    //startTime = ((t + 60)/10) * 10;  //move ahead and round to nearest 10 s
-    startTime = t + 5; //start in 5 s
+    startTime -= startTime % 300;  //modulo to nearest 5 minutes
+    startTime += 300; //move forward
     stopTime = startTime + rec_dur;  // this will be set on start of recording
   }
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -428,34 +388,7 @@ void setup() {
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  /*
-  if (time_to_first_rec > 60)
-  {
-      ss = time_to_first_rec - wakeahead;
-      int nap_hour = floor(ss/3600);
-      ss -= nap_hour * 3600;
-      int nap_minute = floor(ss/60);
-      ss -= nap_minute * 60;
-      int nap_second = ss;
-      cDisplay();
-      display.println("Sleep...");
-      display.display();
-      delay(800);
-      display.ssd1306_command(SSD1306_DISPLAYOFF); 
-      Serial.print("Nap HH MM SS ");
-      Serial.print(nap_hour);
-      Serial.print(nap_minute);
-      Serial.println(nap_second);     
-      Serial.println("Going to sleep.");
-      delay(2000);
-      digitalWrite(displayPow, LOW);
-     // snooze_config.setAlarm(nap_hour, nap_minute, nap_second);
-    //  Snooze.sleep( snooze_config );
-      // ... sleeping ...
-      digitalWrite(displayPow, HIGH);
-      display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display   
-  }
-  */
+
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
