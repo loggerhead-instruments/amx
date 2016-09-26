@@ -16,10 +16,7 @@
  * burn wire 1 & 2
  * play sound
  *
- * manual settings: fast scroll--round to 10's
  * reset function--but need to skip manual start...so, need auto-start if turn on but do nothing for 10 minutes.
- * 
- * record 10 s sleep 50 seconds: start on time rounded to 60 s.....try to align start time to an hour.
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -54,6 +51,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 #define HWSERIAL Serial1
 
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static uint8_t myID[8];
 
 unsigned long baud = 115200;
 
@@ -81,8 +79,8 @@ const int hydroPowPin = 2;
 
 // AMX
 const int UP = 4;
-//const int DOWN = 3;  // new board pin
-const int DOWN = 5;
+const int DOWN = 3;  // new board pin
+//const int DOWN = 5; // old board down pin
 const int SELECT = 8;
 const int displayPow = 20;
 const int ledGreen = 16;
@@ -91,7 +89,8 @@ const int BURN1 = 5;
 const int SDSW = 0;
 const int ledWhite = 21;
 const int usbSense = 6;
-const int vSense = A14;
+const int vSense = 21; 
+//const int vSense = A14;  // moved to Pin 21 for X1
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -242,6 +241,8 @@ void setup() {
   dfh.Version = 1000;
   dfh.UserID = 5555;
 
+  read_myID();
+  
   Serial.begin(baud);
   delay(500);
   Wire.begin();
@@ -898,10 +899,23 @@ void FileInit()
 
    // log file
    SdFile::dateTimeCallback(file_date_time);
+
+   float voltage;
+   voltage = 0;
+   for(int n = 0; n<8; n++){
+    voltage += (float) analogRead(vSense) / 1024.0;
+    delay(2);
+   }
+   voltage = voltage / 8.0;
+   
    if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
-      logFile.println(7.5 * (float) analogRead(vSense) / 1024.0);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+      for(int n=0; n<8; n++){
+        logFile.print(myID[n]);
+      }
+      logFile.print(',');
+      logFile.println(5.9 * voltage);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
       logFile.close();
    }
    else{
@@ -1008,7 +1022,7 @@ void AudioInit(){
  
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.0);
-  sgtl5000_1.lineInLevel(0);  //default = 8
+  sgtl5000_1.lineInLevel(2);  //default = 8
   // CHIP_ANA_ADC_CTRL
 // Actual measured full-scale peak-to-peak sine wave input for max signal
 //  0: 3.12 Volts p-p
@@ -1199,3 +1213,25 @@ void resetFunc(void){
 }
 
 
+void read_EE(uint8_t word, uint8_t *buf, uint8_t offset)  {
+  noInterrupts();
+  FTFL_FCCOB0 = 0x41;             // Selects the READONCE command
+  FTFL_FCCOB1 = word;             // read the given word of read once area
+
+  // launch command and wait until complete
+  FTFL_FSTAT = FTFL_FSTAT_CCIF;
+  while(!(FTFL_FSTAT & FTFL_FSTAT_CCIF))
+    ;
+  *(buf+offset+0) = FTFL_FCCOB4;
+  *(buf+offset+1) = FTFL_FCCOB5;       
+  *(buf+offset+2) = FTFL_FCCOB6;       
+  *(buf+offset+3) = FTFL_FCCOB7;       
+  interrupts();
+}
+
+    
+void read_myID() {
+  read_EE(0xe,myID,0); // should be 04 E9 E5 xx, this being PJRC's registered OUI
+  read_EE(0xf,myID,4); // xx xx xx xx
+
+}
