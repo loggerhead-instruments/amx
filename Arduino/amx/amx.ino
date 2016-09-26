@@ -89,8 +89,7 @@ const int BURN1 = 5;
 const int SDSW = 0;
 const int ledWhite = 21;
 const int usbSense = 6;
-const int vSense = 21; 
-//const int vSense = A14;  // moved to Pin 21 for X1
+const int vSense = A14;  // moved to Pin 21 for X1
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
