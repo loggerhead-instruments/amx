@@ -115,13 +115,13 @@ time_t t;
 time_t burnTime;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
-boolean imuFlag = 0;
-boolean rgbFlag = 0;
+boolean imuFlag = 1;
+boolean rgbFlag = 1;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD
 boolean audioFlag = 1;
 boolean CAMON = 0;
-boolean camFlag = 0;
-boolean briteFlag = 0; // bright LED
+boolean camFlag = 1;
+boolean briteFlag = 1; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 0; //0=wav, 1=amx
@@ -332,8 +332,8 @@ void setup() {
   }
   //SdFile::dateTimeCallback(file_date_time);
    
-  if (!LoadScript())  // if no script file, go to manual settings
-      manualSettings();
+  LoadScript();
+  //    manualSettings();
 
   setupDataStructures();
 
