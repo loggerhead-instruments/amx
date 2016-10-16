@@ -1295,9 +1295,15 @@ void sensorInit(){
 
 // IMU
   mpuInit(1);
+  delay(1000);
+  pollImu(); //will print out values from FIFO
 
 // RGB
   islInit(); 
+  islRead();
+  Serial.print("R:"); Serial.println(islRed);
+  Serial.print("G:"); Serial.println(islGreen);
+  Serial.print("B:"); Serial.println(islBlue);
   
 // Pressure--auto identify which if any is present
   pressure_sensor = 0;
@@ -1305,12 +1311,26 @@ void sensorInit(){
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
+    kellerConvert();
+    delay(5);
+    kellerRead();
+    Serial.print("Depth: "); Serial.println(depth);
+    Serial.print("Temperature: "); Serial.println(temperature);
   }
 
 // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
+    updatePress();
+    delay(10);
+    readPress();
+    updateTemp();
+    delay(10);
+    readTemp();
+    calcPressTemp();
+    Serial.print("Depth: "); Serial.println(depth);
+    Serial.print("Temperature: "); Serial.println(temperature);
   }
 
 // salt switch
