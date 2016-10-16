@@ -1301,13 +1301,14 @@ void sensorInit(){
 // RGB
   islInit(); 
   islRead();
+  islRead();
   Serial.print("R:"); Serial.println(islRed);
   Serial.print("G:"); Serial.println(islGreen);
   Serial.print("B:"); Serial.println(islBlue);
   
 // Pressure--auto identify which if any is present
   pressure_sensor = 0;
-// Keller
+  // Keller
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
@@ -1318,7 +1319,7 @@ void sensorInit(){
     Serial.print("Temperature: "); Serial.println(temperature);
   }
 
-// Measurement Specialties
+  // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
