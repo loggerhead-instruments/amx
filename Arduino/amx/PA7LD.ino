@@ -5,8 +5,8 @@ float pAt16384 = 0.0; //minimum pressure (bar)
 float pAt49152 = 200.0; // maximum pressure (bar)
 
 // read values of pressure sensor
-void kellerInit(){
-  if (printDiags) Serial.println("Keller");
+int kellerInit(){
+  if (printDiags) Serial.println("Keller Init");
   byte temp[2];
   int i = 0;
    Wire.beginTransmission(kellerAddress);
@@ -21,7 +21,7 @@ void kellerInit(){
     i++;
     if (printDiags) Serial.println(temp[i]);
    } 
-   
+   return (i>0);  //return 1 if bytes read
 }
 
 void kellerConvert(){

@@ -1,12 +1,14 @@
+// Measurement Specialties 5803 Pressure Sensor
+
 int pressAddress = 0x77;
 
-void pressInit()
+int pressInit()
 {
   int i = 0;
   byte buff[2];
   int bytesread;
 
-  if (printDiags) Serial.println("Pressure Init");
+  if (printDiags) Serial.println("MS5803 Init");
   // Reset so PROM is loaded
   Wire.beginTransmission(pressAddress);
   Wire.send(0x1E);  //Reset Command
@@ -99,6 +101,7 @@ void pressInit()
   TEMPSENS = ((uint16_t) buff[0]<<8) | (uint16_t) buff[1];  //Temperature sensitivity coefficient  
   if (printDiags) Serial.println(TEMPSENS);
 
+  return (i>0);  // return 1 if value returned for calibration coefficient; otherwise 0
 }
 
 void updatePress()

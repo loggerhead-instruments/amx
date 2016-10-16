@@ -74,22 +74,19 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 const int myInput = AUDIO_INPUT_LINEIN;
 
 // Pin Assignments
-const int CAM_POW = 1;
+const int CAM_POW = 4;
 const int hydroPowPin = 2;
-
-// AMX
-const int UP = 4;
-const int DOWN = 3;  // new board pin
-//const int DOWN = 5; // old board down pin
-const int SELECT = 8;
+const int VHF = 8;
 const int displayPow = 20;
-const int ledGreen = 16;
-const int ledRed = 17;
+const int SALT = A11;
+const int ledGreen = 17;
 const int BURN1 = 5;
-const int SDSW = 0;
+const int SDSW = 3;
 const int ledWhite = 21;
 const int usbSense = 6;
 const int vSense = A14;  // moved to Pin 21 for X1
+const int gpsToggle = 16;
+const int gpsState = 15;
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -117,25 +114,30 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
-byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD
+byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
 boolean camFlag = 1;
-boolean briteFlag = 1; // bright LED
+boolean briteFlag = 0; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
-byte fileType = 0; //0=wav, 1=amx
+byte fileType = 1; //0=wav, 1=amx
 
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
 
+// GPS
+double latitude, longitude;
+char latHem, lonHem;
+TIME_HEAD gpsTime;
+
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 10;
-long rec_int = 30;
+long rec_dur = 20;
+long rec_int = 0;
 int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
@@ -236,6 +238,8 @@ volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
 boolean firstwrittenRGB;
 
+#define HWSERIAL Serial1
+
 void setup() {
   dfh.Version = 1000;
   dfh.UserID = 5555;
@@ -243,50 +247,23 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
+  HWSERIAL.begin(9600); //GPS
   delay(500);
   Wire.begin();
+  sensorInit(); // initialize and test sensors
 
-  pinMode(CAM_POW, OUTPUT);
-  pinMode(hydroPowPin, OUTPUT);
-  pinMode(displayPow, OUTPUT);
-  pinMode(ledGreen, OUTPUT);
-  pinMode(ledRed, OUTPUT);
-  pinMode(BURN1, OUTPUT);
-  pinMode(ledWhite, OUTPUT);
-  pinMode(SDSW, OUTPUT);
-  pinMode(vSense, INPUT);
-  analogReference(DEFAULT);
-
-
-  digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
-  digitalWrite(CAM_POW,  LOW);
-  digitalWrite(hydroPowPin, LOW);
-  digitalWrite(displayPow, HIGH);
-  digitalWrite(ledGreen, LOW);
-  digitalWrite(ledRed, LOW);
-  digitalWrite(BURN1, LOW);
-  digitalWrite(ledWhite, LOW);
-
+  // GPS on
+  digitalWrite(gpsToggle, HIGH);
+  delay(1);
+  digitalWrite(gpsToggle, LOW);
 
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
-  
-  //setup display and controls
-  pinMode(UP, INPUT);
-  pinMode(DOWN, INPUT);
-  pinMode(SELECT, INPUT);
-  digitalWrite(UP, HIGH);
-  digitalWrite(DOWN, HIGH);
-  digitalWrite(SELECT, HIGH);
-
+ 
   delay(500);    
 
-  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
-  t = getTeensy3Time();
-  if (t < 1451606400) Teensy3Clock.set(1451606400);
-  startTime = getTeensy3Time();
-  stopTime = startTime + rec_dur;
+
 
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
   delay(100);
@@ -299,6 +276,44 @@ void setup() {
  while(digitalRead(usbSense)){
     delay(500);
   }
+
+  
+  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
+
+  
+ // wait here to get GPS time
+  Serial.print("Acquiring GPS: ");
+  Serial.println(digitalRead(gpsState));
+  digitalWrite(ledGreen, HIGH);
+  ULONG newtime = 1451606400 + 290;
+
+  /*
+   while(gpsTime.year < 16){
+    byte incomingByte;
+       while (HWSERIAL.available() > 0) {    
+        incomingByte = HWSERIAL.read();
+        Serial.write(incomingByte);
+        gps(incomingByte);  // parse incoming GPS data
+      }
+
+      
+      newtime=RTCToUNIXTime(&gpsTime);   
+      cDisplay();
+      display.println(newtime);
+      display.setTextSize(1);
+      display.println(latitude, 4);
+      display.println(longitude, 4);
+      display.print(gpsTime.year);  display.print("-");
+      display.print(gpsTime.month);  display.print("-");
+      display.print(gpsTime.day);  display.print("  ");
+      display.print(gpsTime.hour);  display.print(":");
+      display.print(gpsTime.minute);  display.print(":");
+      display.print(gpsTime.sec);
+      display.display();
+   }
+*/
+   Teensy3Clock.set(newtime);
+   digitalWrite(ledGreen, LOW);
 
   // Power down USB if not using Serial monitor
   if (printDiags==0){
@@ -327,39 +342,20 @@ void setup() {
       displayClock(getTeensy3Time(), BOTTOM);
       display.display();
       delay(1000);
-      
     }
   }
   //SdFile::dateTimeCallback(file_date_time);
    
   LoadScript();
-  //    manualSettings();
-
   setupDataStructures();
-
-  // disable buttons; not using any more
-  digitalWrite(UP, LOW);
-  digitalWrite(DOWN, LOW);
-  digitalWrite(SELECT, LOW);
-  pinMode(UP, OUTPUT);
-  pinMode(DOWN, OUTPUT);
-  pinMode(SELECT, OUTPUT);
-
-  int ecode;
-  kellerInit();  
-  ecode = mpuInit(1);
-  islInit(); // RGB light sensor
-  pressInit();
-  
   cDisplay();
-  
+
   t = getTeensy3Time();
-  if (startTime < t)
-  {  
-    startTime -= startTime % 300;  //modulo to nearest 5 minutes
-    startTime += 300; //move forward
-    stopTime = startTime + rec_dur;  // this will be set on start of recording
-  }
+  startTime = getTeensy3Time();
+  startTime -= startTime % 300;  //modulo to nearest 5 minutes
+  startTime += 300; //move forward
+  stopTime = startTime + rec_dur;  // this will be set on start of recording
+  
   if (recMode==MODE_DIEL) checkDielTime();  
   
   nbufs_per_file = (long) (rec_dur * audio_srate / 256.0);
@@ -480,37 +476,37 @@ void loop() {
     // write Pressure & Temperature to file
     if(time2writePT==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writePT==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }   
   
     // write RGB values to file
     if(time2writeRGB==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeRGB==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledRed,HIGH);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledRed,LOW);
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
@@ -520,7 +516,6 @@ void loop() {
         buf_count = 0;
       }
       else{
-      
                 stopRecording();
           
                 long ss = startTime - getTeensy3Time() - wakeahead;
@@ -575,6 +570,7 @@ void loop() {
                     
                     audio_power_up();
                     if (camFlag)  cam_wake();
+                    digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
                     islInit(); // RGB light sensor
                     mpuInit(1);  //start gyro
                     //sdInit();  //reinit SD because voltage can drop in hibernate
@@ -593,6 +589,7 @@ void startRecording() {
   resetGyroFIFO();
   if (fileType) Timer1.attachInterrupt(sampleSensors);
   buf_count = 0;
+  digitalWrite(ledGreen, HIGH);
   queue1.begin();
   Serial.println("Queue Begin");
 }
@@ -670,6 +667,7 @@ void stopRecording() {
   Serial.println(maxblocks);
   byte buffer[512];
   queue1.end();
+  digitalWrite(ledGreen, LOW);
   //queue1.clear();
 
   AudioMemoryUsageMaxReset();
@@ -886,7 +884,7 @@ void FileInit()
     SdFile::dateTimeCallback(file_date_time);
     SD.mkdir(dirname);
    }
-   pinMode(vSense, INPUT);  // get ready to read voltage
+
 
    // only audio save as wav file, otherwise save as AMX file
    
@@ -899,13 +897,7 @@ void FileInit()
    // log file
    SdFile::dateTimeCallback(file_date_time);
 
-   float voltage;
-   voltage = 0;
-   for(int n = 0; n<8; n++){
-    voltage += (float) analogRead(vSense) / 1024.0;
-    delay(2);
-   }
-   voltage = voltage / 8.0;
+   float voltage = readVoltage();
    
    if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
@@ -914,11 +906,20 @@ void FileInit()
         logFile.print(myID[n]);
       }
       logFile.print(',');
-      logFile.println(5.9 * voltage);  //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+      logFile.println(voltage); 
+      if(voltage < 3.0){
+        logFile.println("Stopping because Voltage less than 3.0 V");
+        logFile.close();  
+        // low voltage hang but keep checking voltage
+        while(readVoltage() < 3.0){
+            delay(30000);
+        }
+      }
       logFile.close();
    }
    else{
     if(printDiags) Serial.print("Log open fail.");
+    resetFunc();
    }
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
@@ -957,8 +958,8 @@ void FileInit()
    }
 
    //amx file header
-   dfh.voltage = 7.5 * (float) analogRead(vSense) / 1024.0;
-   pinMode(vSense, OUTPUT);  // done reading voltage
+   dfh.voltage = voltage;
+
    if(fileType==1){
     // write DF_HEAD
     dfh.RecStartTime.sec = second();  
@@ -1234,3 +1235,90 @@ void read_myID() {
   read_EE(0xf,myID,4); // xx xx xx xx
 
 }
+
+float readVoltage(){
+   float  voltage = 0;
+   pinMode(vSense, INPUT);  // get ready to read voltage
+   for(int n = 0; n<8; n++){
+    voltage += (float) analogRead(vSense) / 1024.0;
+    delay(2);
+   }
+   voltage = 5.9 * voltage / 8.0;   //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+   pinMode(vSense, OUTPUT);  // done reading voltage
+   return voltage;
+}
+
+void sensorInit(){
+ // initialize and test sensors
+//
+//const int ledGreen = 17;
+//const int BURN1 = 5;
+//const int SDSW = 3;
+//const int ledWhite = 21;
+//const int usbSense = 6;
+//const int vSense = A14;  // moved to Pin 21 for X1
+//const int gpsToggle = 16;
+//const int gpsState = 15;
+  pinMode(CAM_POW, OUTPUT);
+  pinMode(hydroPowPin, OUTPUT);
+  pinMode(displayPow, OUTPUT);
+  pinMode(ledGreen, OUTPUT);
+  pinMode(gpsToggle, OUTPUT);
+  pinMode(gpsState, INPUT);
+  pinMode(BURN1, OUTPUT);
+  pinMode(ledWhite, OUTPUT);
+  pinMode(SDSW, OUTPUT);
+  pinMode(VHF, OUTPUT);
+  pinMode(vSense, INPUT);
+  pinMode(SALT, INPUT);
+  analogReference(DEFAULT);
+
+  digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
+  digitalWrite(hydroPowPin, LOW);
+  digitalWrite(displayPow, HIGH);  // also used as Salt output
+  digitalWrite(gpsToggle, LOW); 
+
+  Serial.println("Sensor Init");
+  // Digital IO
+  digitalWrite(ledGreen, HIGH);
+  digitalWrite(BURN1, HIGH);
+  digitalWrite(ledWhite, HIGH);
+  digitalWrite(VHF, HIGH);
+  cam_wake();  // has 2 second delay
+  
+  digitalWrite(ledGreen, LOW);
+  digitalWrite(BURN1, LOW);
+  digitalWrite(ledWhite, LOW);
+  digitalWrite(VHF, LOW);
+  cam_off();
+
+
+// IMU
+  mpuInit(1);
+
+// RGB
+  islInit(); 
+  
+// Pressure--auto identify which if any is present
+  pressure_sensor = 0;
+// Keller
+  if(kellerInit()) {
+    pressure_sensor = 2;   // 2 if present
+    Serial.println("Keller Pressure Detected");
+  }
+
+// Measurement Specialties
+  if(pressInit()){
+    pressure_sensor = 1;
+    Serial.println("MS Pressure Detected");
+  }
+
+// salt switch
+  Serial.print("Salt: ");
+  Serial.println(analogRead(SALT));
+
+// battery voltage measurement
+  Serial.print("Battery: ");
+  Serial.println(analogRead(vSense));
+}
+
