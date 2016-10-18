@@ -38,6 +38,8 @@
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
+#include "Adafruit_MCP23017.h"
+
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -46,6 +48,8 @@
 #define OLED_RESET 4
 Adafruit_SSD1306 display(OLED_RESET);
 #define BOTTOM 55
+
+Adafruit_MCP23017 mcp;
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
@@ -117,7 +121,7 @@ boolean rgbFlag = 1;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
-boolean camFlag = 1;
+boolean camFlag = 0;
 boolean briteFlag = 0; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -147,8 +151,8 @@ long nbufs_per_file;
 boolean settingsChanged = 0;
 
 long file_count;
-char filename[20];
-char dirname[7];
+char filename[25];
+char dirname[8];
 int folderMonth;
 //SnoozeBlock snooze_config;
 SnoozeAlarm alarm;
@@ -252,18 +256,11 @@ void setup() {
   Wire.begin();
   sensorInit(); // initialize and test sensors
 
-  // GPS on
-  digitalWrite(gpsToggle, HIGH);
-  delay(1);
-  digitalWrite(gpsToggle, LOW);
-
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
  
   delay(500);    
-
-
 
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
   delay(100);
@@ -287,31 +284,40 @@ void setup() {
   digitalWrite(ledGreen, HIGH);
   ULONG newtime = 1451606400 + 290;
 
-  /*
-   while(gpsTime.year < 16){
-    byte incomingByte;
-       while (HWSERIAL.available() > 0) {    
-        incomingByte = HWSERIAL.read();
-        Serial.write(incomingByte);
-        gps(incomingByte);  // parse incoming GPS data
-      }
+  
+//   while(gpsTime.year < 16){
+//    byte incomingByte;
+//       while (HWSERIAL.available() > 0) {    
+//        incomingByte = HWSERIAL.read();
+//        Serial.write(incomingByte);
+//        gps(incomingByte);  // parse incoming GPS data
+//      }
+//
+//      
+//      newtime=RTCToUNIXTime(&gpsTime);   
+//      cDisplay();
+//      display.println(newtime);
+//      display.setTextSize(1);
+//      display.println(latitude, 4);
+//      display.println(longitude, 4);
+//      display.print(gpsTime.year);  display.print("-");
+//      display.print(gpsTime.month);  display.print("-");
+//      display.print(gpsTime.day);  display.print("  ");
+//      display.print(gpsTime.hour);  display.print(":");
+//      display.print(gpsTime.minute);  display.print(":");
+//      display.print(gpsTime.sec);
+//      display.display();
+//   }
 
-      
-      newtime=RTCToUNIXTime(&gpsTime);   
-      cDisplay();
-      display.println(newtime);
-      display.setTextSize(1);
-      display.println(latitude, 4);
-      display.println(longitude, 4);
-      display.print(gpsTime.year);  display.print("-");
-      display.print(gpsTime.month);  display.print("-");
-      display.print(gpsTime.day);  display.print("  ");
-      display.print(gpsTime.hour);  display.print(":");
-      display.print(gpsTime.minute);  display.print(":");
-      display.print(gpsTime.sec);
-      display.display();
-   }
-*/
+
+while(digitalRead(gpsState)){
+   //gpsSleep();
+   gpsHibernate();
+   delay(500);
+}
+  Serial.println("GPS off");
+   
+  
    Teensy3Clock.set(newtime);
    digitalWrite(ledGreen, LOW);
 
@@ -1341,5 +1347,42 @@ void sensorInit(){
 // battery voltage measurement
   Serial.print("Battery: ");
   Serial.println(analogRead(vSense));
+
+// playback
+  mcp.begin();
+  for(int i=0; i<14; i++){
+    mcp.pinMode(i, OUTPUT);
+    mcp.digitalWrite(i, HIGH);
+  }
+  mcp.pinMode(11, INPUT); // activity pin (low when playing)
+  
+  // test playback of file 0
+  mcp.digitalWrite(0, LOW);
+  delay(200);
+  mcp.digitalWrite(0, HIGH);
+
+  // GPS
+  Serial.print("GPS:");
+  Serial.println(digitalRead(gpsState));
+  
 }
+
+void gpsOnOff(){
+  digitalWrite(gpsToggle, HIGH);
+  delay(1);
+  digitalWrite(gpsToggle, LOW);
+  HWSERIAL.write(".");  //send byte to wake from sleep
+}
+
+void gpsHibernate(){
+  digitalWrite(gpsToggle, LOW);
+  HWSERIAL.println("$PMTK225,4*2F");
+  HWSERIAL.flush();
+}
+
+void gpsSleep(){
+  HWSERIAL.println("$PMTK161,0*28");
+  HWSERIAL.flush();
+}
+
 
