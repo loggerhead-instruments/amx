@@ -19,7 +19,7 @@ struct TIME_HEAD
 	byte 	hour;  
 	byte 	day;  
 	byte 	month;  
-  byte NU[3];
+    byte NU[3];
 	int16_t year;  
 	int16_t	tzOffset; //offset from GMT 
 };
@@ -35,9 +35,10 @@ struct SENSOR{
 
 struct DF_HEAD
 {
-	ULONG Version; // firmware version
-  ULONG UserID;  //tag type
-  TIME_HEAD RecStartTime;
+    ULONG Version; // firmware version
+    ULONG UserID;  //tag type
+    TIME_HEAD RecStartTime;
+    float voltage;
 };
 
 struct SID_SPEC
