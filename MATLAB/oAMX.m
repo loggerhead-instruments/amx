@@ -12,6 +12,7 @@ end
 % Read in DF_Head
 DF_HEAD.Version = fread(fid,1,'uint32');
 DF_HEAD.UserID = fread(fid,1,'uint32');
+DF_HEAD.Voltage = fread(fid,1,'float32');
 DF_HEAD.sec = fread(fid,1,'uint8');
 DF_HEAD.min = fread(fid,1,'uint8');
 DF_HEAD.hour = fread(fid,1,'uint8');
@@ -65,7 +66,7 @@ eofstat=0;
 reccounter=0;
 SID_REC=[]; 
 
-while(eofstat==00)
+while(eofstat==0)
     reccounter=reccounter+1;
     SID_REC(reccounter).nSID=fread(fid,1,'uint32');
     fread(fid,1,'uint32'); %NU
