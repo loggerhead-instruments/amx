@@ -22,10 +22,10 @@ cd(PathName);
 [DF_HEAD, SID_SPEC, SID_REC]=oAMX(FileName);
 
 if(ans==0)
-    amxdata1=[];
-    amxdata2=[];
-    amxdata3=[];
-    amxdata4=[];
+    AUDIO=[];
+    PT=[];
+    RGB=[];
+    IMU=[];
     amxdata5=[];
 end
 
@@ -39,16 +39,16 @@ PTMP_ts=[];
 for x=1:length(SID_REC)
     cur_sid=(SID_REC(x).nSID) + 1;
     if(cur_sid==1)
-        amxdata1=vertcat(amxdata1,SID_REC(x).data);
+        AUDIO=vertcat(AUDIO,SID_REC(x).data);
     end
     if(cur_sid==2)
-        amxdata2=vertcat(amxdata2,SID_REC(x).data);
+        PT=vertcat(PT,SID_REC(x).data);
     end
     if(cur_sid==3)
-        amxdata3=vertcat(amxdata3,SID_REC(x).data);
+        RGB=vertcat(RGB,SID_REC(x).data);
     end
     if(cur_sid==4)
-        amxdata4=vertcat(amxdata4,SID_REC(x).data);
+        IMU=vertcat(IMU,SID_REC(x).data);
     end
         if(cur_sid==5)
         amxdata5=vertcat(amxdata5,SID_REC(x).data);
