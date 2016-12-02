@@ -54,7 +54,7 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 static uint8_t myID[8];
 
 unsigned long baud = 115200;
@@ -84,7 +84,7 @@ const int VHF = 8;
 const int displayPow = 20;
 const int SALT = A11;
 const int ledGreen = 17;
-const int BURN1 = 5;
+const int BURN = 5;
 const int SDSW = 3;
 const int ledWhite = 21;
 const int usbSense = 6;
@@ -140,7 +140,7 @@ float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 20;
+long rec_dur = 20; // 10 minutes would be good for regular operation (600)
 long rec_int = 0;
 int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -192,7 +192,7 @@ unsigned char prev_dtr = 0;
 
 // IMU
 int FIFOpts;
-#define BUFFERSIZE 140 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3,T) and 14 (w/out mag)
+#define BUFFERSIZE 180 // used this length because it is divisible by 20 bytes (e.g. A*3,M*3,G*3) and 14 (w/out mag)
 byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
 int16_t accel_x;
 int16_t accel_y;
@@ -271,12 +271,15 @@ void setup() {
   display.display();
   // Check for external USB connection to microSD
  while(digitalRead(usbSense)){
+    pinMode(usbSense, OUTPUT);
+    digitalWrite(usbSense, LOW); // forces low if USB power pulled
+    pinMode(usbSense, INPUT);
     delay(500);
   }
 
   
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
-
+  digitalWrite(hydroPowPin, HIGH);
   
  // wait here to get GPS time
   Serial.print("Acquiring GPS: ");
@@ -310,12 +313,12 @@ void setup() {
 //   }
 
 
-while(digitalRead(gpsState)){
-   //gpsSleep();
-   gpsHibernate();
-   delay(500);
-}
-  Serial.println("GPS off");
+//while(digitalRead(gpsState)){
+//   //gpsSleep();
+//   gpsHibernate();
+//   delay(500);
+//}
+//  Serial.println("GPS off");
    
   
    Teensy3Clock.set(newtime);
@@ -424,7 +427,7 @@ void loop() {
       display.display();
       
       if(t >= burnTime){
-        digitalWrite(BURN1, HIGH);
+        digitalWrite(BURN, HIGH);
       }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
@@ -627,6 +630,9 @@ void continueRecording() {
       if (pollImu()){
         if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
         if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
+            if(printDiags){
+                Serial.print("i");
+             }
       }
     }
     
@@ -783,27 +789,27 @@ void setupDataStructures(void){
 
   // IMU
   strncpy(sensor[3].chipName, "MPU9250", STR_MAX);
-  sensor[3].nChan = 10;
+  sensor[3].nChan = 9;
   strncpy(sensor[3].name[0], "accelX", STR_MAX);
   strncpy(sensor[3].name[1], "accelY", STR_MAX);
   strncpy(sensor[3].name[2], "accelZ", STR_MAX);
-  strncpy(sensor[3].name[3], "temp-21C", STR_MAX);
-  strncpy(sensor[3].name[4], "gyroX", STR_MAX);
-  strncpy(sensor[3].name[5], "gyroY", STR_MAX);
-  strncpy(sensor[3].name[6], "gyroZ", STR_MAX);
-  strncpy(sensor[3].name[7], "magX", STR_MAX);
-  strncpy(sensor[3].name[8], "magY", STR_MAX);
-  strncpy(sensor[3].name[9], "magZ", STR_MAX);
+  //strncpy(sensor[3].name[3], "temp-21C", STR_MAX);
+  strncpy(sensor[3].name[3], "gyroX", STR_MAX);
+  strncpy(sensor[3].name[4], "gyroY", STR_MAX);
+  strncpy(sensor[3].name[5], "gyroZ", STR_MAX);
+  strncpy(sensor[3].name[6], "magX", STR_MAX);
+  strncpy(sensor[3].name[7], "magY", STR_MAX);
+  strncpy(sensor[3].name[8], "magZ", STR_MAX);
   strncpy(sensor[3].units[0], "g", STR_MAX);
   strncpy(sensor[3].units[1], "g", STR_MAX);
   strncpy(sensor[3].units[2], "g", STR_MAX);
-  strncpy(sensor[3].units[3], "degreesC", STR_MAX);
+  //strncpy(sensor[3].units[3], "degreesC", STR_MAX);
+  strncpy(sensor[3].units[3], "degPerS", STR_MAX);
   strncpy(sensor[3].units[4], "degPerS", STR_MAX);
   strncpy(sensor[3].units[5], "degPerS", STR_MAX);
-  strncpy(sensor[3].units[6], "degPerS", STR_MAX);
+  strncpy(sensor[3].units[6], "uT", STR_MAX);
   strncpy(sensor[3].units[7], "uT", STR_MAX);
   strncpy(sensor[3].units[8], "uT", STR_MAX);
-  strncpy(sensor[3].units[9], "uT", STR_MAX);
   
   float accelFullRange = 16.0; //ACCEL_FS_SEL 2g(00), 4g(01), 8g(10), 16g(11)
   int gyroFullRange = 1000.0;  // FS_SEL 250deg/s (0), 500 (1), 1000(2), 2000 (3)
@@ -812,13 +818,13 @@ void setupDataStructures(void){
   sensor[3].cal[0] = accelFullRange / 32768.0;
   sensor[3].cal[1] = accelFullRange / 32768.0;
   sensor[3].cal[2] = accelFullRange / 32768.0;
-  sensor[3].cal[3] = 1.0 / 337.87;
+  //sensor[3].cal[3] = 1.0 / 337.87;
+  sensor[3].cal[3] = gyroFullRange / 32768.0;
   sensor[3].cal[4] = gyroFullRange / 32768.0;
   sensor[3].cal[5] = gyroFullRange / 32768.0;
-  sensor[3].cal[6] = gyroFullRange / 32768.0;
+  sensor[3].cal[6] = magFullRange / 32768.0;
   sensor[3].cal[7] = magFullRange / 32768.0;
   sensor[3].cal[8] = magFullRange / 32768.0;
-  sensor[3].cal[9] = magFullRange / 32768.0;
 }
 
 int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
@@ -1171,7 +1177,7 @@ void sampleSensors(void){  //interrupt at 10 Hz
 boolean pollImu(){
   FIFOpts=getImuFifo();
   //Serial.print("IMU FIFO pts: ");
-  //if (printDiags) Serial.println(FIFOpts);
+  if (printDiags) Serial.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
@@ -1180,31 +1186,31 @@ boolean pollImu(){
     if (printDiags){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
-    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
-    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
-    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
-    
-    gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
-   
-    gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
-    gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
-    gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
-    
-    magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-    magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
-    magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
+//    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
+//    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
+//    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
+//    
+//    gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
+//   
+//    gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
+//    gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
+//    gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
+//    
+//    magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
+//    magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
+//    magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
 
-    Serial.print("a/g/m/t:\t");
-    Serial.print( accel_x); Serial.print("\t");
-    Serial.print( accel_y); Serial.print("\t");
-    Serial.print( accel_z); Serial.print("\t");
-    Serial.print(gyro_x); Serial.print("\t");
-    Serial.print(gyro_y); Serial.print("\t");
-    Serial.print(gyro_z); Serial.print("\t");
-    Serial.print(magnetom_x); Serial.print("\t");
-    Serial.print(magnetom_y); Serial.print("\t");
-    Serial.print(magnetom_z); Serial.print("\t");
-    Serial.println((float) gyro_temp/337.87+21);
+//    Serial.print("a/g/m/t:\t");
+//    Serial.print( accel_x); Serial.print("\t");
+//    Serial.print( accel_y); Serial.print("\t");
+//    Serial.print( accel_z); Serial.print("\t");
+//    Serial.print(gyro_x); Serial.print("\t");
+//    Serial.print(gyro_y); Serial.print("\t");
+//    Serial.print(gyro_z); Serial.print("\t");
+//    Serial.print(magnetom_x); Serial.print("\t");
+//    Serial.print(magnetom_y); Serial.print("\t");
+//    Serial.print(magnetom_z); Serial.print("\t");
+//    Serial.println((float) gyro_temp/337.87+21);
     }
     
     return true;
@@ -1258,7 +1264,7 @@ void sensorInit(){
  // initialize and test sensors
 //
 //const int ledGreen = 17;
-//const int BURN1 = 5;
+//const int BURN = 5;
 //const int SDSW = 3;
 //const int ledWhite = 21;
 //const int usbSense = 6;
@@ -1271,7 +1277,7 @@ void sensorInit(){
   pinMode(ledGreen, OUTPUT);
   pinMode(gpsToggle, OUTPUT);
   pinMode(gpsState, INPUT);
-  pinMode(BURN1, OUTPUT);
+  pinMode(BURN, OUTPUT);
   pinMode(ledWhite, OUTPUT);
   pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
@@ -1287,13 +1293,13 @@ void sensorInit(){
   Serial.println("Sensor Init");
   // Digital IO
   digitalWrite(ledGreen, HIGH);
-  digitalWrite(BURN1, HIGH);
+  digitalWrite(BURN, HIGH);
   digitalWrite(ledWhite, HIGH);
   digitalWrite(VHF, HIGH);
   cam_wake();  // has 2 second delay
   
   digitalWrite(ledGreen, LOW);
-  digitalWrite(BURN1, LOW);
+  digitalWrite(BURN, LOW);
   digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
   cam_off();

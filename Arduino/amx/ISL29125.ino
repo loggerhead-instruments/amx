@@ -86,6 +86,7 @@ int _addr = 0x44;
 #define FLAG_CONV_B 0x30
 
 bool islInit(){
+  Serial.println("Light init"); 
   bool ret = true;
   ret = config(CFG1_MODE_RGB | CFG1_10KLUX, CFG2_IR_ADJUST_HIGH, CFG_DEFAULT); 
   return ret;
