@@ -58,7 +58,7 @@ int mpuInit(boolean mode)
     I2Cwrite(GyroAddress, 0x1A, 0x05);  //no frame sync; DLPF 10 Hz; causes Gyro to sample at 1 kHz
     
     // set sample rate divider
-    I2Cwrite(GyroAddress, 0x19, 19);  //  0x31=49=>20Hz; 1kHz/(1+4)=200; divide 1 kHz/(1+9)=100 Hz sample rate for all sensors
+    I2Cwrite(GyroAddress, 0x19, 9);  //  0x31=49=>20Hz; 1kHz/(1+4)=200; divide 1 kHz/(1+9)=100 Hz sample rate for all sensors
     
     // enable FIFO
    // I2Cwrite(GyroAddress, 0x23, 0xF9);  //enable temp, gyro, accel, slave 0 (mag)
