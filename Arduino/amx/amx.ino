@@ -142,7 +142,7 @@ unsigned int audioIntervalCount = 0;
 int recMode = MODE_NORMAL;
 long rec_dur = 20; // 10 minutes would be good for regular operation (600)
 long rec_int = 100;
-int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -584,8 +584,6 @@ void loop() {
                     mpuInit(1);  //start gyro
                     //sdInit();  //reinit SD because voltage can drop in hibernate
                  }
-          
-                    
                 mode = 0;
       }
     }
