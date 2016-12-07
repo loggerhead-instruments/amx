@@ -121,7 +121,7 @@ boolean rgbFlag = 1;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
-boolean camFlag = 0;
+boolean camFlag = 1;
 boolean briteFlag = 0; // bright LED
 boolean LEDSON=1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -141,7 +141,7 @@ unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
 long rec_dur = 20; // 10 minutes would be good for regular operation (600)
-long rec_int = 0;
+long rec_int = 100;
 int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
@@ -1296,13 +1296,12 @@ void sensorInit(){
   digitalWrite(BURN, HIGH);
   digitalWrite(ledWhite, HIGH);
   digitalWrite(VHF, HIGH);
-  cam_wake();  // has 2 second delay
+  delay(2000);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
-  cam_off();
 
 
 // IMU
