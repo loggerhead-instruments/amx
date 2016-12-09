@@ -122,18 +122,20 @@ void Read_Gyro(int numbytestoread)
   }
   */
 
-  // reading one byte at a time
-  for(int n=0; n<numbytestoread; n++)
-  {
-    Wire.beginTransmission(GyroAddress); 
-    Wire.write(0x74);        //sends address to read from  0x3B is direct read; 0x74 is FIFO
-    Wire.endTransmission(); //end transmission
-    Wire.requestFrom(GyroAddress, 1);    // request 1 bytes from device
-    if(Wire.available())   // ((Wire.available())&&(i<6))
-    { 
-      imuBuffer[n] = Wire.read();  // receive one byte
-    }
-  }
+  readBytes(GyroAddress, 0x74, numbytestoread, imuBuffer);
+
+//  // reading one byte at a time
+//  for(int n=0; n<numbytestoread; n++)
+//  {
+//    Wire.beginTransmission(GyroAddress); 
+//    Wire.write(0x74);        //sends address to read from  0x3B is direct read; 0x74 is FIFO
+//    Wire.endTransmission(); //end transmission
+//    Wire.requestFrom(GyroAddress, 1);    // request 1 bytes from device
+//    if(Wire.available())   // ((Wire.available())&&(i<6))
+//    { 
+//      imuBuffer[n] = Wire.read();  // receive one byte
+//    }
+//  }
 }
 
 int getImuFifo()
