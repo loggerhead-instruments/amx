@@ -29,7 +29,7 @@
 //#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 //#include <Wire.h>
-#include <i2c_t3.h>
+#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
 //#include <SdFat.h>
 #include "amx32.h"
@@ -54,7 +54,7 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 static uint8_t myID[8];
 
 unsigned long baud = 115200;
@@ -141,7 +141,7 @@ float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 60; // seconds
+long rec_dur = 300; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -214,7 +214,7 @@ int16_t islGreen;
 // Pressure/Temp
 byte Tbuff[3];
 byte Pbuff[3];
-volatile float depth, temperature;
+volatile float pressure_mbar, temperature, depth;
 boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
@@ -613,9 +613,10 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
-    digitalWrite(ledGreen, HIGH);
+
     while(queue1.available() >= 2) {
       buf_count += 1;
+      audioIntervalCount += 1;
       memcpy(buffer, queue1.readBuffer(), 256);
       queue1.freeBuffer();
       memcpy(buffer+256, queue1.readBuffer(), 256);
@@ -628,18 +629,14 @@ void continueRecording() {
         frec.write(buffer, 512); 
       }
     }
-    digitalWrite(ledGreen, LOW);
 
-    audioIntervalCount += 1;
-    
     if(printDiags){
       Serial.print(".");
    }
-
-
-    // we are updating these here because reading within interrupt causes board to seize
+   
+    // we are updating sensors here because reading within interrupt causes board to seize
     float audioDuration = audioIntervalCount * audioIntervalSec;
-    if (fileType & (audioDuration > (1.0 /sensor_srate))){
+    if (fileType & (audioDuration > (1.0 / sensor_srate / 2.0))){
       audioIntervalCount = 0;
       if (rgbFlag) islRead(); 
 
@@ -649,13 +646,14 @@ void continueRecording() {
           readPress();
           updateTemp();
           togglePress = 0;
+          if(printDiags) Serial.println("p");
         }
         else{
           readTemp();
           updatePress();
           togglePress = 1;
+          if(printDiags) Serial.println("t");
         }
-        calcPressTemp();
       }
   
       // Keller PA7LD pressure and temperature
@@ -983,9 +981,10 @@ void FileInit()
     if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
-
-  Serial.print("Buffers: ");
-  Serial.println(nbufs_per_file);
+  if(printDiags){
+    Serial.print("Buffers: ");
+    Serial.println(nbufs_per_file);
+  }
 }
 
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
@@ -1154,15 +1153,11 @@ void sampleSensors(void){  //interrupt at update_rate
       
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
-        PTbuffer[bufferposPT] = depth;
+        calcPressTemp();
+        PTbuffer[bufferposPT] = pressure_mbar;
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
-        if(printDiags){
-          Serial.print("Depth/Temp: "); Serial.print("\t");
-          Serial.print(depth); Serial.print("\t");
-          Serial.println(temperature);
-        }
       }
   }
 }
@@ -1170,7 +1165,7 @@ void sampleSensors(void){  //interrupt at update_rate
 boolean pollImu(){
   FIFOpts=getImuFifo();
   //Serial.print("IMU FIFO pts: ");
-  if (printDiags) Serial.println(FIFOpts);
+  //if (printDiags) Serial.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
@@ -1296,7 +1291,6 @@ void sensorInit(){
   digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
 
-
 // IMU
   mpuInit(1);
   delay(1000);
@@ -1334,6 +1328,7 @@ void sensorInit(){
     delay(10);
     readTemp();
     calcPressTemp();
+    Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
     Serial.print("Depth: "); Serial.println(depth);
     Serial.print("Temperature: "); Serial.println(temperature);
   }

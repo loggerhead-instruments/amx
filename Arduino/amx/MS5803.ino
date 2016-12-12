@@ -154,17 +154,26 @@ void readTemp()
 void calcPressTemp(){
   uint32_t D1 = (uint32_t)((((uint32_t)Pbuff[0]<<16) | ((uint32_t)Pbuff[1]<<8) | ((uint32_t) Pbuff[2])));
   uint32_t D2 = (uint32_t)((((uint32_t)Tbuff[0]<<16) | ((uint32_t)Tbuff[1]<<8) | ((uint32_t) Tbuff[2])));
-
-  if (printDiags) Serial.println(D1);
-  if (printDiags) Serial.println(D2);
   
   float dT = (float) D2 - (float) TREF * 256.0;
-  float T16 = (2000.0 + dT * (float) TEMPSENS / (float) 8388608.0);
+  float T16 = 2000.0 + (dT * (float) TEMPSENS / (float) 8388608.0);
   
   float OFF = (float) POFF * 65536.0 + ((float) TCOFF*dT) / 128.0;
   float SENS = (float) PSENS * 32768.0 + (dT*(float)TCSENS) / 256.0;
   
-  float P16 = ((float) D1*SENS/2097152-OFF)/81920;  // mbar
-  depth = -(1010.0 - P16) / 1000.0;
+  pressure_mbar = ((float) D1 * SENS / 2097152 - OFF) / 81920.0;  // mbardep
+  depth = -(1010.0 -  pressure_mbar) / 1000.0;
   temperature = T16 / 100.0;
+
+  if (printDiags){
+    Serial.print("D1:"); Serial.println(D1);
+    Serial.print("D2:"); Serial.println(D2);
+    Serial.print("dT:"); Serial.println(dT);
+    Serial.print("T16:"); Serial.println(T16);
+    Serial.print("OFF:"); Serial.println(OFF);
+    Serial.print("SENS:"); Serial.println(SENS);
+    Serial.print("press:"); Serial.println(pressure_mbar);
+    Serial.print("depth:"); Serial.println(depth);
+    Serial.print("temp:"); Serial.println(temperature);
+  }
 }
