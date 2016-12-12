@@ -54,7 +54,7 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 static uint8_t myID[8];
 
 unsigned long baud = 115200;
@@ -120,10 +120,10 @@ boolean imuFlag = 1;
 boolean rgbFlag = 1;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
-boolean CAMON = 0;
+boolean CAMON = 0;i
 boolean camFlag = 0;
 boolean briteFlag = 0; // bright LED
-boolean LEDSON=1;
+boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 1; //0=wav, 1=amx
 
@@ -528,12 +528,14 @@ void loop() {
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
+      introperiod = 0;  //LEDS on for first file
       if(rec_int == 0){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
         frec.close();
         FileInit();  // make a new file
         buf_count = 0;
+       
       }
       else
       {
@@ -613,7 +615,7 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
-
+    if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
     while(queue1.available() >= 2) {
       buf_count += 1;
       audioIntervalCount += 1;
@@ -629,6 +631,8 @@ void continueRecording() {
         frec.write(buffer, 512); 
       }
     }
+
+    if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
 
     if(printDiags){
       Serial.print(".");
