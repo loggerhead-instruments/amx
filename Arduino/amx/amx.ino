@@ -120,7 +120,7 @@ boolean imuFlag = 1;
 boolean rgbFlag = 1;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
-boolean CAMON = 0;i
+boolean CAMON = 0;
 boolean camFlag = 0;
 boolean briteFlag = 0; // bright LED
 boolean LEDSON=0;
