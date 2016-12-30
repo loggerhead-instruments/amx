@@ -15,8 +15,6 @@
  * 
  * burn wire 1 & 2
  * play sound
- *
- * reset function--but need to skip manual start...so, need auto-start if turn on but do nothing for 10 minutes.
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -272,6 +270,7 @@ void setup() {
   //display.println("USB <->");
   //display.display();
   // Check for external USB connection to microSD
+ digitalWrite(ledGreen, HIGH);
  while(digitalRead(usbSense)){
     pinMode(usbSense, OUTPUT);
     digitalWrite(usbSense, LOW); // forces low if USB power pulled
@@ -285,19 +284,19 @@ void setup() {
  // wait here to get GPS time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
-  digitalWrite(ledGreen, HIGH);
-  ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
 
-//   while(gpsTime.year < 16){
-//    byte incomingByte;
-//       while (HWSERIAL.available() > 0) {    
-//        incomingByte = HWSERIAL.read();
-//        Serial.write(incomingByte);
-//        gps(incomingByte);  // parse incoming GPS data
-//      }
-//
-//      
-//      newtime=RTCToUNIXTime(&gpsTime);   
+  ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+/*
+
+   while(gpsTime.year < 16){
+    byte incomingByte;
+       while (HWSERIAL.available() > 0) {    
+        incomingByte = HWSERIAL.read();
+        Serial.write(incomingByte);
+        gps(incomingByte);  // parse incoming GPS data
+      } 
+      newtime=RTCToUNIXTime(&gpsTime);  
+       
 //      cDisplay();
 //      display.println(newtime);
 //      display.setTextSize(1);
@@ -310,8 +309,15 @@ void setup() {
 //      display.print(gpsTime.minute);  display.print(":");
 //      display.print(gpsTime.sec);
 //      display.display();
-//   }
-
+   }
+//      Serial.println(latitude,4);
+//      Serial.println(longitude, 4);
+//      Serial.print(gpsTime.year);  Serial.print("-");
+//      Serial.print(gpsTime.month);  Serial.print("-");
+//      Serial.print(gpsTime.day);  Serial.print("  ");
+//      Serial.print(gpsTime.hour);  Serial.print(":");
+//      Serial.print(gpsTime.minute);  Serial.print(":");
+//      Serial.print(gpsTime.sec);
 
 //while(digitalRead(gpsState)){
 //   //gpsSleep();
@@ -319,6 +325,7 @@ void setup() {
 //   delay(500);
 //}
 //  Serial.println("GPS off");
+*/
    
    Teensy3Clock.set(newtime);
    digitalWrite(ledGreen, LOW);
@@ -328,8 +335,6 @@ void setup() {
     //  usbDisable();
   }
   
-  pinMode(usbSense, OUTPUT);  //not using any more, set to OUTPUT
-  digitalWrite(usbSense, LOW); 
 //
 //  cDisplay();
 //  display.println("Loggerhead");
@@ -415,6 +420,12 @@ void setup() {
 int recLoopCount;  //for debugging when does not start record
 
 void loop() {
+  // if plug in USB power--get out of main loop
+  if (digitalRead(usbSense)){  
+      if (mode==1) stopRecording();
+      resetFunc();
+    }
+    
   // Standby mode
   if(mode == 0)
   {
@@ -458,6 +469,8 @@ void loop() {
 
   // Record mode
   if (mode == 1) {
+
+    
     continueRecording();  // download data  
     
 //    if(printDiags){  //this is to see if code still running when queue fails change to printDiags to hide
@@ -1209,8 +1222,6 @@ boolean pollImu(){
   }
   return false;
 }
-
-
 
 void resetFunc(void){
   CPU_RESTART
