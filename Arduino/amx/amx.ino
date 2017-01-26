@@ -14,7 +14,6 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
- * check MS5803 BA01 sensor---reading 40000 mBar
  * burn wire 1 & 2
  * play sound
  * 
@@ -54,11 +53,12 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 static uint8_t myID[8];
+
+// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 #define MS5803_01bar 32768.0
 #define MS5803_30bar 8192.0
-
 float MS5803_constant = MS5803_01bar; //set to 1 bar sensor
 
 unsigned long baud = 115200;
@@ -266,7 +266,6 @@ void setup() {
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
- 
   delay(500);    
 
   //display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
@@ -296,40 +295,33 @@ void setup() {
 
   ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
 
-//   while(gpsTime.year < 16){
-//    byte incomingByte;
-//       while (HWSERIAL.available() > 0) {    
-//        incomingByte = HWSERIAL.read();
-//        Serial.write(incomingByte);
-//        gps(incomingByte);  // parse incoming GPS data
-//      } 
-//      newtime=RTCToUNIXTime(&gpsTime);  
-//       
-////      cDisplay();
-////      display.println(newtime);
-////      display.setTextSize(1);
-////      display.println(latitude, 4);
-////      display.println(longitude, 4);
-////      display.print(gpsTime.year);  display.print("-");
-////      display.print(gpsTime.month);  display.print("-");
-////      display.print(gpsTime.day);  display.print("  ");
-////      display.print(gpsTime.hour);  display.print(":");
-////      display.print(gpsTime.minute);  display.print(":");
-////      display.print(gpsTime.sec);
-////      display.display();
-//   }
-//      Serial.print("newtime:"); Serial.println(newtime);
-//      Serial.println(latitude,4);
-//      Serial.println(longitude, 4);
-//      Serial.print("YY-MM-DD HH:MM:SS ");
-//      Serial.print(gpsTime.year);  Serial.print("-");
-//      Serial.print(gpsTime.month);  Serial.print("-");
-//      Serial.print(gpsTime.day);  Serial.print("  ");
-//      Serial.print(gpsTime.hour);  Serial.print(":");
-//      Serial.print(gpsTime.minute);  Serial.print(":");
-//      Serial.print(gpsTime.sec);
+   while(gpsTime.year < 16){
+    byte incomingByte;
+       while (HWSERIAL.available() > 0) {    
+        incomingByte = HWSERIAL.read();
+        Serial.write(incomingByte);
+        gps(incomingByte);  // parse incoming GPS data
+        }
+      } 
 
+    newtime=RTCToUNIXTime(&gpsTime);
+    Teensy3Clock.set(newtime);
 
+   digitalWrite(ledGreen, LOW);
+   if(printDiags){
+      Serial.print("newtime:"); Serial.println(newtime);
+      Serial.println(latitude,4);
+      Serial.println(longitude, 4);
+      Serial.print("YY-MM-DD HH:MM:SS ");
+      Serial.print(gpsTime.year);  Serial.print("-");
+      Serial.print(gpsTime.month);  Serial.print("-");
+      Serial.print(gpsTime.day);  Serial.print("  ");
+      Serial.print(gpsTime.hour);  Serial.print(":");
+      Serial.print(gpsTime.minute);  Serial.print(":");
+      Serial.print(gpsTime.sec);
+   }
+
+    gpsOff();
 //while(digitalRead(gpsState)){
 //   //gpsSleep();
 //   gpsHibernate();
@@ -338,8 +330,7 @@ void setup() {
 //  Serial.println("GPS off");
 
    
-   Teensy3Clock.set(newtime);
-   digitalWrite(ledGreen, LOW);
+
  
 
   // Power down USB if not using Serial monitor

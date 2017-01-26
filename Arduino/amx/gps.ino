@@ -170,7 +170,7 @@ void gps(byte incomingByte){
            gpsTime.hour = gpsHour;
            gpsTime.day = gpsDay;
            gpsTime.month = gpsMonth;
-           gpsTime.year = gpsYear-2000;
+           gpsTime.year = gpsYear-2000;  
         }
       }
     }
