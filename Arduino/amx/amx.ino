@@ -307,7 +307,6 @@ void setup() {
     newtime=RTCToUNIXTime(&gpsTime);
     Teensy3Clock.set(newtime);
 
-   digitalWrite(ledGreen, LOW);
    if(printDiags){
       Serial.print("newtime:"); Serial.println(newtime);
       Serial.println(latitude,4);
