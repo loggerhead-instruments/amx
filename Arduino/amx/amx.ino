@@ -11,8 +11,10 @@
 // Loggerhead AMX board is required for accelerometer, magnetometer, gyroscope, RGB light, pressure, and temperature sensors
 //
 
+// Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
+
 /* To Do: 
- * 
+ * check MS5803 BA01 sensor---reading 40000 mBar
  * burn wire 1 & 2
  * play sound
  * 
@@ -21,7 +23,7 @@
  * 
  * Power Savings:
  * All unused pins to output mode
- * Disable USB
+ * Disable USB in setup
 */
 
 //#include <SerialFlash.h>
@@ -52,8 +54,12 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 static uint8_t myID[8];
+#define MS5803_01bar 32768.0
+#define MS5803_30bar 8192.0
+
+float MS5803_constant = MS5803_01bar; //set to 1 bar sensor
 
 unsigned long baud = 115200;
 
@@ -77,18 +83,19 @@ const int myInput = AUDIO_INPUT_LINEIN;
 
 // Pin Assignments
 const int CAM_POW = 4;
-const int hydroPowPin = 2;
+const int hydroPowPin = 21;
 const int VHF = 8;
 const int displayPow = 20;
 const int SALT = A11;
+const int saltSIG = 3;
 const int ledGreen = 17;
 const int BURN = 5;
-const int SDSW = 3;
-const int ledWhite = 21;
+const int ledWhite = 2;
 const int usbSense = 6;
 const int vSense = A14;  // moved to Pin 21 for X1
-const int gpsToggle = 16;
+const int GPS_POW = 16;
 const int gpsState = 15;
+const int stopButton = A10;
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -216,12 +223,12 @@ volatile float pressure_mbar, temperature, depth;
 boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
-uint16_t PSENS; //pressure sensitivity
-uint16_t POFF;  //Pressure offset
-uint16_t TCSENS; //Temp coefficient of pressure sensitivity
-uint16_t TCOFF; //Temp coefficient of pressure offset
-uint16_t TREF;  //Ref temperature
-uint16_t TEMPSENS; //Temperature sensitivity coefficient
+uint16_t PSENS; //pressure sensitivity C1
+uint16_t POFF;  //Pressure offset C2
+uint16_t TCSENS; //Temp coefficient of pressure sensitivity C3
+uint16_t TCOFF; //Temp coefficient of pressure offset C4
+uint16_t TREF;  //Ref temperature C5
+uint16_t TEMPSENS; //Temperature sensitivity coefficient C6
 
 // Pressure, Temp double buffer
 #define PTBUFFERSIZE 40
@@ -270,48 +277,51 @@ void setup() {
   //display.println("USB <->");
   //display.display();
   // Check for external USB connection to microSD
- digitalWrite(ledGreen, HIGH);
- while(digitalRead(usbSense)){
-    pinMode(usbSense, OUTPUT);
-    digitalWrite(usbSense, LOW); // forces low if USB power pulled
-    pinMode(usbSense, INPUT);
-    delay(500);
-  }
-  
+  digitalWrite(ledGreen, HIGH);
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   digitalWrite(hydroPowPin, HIGH);
+
+  if(!printDiags){ 
+   while(digitalRead(usbSense)){
+      pinMode(usbSense, OUTPUT);
+      digitalWrite(usbSense, LOW); // forces low if USB power pulled
+      pinMode(usbSense, INPUT);
+      delay(500);
+    }
+  }
   
  // wait here to get GPS time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
   ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
-/*
 
-   while(gpsTime.year < 16){
-    byte incomingByte;
-       while (HWSERIAL.available() > 0) {    
-        incomingByte = HWSERIAL.read();
-        Serial.write(incomingByte);
-        gps(incomingByte);  // parse incoming GPS data
-      } 
-      newtime=RTCToUNIXTime(&gpsTime);  
-       
-//      cDisplay();
-//      display.println(newtime);
-//      display.setTextSize(1);
-//      display.println(latitude, 4);
-//      display.println(longitude, 4);
-//      display.print(gpsTime.year);  display.print("-");
-//      display.print(gpsTime.month);  display.print("-");
-//      display.print(gpsTime.day);  display.print("  ");
-//      display.print(gpsTime.hour);  display.print(":");
-//      display.print(gpsTime.minute);  display.print(":");
-//      display.print(gpsTime.sec);
-//      display.display();
-   }
+//   while(gpsTime.year < 16){
+//    byte incomingByte;
+//       while (HWSERIAL.available() > 0) {    
+//        incomingByte = HWSERIAL.read();
+//        Serial.write(incomingByte);
+//        gps(incomingByte);  // parse incoming GPS data
+//      } 
+//      newtime=RTCToUNIXTime(&gpsTime);  
+//       
+////      cDisplay();
+////      display.println(newtime);
+////      display.setTextSize(1);
+////      display.println(latitude, 4);
+////      display.println(longitude, 4);
+////      display.print(gpsTime.year);  display.print("-");
+////      display.print(gpsTime.month);  display.print("-");
+////      display.print(gpsTime.day);  display.print("  ");
+////      display.print(gpsTime.hour);  display.print(":");
+////      display.print(gpsTime.minute);  display.print(":");
+////      display.print(gpsTime.sec);
+////      display.display();
+//   }
+//      Serial.print("newtime:"); Serial.println(newtime);
 //      Serial.println(latitude,4);
 //      Serial.println(longitude, 4);
+//      Serial.print("YY-MM-DD HH:MM:SS ");
 //      Serial.print(gpsTime.year);  Serial.print("-");
 //      Serial.print(gpsTime.month);  Serial.print("-");
 //      Serial.print(gpsTime.day);  Serial.print("  ");
@@ -319,16 +329,18 @@ void setup() {
 //      Serial.print(gpsTime.minute);  Serial.print(":");
 //      Serial.print(gpsTime.sec);
 
+
 //while(digitalRead(gpsState)){
 //   //gpsSleep();
 //   gpsHibernate();
 //   delay(500);
 //}
 //  Serial.println("GPS off");
-*/
+
    
    Teensy3Clock.set(newtime);
    digitalWrite(ledGreen, LOW);
+ 
 
   // Power down USB if not using Serial monitor
   if (printDiags==0){
@@ -340,8 +352,7 @@ void setup() {
 //  display.println("Loggerhead");
 //  display.display();
   
-  digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
-  delay(200);
+  delay(10000);
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
@@ -358,9 +369,11 @@ void setup() {
     }
   }
   //SdFile::dateTimeCallback(file_date_time);
-   
+
   LoadScript();
+
   setupDataStructures();
+
   //cDisplay();
 
   t = getTeensy3Time();
@@ -398,6 +411,7 @@ void setup() {
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
 
+  delay(5000);
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
@@ -421,11 +435,12 @@ int recLoopCount;  //for debugging when does not start record
 
 void loop() {
   // if plug in USB power--get out of main loop
-  if (digitalRead(usbSense)){  
-      if (mode==1) stopRecording();
-      resetFunc();
-    }
-    
+  if(!printDiags){
+    if (digitalRead(usbSense)){  
+        if (mode==1) stopRecording();
+        resetFunc();
+      }
+  }
   // Standby mode
   if(mode == 0)
   {
@@ -599,7 +614,7 @@ void loop() {
           //  AudioInterrupts();
             audio_power_up();
             if (camFlag)  cam_wake();
-            digitalWrite(SDSW, LOW); //no USB connected, switch to microcontroller read SD card
+
             islInit(); // RGB light sensor
             mpuInit(1);  //start gyro
             //sdInit();  //reinit SD because voltage can drop in hibernate
@@ -1272,26 +1287,26 @@ void sensorInit(){
 //const int ledWhite = 21;
 //const int usbSense = 6;
 //const int vSense = A14;  // moved to Pin 21 for X1
-//const int gpsToggle = 16;
+//const int GPS_POW = 16;
 //const int gpsState = 15;
   pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
-  pinMode(gpsToggle, OUTPUT);
+  pinMode(GPS_POW, OUTPUT);
   pinMode(gpsState, INPUT);
   pinMode(BURN, OUTPUT);
   pinMode(ledWhite, OUTPUT);
-  pinMode(SDSW, OUTPUT);
+  //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(SALT, INPUT);
   analogReference(DEFAULT);
 
-  digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
+  //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  digitalWrite(gpsToggle, LOW); 
+  gpsOn();
 
   Serial.println("Sensor Init");
   // Digital IO
@@ -1375,17 +1390,12 @@ void sensorInit(){
   
 }
 
-void gpsOnOff(){
-  digitalWrite(gpsToggle, HIGH);
-  delay(1);
-  digitalWrite(gpsToggle, LOW);
-  HWSERIAL.write(".");  //send byte to wake from sleep
+void gpsOn(){
+  digitalWrite(GPS_POW, HIGH);
 }
 
-void gpsHibernate(){
-  digitalWrite(gpsToggle, LOW);
-  HWSERIAL.println("$PMTK225,4*2F");
-  HWSERIAL.flush();
+void gpsOff(){
+  digitalWrite(GPS_POW, LOW);
 }
 
 void gpsSleep(){
@@ -1393,4 +1403,13 @@ void gpsSleep(){
   HWSERIAL.flush();
 }
 
+void gpsHibernate(){
+  HWSERIAL.println("$PMTK225,4*2F");
+  HWSERIAL.flush();
+}
+
+void gpsWake(){
+  HWSERIAL.println(".");
+  HWSERIAL.flush();
+}
 

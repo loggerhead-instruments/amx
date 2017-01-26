@@ -151,18 +151,25 @@ void readTemp()
   }
 }
 
+// PSENS; //pressure sensitivity C1
+// POFF;  //Pressure offset C2
+// TCSENS; //Temp coefficient of pressure sensitivity C3
+// TCOFF; //Temp coefficient of pressure offset C4
+// TREF;  //Ref temperature C5
+// TEMPSENS; //Temperature sensitivity coefficient C6
 void calcPressTemp(){
   uint32_t D1 = (uint32_t)((((uint32_t)Pbuff[0]<<16) | ((uint32_t)Pbuff[1]<<8) | ((uint32_t) Pbuff[2])));
   uint32_t D2 = (uint32_t)((((uint32_t)Tbuff[0]<<16) | ((uint32_t)Tbuff[1]<<8) | ((uint32_t) Tbuff[2])));
   
-  float dT = (float) D2 - (float) TREF * 256.0;
+  float dT = (float) D2 - ((float) TREF * 256.0);
   float T16 = 2000.0 + (dT * (float) TEMPSENS / (float) 8388608.0);
   
-  float OFF = (float) POFF * 65536.0 + ((float) TCOFF*dT) / 128.0;
-  float SENS = (float) PSENS * 32768.0 + (dT*(float)TCSENS) / 256.0;
-  
-  pressure_mbar = ((float) D1 * SENS / 2097152 - OFF) / 81920.0;  // mbardep
-  depth = -(1010.0 -  pressure_mbar) / 1000.0;
+  float OFF = ((float) POFF * 65536.0)  + (((float) TCOFF * dT) / 128.0);
+  float SENS = ((float) PSENS * 32768.0) + ((dT * (float) TCSENS) / 256.0);
+
+  pressure_mbar = ((float) D1 * SENS / 2097152.0 - OFF) / MS5803_constant / 100.0;  // mbar
+  float mbar_per_m = 1113.77;
+  depth = -(1010.0 -  pressure_mbar) / mbar_per_m;
   temperature = T16 / 100.0;
 
   if (printDiags){

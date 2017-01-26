@@ -25,7 +25,7 @@ void gps(byte incomingByte){
       //   strcpy(testStr, "GNGGA");
       
       //if(strcmp(temp5, testStr) == 0){
-      if(gpsStream[1]=='G' & gpsStream[2]=='N' &  gpsStream[3]=='G' &  gpsStream[4]=='G' &  gpsStream[5]=='A'){
+ /*     if(gpsStream[1]=='G' & gpsStream[2]=='N' &  gpsStream[3]=='G' &  gpsStream[4]=='G' &  gpsStream[5]=='A'){
         // Serial.println("got one");
          // check response status
         
@@ -73,10 +73,13 @@ void gps(byte incomingByte){
           curPos = 41;
           memcpy(&lonHem, &gpsStream[curPos], 1);
          }
-
-      }
+     }
+*/
+      
       // OriginGPS
       // $GNRMC,134211.000,A,2715.5428,N,08228.7924,W,1.91,167.64,020816,,,A*62
+      // Adafruit GPS
+      // $GPRMC,222250.000,A,2716.6201,N,08227.4996,W,1.01,301.49,250117,,,A*7C
       char rmcCode[6 + 1];
       float rmcTime; //           225446       Time of fix 22:54:46 UTC
       char rmcValid[2]; //           A            Navigation receiver warning A = OK, V = warning
@@ -91,13 +94,13 @@ void gps(byte incomingByte){
       char rmcMagHem[2];
       char rmcChecksum[4 + 1]; //           *68          mandatory checksum
 
-      if(gpsStream[1]=='G' & gpsStream[2]=='N' &  gpsStream[3]=='R' &  gpsStream[4]=='M' &  gpsStream[5]=='C'){
+      if(gpsStream[1]=='G' & gpsStream[2]=='P' &  gpsStream[3]=='R' &  gpsStream[4]=='M' &  gpsStream[5]=='C'){
        char temp[streamPos + 1];
        //char temp[100];
        const char s[2] = ",";
        char *token;
         memcpy(&temp, &gpsStream, streamPos);
-        //Serial.println(temp);
+        //Serial.println(temp);s
         //testing with a known string 72 chars
         //strcpy(temp, "$GNRMC,134211.000,A,2715.5428,N,08228.7924,W,1.91,167.64,020816,43,W,A*62");  
         //Serial.println(temp);
@@ -108,6 +111,7 @@ void gps(byte incomingByte){
 
         token = strtok(NULL, s);
         sscanf(token, "%f", &rmcTime);
+        sscanf(token, "%2d%2d%2d", &gpsHour, &gpsMinute, &gpsSecond);
         //Serial.println(rmcTime);
 
         token = strtok(NULL, s);
@@ -140,7 +144,13 @@ void gps(byte incomingByte){
 
         token = strtok(NULL, s);
         sprintf(rmcDate, "%s", token);
-        //Serial.println(rmcDate);
+        sscanf(token, "%2d%2d%2d", &gpsDay, &gpsMonth, &gpsYear);
+        gpsYear += 2000;
+//        Serial.println(rmcDate);
+//        Serial.print("Day-Month-Year:");
+//        Serial.print(gpsDay); Serial.print("-");
+//        Serial.print(gpsMonth);  Serial.print("-");
+//        Serial.println(gpsYear);
 
         token = strtok(NULL, s);
         sscanf(token, "%f", &rmcMag);
@@ -155,14 +165,9 @@ void gps(byte incomingByte){
         //Serial.println(rmcChecksum);         
 
         if(rmcValid[0]=='A'){
-          memcpy(&temp2[0], &rmcDate[0], 2);
-          sscanf(temp2, "%d", &gpsDay);
-          memcpy(&temp2[0], &rmcDate[2], 2);
-          sscanf(temp2, "%d", &gpsMonth);
-          memcpy(&temp2[0], &rmcDate[4], 2);
-          sscanf(temp2, "%d", &gpsYear);
-          gpsYear = gpsYear + 2000;
-
+           gpsTime.sec = gpsSecond;
+           gpsTime.minute = gpsMinute;
+           gpsTime.hour = gpsHour;
            gpsTime.day = gpsDay;
            gpsTime.month = gpsMonth;
            gpsTime.year = gpsYear-2000;
@@ -175,7 +180,6 @@ void gps(byte incomingByte){
   gpsStream[streamPos] = incomingByte;
   streamPos++;
   if(streamPos >= maxChar) streamPos = 0;
-
 }
 
 
