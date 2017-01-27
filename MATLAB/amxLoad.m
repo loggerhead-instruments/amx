@@ -54,3 +54,45 @@ for x=1:length(SID_REC)
         amxdata5=vertcat(amxdata5,SID_REC(x).data);
     end
 end
+
+figure(1)
+plot(AUDIO);
+
+figure(2)
+subplot(3,1,1)
+plot(IMU(1:9:end), 'b');
+hold on;
+plot(IMU(2:9:end), 'r');
+plot(IMU(3:9:end), 'g');
+title('accelerometer')
+
+subplot(3,1,2)
+plot(IMU(4:9:end), 'b');
+hold on;
+plot(IMU(5:9:end), 'r');
+plot(IMU(6:9:end), 'g');
+title('gyroscope')
+
+subplot(3,1,3)
+plot(IMU(7:9:end), 'b');
+hold on;
+plot(IMU(8:9:end), 'r');
+plot(IMU(9:9:end), 'g');
+title('magnetometer')
+
+figure(3)
+subplot(2,1,1)
+plot(PT(1:2:end))
+ylabel('Pressure');
+subplot(2,1,2)
+plot(PT(2:2:end));
+ylabel('Temperature');
+
+figure(4)
+plot(RGB(1:3:end), 'r');
+hold on
+plot(RGB(2:3:end), 'g');
+plot(RGB(3:3:end), 'b');
+title('Light');
+
+
