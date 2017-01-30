@@ -150,7 +150,7 @@ unsigned int audioIntervalCount = 0;
 int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 30; // seconds
+long rec_dur = 300; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -365,7 +365,10 @@ void setup() {
 //      display.println("SD error. Restart.");
 //      displayClock(getTeensy3Time(), BOTTOM);
 //      display.display();
-      delay(1000);
+      delay(200);
+      digitalWrite(ledRed, HIGH);
+      delay(200);
+      digitalWrite(ledRed, LOW);
     }
   }
   //SdFile::dateTimeCallback(file_date_time);
