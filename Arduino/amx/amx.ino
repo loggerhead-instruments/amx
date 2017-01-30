@@ -53,7 +53,8 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean skipGPS = 0; //skip GPS at startup
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -146,7 +147,7 @@ float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 300; // seconds
+long rec_dur = 30; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -293,8 +294,9 @@ void setup() {
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
-  ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
-
+ULONG newtime;
+ // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+  if(!skipGPS){
    while(gpsTime.year < 16){
     byte incomingByte;
        while (HWSERIAL.available() > 0) {    
@@ -303,9 +305,10 @@ void setup() {
         gps(incomingByte);  // parse incoming GPS data
         }
       } 
-
     newtime=RTCToUNIXTime(&gpsTime);
     Teensy3Clock.set(newtime);
+  }
+
 
    if(printDiags){
       Serial.print("newtime:"); Serial.println(newtime);
@@ -1342,10 +1345,16 @@ void sensorInit(){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
     updatePress();
-    delay(10);
+    delay(50);
     readPress();
     updateTemp();
-    delay(10);
+    delay(50);
+    readTemp();
+    updatePress();
+    delay(50);
+    readPress();
+    updateTemp();
+    delay(50);
     readTemp();
     calcPressTemp();
     Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
