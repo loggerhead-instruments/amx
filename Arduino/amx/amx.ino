@@ -147,9 +147,10 @@ long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
+int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 300; // seconds
+long rec_dur = 30; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -467,6 +468,14 @@ void loop() {
         Serial.print("Next Start:");
         printTime(startTime);
 
+        //convert pressure and temperature for first reading
+        updatePress();
+        delay(50);
+        readPress();
+        updateTemp();
+        delay(50);
+        readTemp();
+        calcPressTemp();
 //        cDisplay();
 //        display.println("Rec");
 //        display.setTextSize(1);
@@ -945,6 +954,9 @@ void FileInit()
       logFile.print(voltage); 
 
       logFile.print(',');
+      logFile.print(systemGain); 
+
+      logFile.print(',');
       logFile.print(latitude); 
       logFile.print(',');
       logFile.print(latHem); 
@@ -1068,7 +1080,7 @@ void AudioInit(){
  
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.0);
-  sgtl5000_1.lineInLevel(4);  //default = 4
+  sgtl5000_1.lineInLevel(systemGain);  //default = 4
   // CHIP_ANA_ADC_CTRL
 // Actual measured full-scale peak-to-peak sine wave input for max signal
 //  0: 3.12 Volts p-p
