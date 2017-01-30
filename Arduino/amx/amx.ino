@@ -53,7 +53,7 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 static boolean skipGPS = 0; //skip GPS at startup
 static uint8_t myID[8];
 
@@ -142,12 +142,14 @@ float audio_srate = 44100.0;
 double latitude, longitude;
 char latHem, lonHem;
 TIME_HEAD gpsTime;
+long gpsTimeout; //increments every GPRMC line read; about 1 per second
+long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 30; // seconds
+long rec_dur = 300; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -294,19 +296,23 @@ void setup() {
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
-ULONG newtime;
+ ULONG newtime;
+ gpsTimeout = 0;
  // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
   if(!skipGPS){
    while(gpsTime.year < 16){
-    byte incomingByte;
-       while (HWSERIAL.available() > 0) {    
-        incomingByte = HWSERIAL.read();
-        Serial.write(incomingByte);
-        gps(incomingByte);  // parse incoming GPS data
-        }
-      } 
-    newtime=RTCToUNIXTime(&gpsTime);
-    Teensy3Clock.set(newtime);
+     byte incomingByte;
+     if(gpsTimeout >= gpsTimeOutThreshold) break;
+     while (HWSERIAL.available() > 0) {    
+      incomingByte = HWSERIAL.read();
+      Serial.write(incomingByte);
+      gps(incomingByte);  // parse incoming GPS data
+      }
+    }
+    if(gpsTimeout <  gpsTimeOutThreshold){
+      newtime=RTCToUNIXTime(&gpsTime);
+      Teensy3Clock.set(newtime);
+    }
   }
 
 
@@ -936,7 +942,18 @@ void FileInit()
         logFile.print(myID[n]);
       }
       logFile.print(',');
-      logFile.println(voltage); 
+      logFile.print(voltage); 
+
+      logFile.print(',');
+      logFile.print(latitude); 
+      logFile.print(',');
+      logFile.print(latHem); 
+
+      logFile.print(',');
+      logFile.print(longitude); 
+      logFile.print(',');
+      logFile.println(lonHem); 
+      
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
         logFile.close();  
@@ -1051,7 +1068,7 @@ void AudioInit(){
  
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.0);
-  sgtl5000_1.lineInLevel(2);  //default = 8
+  sgtl5000_1.lineInLevel(4);  //default = 4
   // CHIP_ANA_ADC_CTRL
 // Actual measured full-scale peak-to-peak sine wave input for max signal
 //  0: 3.12 Volts p-p
