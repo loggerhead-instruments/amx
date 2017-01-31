@@ -150,7 +150,7 @@ unsigned int audioIntervalCount = 0;
 int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 30; // seconds
+long rec_dur = 300; // seconds
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
