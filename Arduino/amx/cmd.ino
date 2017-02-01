@@ -119,6 +119,13 @@ int ProcCmd(char *pCmd)
         rec_int = lv1;
         break;
       } 
+
+      case ('S' + ('G'<<8)):
+      {
+        sscanf(&pCmd[3],"%d",&lv1);
+        systemGain = lv1;
+        break;
+      } 
       
       case ('S' + ('R'<<8)):
       {

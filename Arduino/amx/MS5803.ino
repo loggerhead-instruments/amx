@@ -173,6 +173,7 @@ void calcPressTemp(){
   temperature = T16 / 100.0;
 
   if (printDiags){
+    Serial.print("MS5803 constant:"); Serial.println(MS5803_constant);
     Serial.print("D1:"); Serial.println(D1);
     Serial.print("D2:"); Serial.println(D2);
     Serial.print("dT:"); Serial.println(dT);

@@ -54,6 +54,7 @@ Adafruit_MCP23017 mcp;
 #define HWSERIAL Serial1
 
 static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean skipGPS = 0; //skip GPS at startup
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -141,9 +142,12 @@ float audio_srate = 44100.0;
 double latitude, longitude;
 char latHem, lonHem;
 TIME_HEAD gpsTime;
+long gpsTimeout; //increments every GPRMC line read; about 1 per second
+long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
+int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 long rec_dur = 300; // seconds
@@ -293,19 +297,25 @@ void setup() {
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
-  ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
-
+ ULONG newtime;
+ gpsTimeout = 0;
+ // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+  if(!skipGPS){
    while(gpsTime.year < 16){
-    byte incomingByte;
-       while (HWSERIAL.available() > 0) {    
-        incomingByte = HWSERIAL.read();
-        Serial.write(incomingByte);
-        gps(incomingByte);  // parse incoming GPS data
-        }
-      } 
+     byte incomingByte;
+     if(gpsTimeout >= gpsTimeOutThreshold) break;
+     while (HWSERIAL.available() > 0) {    
+      incomingByte = HWSERIAL.read();
+      Serial.write(incomingByte);
+      gps(incomingByte);  // parse incoming GPS data
+      }
+    }
+    if(gpsTimeout <  gpsTimeOutThreshold){
+      newtime=RTCToUNIXTime(&gpsTime);
+      Teensy3Clock.set(newtime);
+    }
+  }
 
-    newtime=RTCToUNIXTime(&gpsTime);
-    Teensy3Clock.set(newtime);
 
    if(printDiags){
       Serial.print("newtime:"); Serial.println(newtime);
@@ -355,7 +365,13 @@ void setup() {
 //      display.println("SD error. Restart.");
 //      displayClock(getTeensy3Time(), BOTTOM);
 //      display.display();
-      delay(1000);
+      for (int flashMe=0; flashMe<3; flashMe++){
+      delay(100);
+      digitalWrite(ledGreen, HIGH);
+      delay(100);
+      digitalWrite(ledGreen, LOW);
+      }
+      delay(400);
     }
   }
   //SdFile::dateTimeCallback(file_date_time);
@@ -458,6 +474,9 @@ void loop() {
         Serial.print("Next Start:");
         printTime(startTime);
 
+        //convert pressure and temperature for first reading
+        updateTemp();
+        
 //        cDisplay();
 //        display.println("Rec");
 //        display.setTextSize(1);
@@ -933,7 +952,21 @@ void FileInit()
         logFile.print(myID[n]);
       }
       logFile.print(',');
-      logFile.println(voltage); 
+      logFile.print(voltage); 
+
+      logFile.print(',');
+      logFile.print(systemGain); 
+
+      logFile.print(',');
+      logFile.print(latitude); 
+      logFile.print(',');
+      logFile.print(latHem); 
+
+      logFile.print(',');
+      logFile.print(longitude); 
+      logFile.print(',');
+      logFile.println(lonHem); 
+      
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
         logFile.close();  
@@ -998,9 +1031,9 @@ void FileInit()
     
     // write SID_SPEC depending on sensors chosen
     addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
-    if (pressure_sensor>0) addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-    if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
+    if (pressure_sensor>0) addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
+    if (rgbFlag) addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+    if (imuFlag) addSid(3, "3DAMG", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
   if(printDiags){
@@ -1048,7 +1081,7 @@ void AudioInit(){
  
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(0.0);
-  sgtl5000_1.lineInLevel(2);  //default = 8
+  sgtl5000_1.lineInLevel(systemGain);  //default = 4
   // CHIP_ANA_ADC_CTRL
 // Actual measured full-scale peak-to-peak sine wave input for max signal
 //  0: 3.12 Volts p-p
@@ -1342,10 +1375,16 @@ void sensorInit(){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
     updatePress();
-    delay(10);
+    delay(50);
     readPress();
     updateTemp();
-    delay(10);
+    delay(50);
+    readTemp();
+    updatePress();
+    delay(50);
+    readPress();
+    updateTemp();
+    delay(50);
     readTemp();
     calcPressTemp();
     Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);

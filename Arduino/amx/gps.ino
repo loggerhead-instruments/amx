@@ -99,6 +99,9 @@ void gps(byte incomingByte){
        //char temp[100];
        const char s[2] = ",";
        char *token;
+
+        gpsTimeout += 1;
+            
         memcpy(&temp, &gpsStream, streamPos);
         //Serial.println(temp);s
         //testing with a known string 72 chars
@@ -171,6 +174,11 @@ void gps(byte incomingByte){
            gpsTime.day = gpsDay;
            gpsTime.month = gpsMonth;
            gpsTime.year = gpsYear-2000;  
+
+           latitude = rmcLat;
+           longitude = rmcLon;
+           latHem = rmcLatHem[0];
+           lonHem = rmcLonHem[0];
         }
       }
     }
