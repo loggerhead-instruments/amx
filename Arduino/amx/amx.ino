@@ -1031,9 +1031,9 @@ void FileInit()
     
     // write SID_SPEC depending on sensors chosen
     addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
-    if (pressure_sensor>0) addSid(1, "PT", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-    if (rgbFlag) addSid(2, "light", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "IMU", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
+    if (pressure_sensor>0) addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
+    if (rgbFlag) addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+    if (imuFlag) addSid(3, "3DAMG", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
   if(printDiags){
