@@ -33,6 +33,14 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+  // Accelerometer full scale
+    case ('A' + ('G'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      accel_scale = lv1;
+      break;
+    }
+
     // Keller Pressure and Temperature
     case ('K' + ('P'<<8)):
     {

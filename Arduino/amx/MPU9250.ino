@@ -51,7 +51,10 @@ int mpuInit(boolean mode)
     I2Cwrite(GyroAddress, 0x1B, 0x10);  // 0x10 +/- 1000 deg/s ; 0x18 +/-2000 deg/s
     
     // set accel range
-    I2Cwrite(GyroAddress, 0x1C, 0x18); // +/- 16 g
+    I2Cwrite(GyroAddress, 0x1C, 0x18); // 0x18 =  +/- 16 g  DEFAULT
+    if (accel_scale == 2) I2Cwrite(GyroAddress, 0x1C, 0x00); // 2g
+    if (accel_scale == 4) I2Cwrite(GyroAddress, 0x1C, 0x08); // 4g
+    if (accel_scale == 8) I2Cwrite(GyroAddress, 0x1C, 0x10); // 8g
     
     // configure frame sync and LPF
     //I2Cwrite(GyroAddress, 0x1A, 0x08 | 0x05);  //Frame sync to Temperature LSB; DLPF 10 Hz; causes Gyro to sample at 1 kHz

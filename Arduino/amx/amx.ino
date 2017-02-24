@@ -138,6 +138,8 @@ float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
 
+int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
+
 // GPS
 double latitude, longitude;
 char latHem, lonHem;
@@ -845,7 +847,7 @@ void setupDataStructures(void){
   strncpy(sensor[3].units[7], "uT", STR_MAX);
   strncpy(sensor[3].units[8], "uT", STR_MAX);
   
-  float accelFullRange = 16.0; //ACCEL_FS_SEL 2g(00), 4g(01), 8g(10), 16g(11)
+  float accelFullRange = (float) accel_scale; //ACCEL_FS_SEL 2g(00), 4g(01), 8g(10), 16g(11)
   int gyroFullRange = 1000.0;  // FS_SEL 250deg/s (0), 500 (1), 1000(2), 2000 (3)
   int magFullRange = 4800.0;  // fixed
   
