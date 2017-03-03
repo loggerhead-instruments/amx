@@ -168,12 +168,12 @@ void gps(byte incomingByte){
         //Serial.println(rmcChecksum);         
 
         if(rmcValid[0]=='A'){
-           gpsTime.sec = gpsSecond;
-           gpsTime.minute = gpsMinute;
-           gpsTime.hour = gpsHour;
-           gpsTime.day = gpsDay;
-           gpsTime.month = gpsMonth;
-           gpsTime.year = gpsYear-2000;  
+           gpsTime.Second = gpsSecond;
+           gpsTime.Minute = gpsMinute;
+           gpsTime.Hour = gpsHour;
+           gpsTime.Day = gpsDay;
+           gpsTime.Month = gpsMonth;
+           gpsTime.Year = gpsYear-2000;  
 
            latitude = rmcLat;
            longitude = rmcLon;

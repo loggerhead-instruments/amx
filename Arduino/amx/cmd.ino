@@ -83,15 +83,15 @@ int ProcCmd(char *pCmd)
 		{
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         TIME_HEAD NewTime;
-         NewTime.sec = tsec;
-         NewTime.minute = tmin;
-         NewTime.hour = thour;
-         NewTime.day = tday;
-         NewTime.month = tmonth;
-         NewTime.year = tyear-2000;
-         ULONG newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
-         startTime=RTCToUNIXTime(&NewTime);
+         tmElements_t NewTime;
+         NewTime.Second = tsec;
+         NewTime.Minute = tmin;
+         NewTime.Hour = thour;
+         NewTime.Day = tday;
+         NewTime.Month = tmonth;
+         NewTime.Year = tyear-2000;
+         ULONG newtime = makeTime(NewTime);
+         startTime = newtime;
          Teensy3Clock.set(newtime); 
          Serial.print("Clock Set: ");
          Serial.println(newtime);
@@ -102,15 +102,14 @@ int ProcCmd(char *pCmd)
     {
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         TIME_HEAD NewTime;
-         NewTime.sec = tsec;
-         NewTime.minute = tmin;
-         NewTime.hour = thour;
-         NewTime.day = tday;
-         NewTime.month = tmonth;
-         NewTime.year = tyear-2000;
-         ULONG newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
-         burnTime=RTCToUNIXTime(&NewTime);
+         tmElements_t NewTime;
+         NewTime.Second = tsec;
+         NewTime.Minute = tmin;
+         NewTime.Hour = thour;
+         NewTime.Day = tday;
+         NewTime.Month = tmonth;
+         NewTime.Year = tyear-2000;
+         burnTime = makeTime(NewTime);
          break;
       }
       
@@ -139,14 +138,14 @@ int ProcCmd(char *pCmd)
       {
         //start time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         TIME_HEAD NewTime;
-         NewTime.sec = tsec;
-         NewTime.minute = tmin;
-         NewTime.hour = thour;
-         NewTime.day = tday;
-         NewTime.month = tmonth;
-         NewTime.year = tyear-2000;
-         startTime=RTCToUNIXTime(&NewTime);
+         tmElements_t NewTime;
+         NewTime.Second = tsec;
+         NewTime.Minute = tmin;
+         NewTime.Hour = thour;
+         NewTime.Day = tday;
+         NewTime.Month = tmonth;
+         NewTime.Year = tyear-2000;
+         startTime = makeTime(NewTime);
          Serial.print("Start Record Set: ");
          Serial.println(startTime);
          break;

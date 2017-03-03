@@ -53,8 +53,8 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
-static boolean skipGPS = 1; //skip GPS at startup
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean skipGPS = 0; //skip GPS at startup
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -145,7 +145,7 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 // GPS
 double latitude, longitude;
 char latHem, lonHem;
-TIME_HEAD gpsTime;
+tmElements_t gpsTime;
 long gpsTimeout; //increments every GPRMC line read; about 1 per second
 long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
 
@@ -154,7 +154,7 @@ unsigned int audioIntervalCount = 0;
 int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 300; // seconds
+long rec_dur = 30; // seconds; default = 300s
 long rec_int = 0;
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
@@ -305,7 +305,7 @@ void setup() {
  gpsTimeout = 0;
  // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
   if(!skipGPS){
-   while(gpsTime.year < 16){
+   while(gpsTime.Year < 16){
      byte incomingByte;
      if(gpsTimeout >= gpsTimeOutThreshold) break;
      while (HWSERIAL.available() > 0) {    
@@ -315,23 +315,22 @@ void setup() {
       }
     }
     if(gpsTimeout <  gpsTimeOutThreshold){
-      newtime=RTCToUNIXTime(&gpsTime);
+      newtime = makeTime(gpsTime);
       Teensy3Clock.set(newtime);
     }
   }
-
 
    if(printDiags){
       Serial.print("newtime:"); Serial.println(newtime);
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
-      Serial.print(gpsTime.year);  Serial.print("-");
-      Serial.print(gpsTime.month);  Serial.print("-");
-      Serial.print(gpsTime.day);  Serial.print("  ");
-      Serial.print(gpsTime.hour);  Serial.print(":");
-      Serial.print(gpsTime.minute);  Serial.print(":");
-      Serial.print(gpsTime.sec);
+      Serial.print(gpsTime.Year);  Serial.print("-");
+      Serial.print(gpsTime.Month);  Serial.print("-");
+      Serial.print(gpsTime.Day);  Serial.print("  ");
+      Serial.print(gpsTime.Hour);  Serial.print(":");
+      Serial.print(gpsTime.Minute);  Serial.print(":");
+      Serial.print(gpsTime.Second);
    }
 
     gpsOff();
@@ -341,10 +340,6 @@ void setup() {
 //   delay(500);
 //}
 //  Serial.println("GPS off");
-
-   
-
- 
 
   // Power down USB if not using Serial monitor
   if (printDiags==0){
@@ -571,8 +566,10 @@ void loop() {
     if(buf_count >= nbufs_per_file){       // time to stop?
       introperiod = 0;  //LEDS on for first file
       if(rec_int == 0){
+        if(printDiags){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
+        }
         frec.close();
         FileInit();  // make a new file
         buf_count = 0;
@@ -1167,38 +1164,6 @@ unsigned long processSyncMessage() {
   unsigned long pctime = 0L;
   const unsigned long DEFAULT_TIME = 1451606400; // Jan 1 2016
 } 
-  
-// Calculates Accurate UNIX Time Based on RTC Timestamp
-unsigned long RTCToUNIXTime(TIME_HEAD *tm){
-    int i;
-    unsigned const char DaysInMonth[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-    unsigned long Ticks = 0;
-
-    long yearsSince = tm->year + 30; // Years since 1970
-    long numLeaps = yearsSince >> 2; // yearsSince / 4 truncated
-
-    if((!(tm->year%4)) && (tm->month>2))
-            Ticks+=SECONDS_IN_DAY;  //dm 8/9/2012  If current year is leap, add one day
-
-    // Calculate Year Ticks
-    Ticks += (yearsSince-numLeaps)*SECONDS_IN_YEAR;
-    Ticks += numLeaps * SECONDS_IN_LEAP;
-
-    // Calculate Month Ticks
-    for(i=0; i < tm->month-1; i++){
-         Ticks += DaysInMonth[i] * SECONDS_IN_DAY;
-    }
-
-    // Calculate Day Ticks
-    Ticks += (tm->day - 1) * SECONDS_IN_DAY;
-
-    // Calculate Time Ticks CHANGES ARE HERE
-    Ticks += (ULONG)tm->hour * SECONDS_IN_HOUR;
-    Ticks += (ULONG)tm->minute * SECONDS_IN_MINUTE;
-    Ticks += tm->sec;
-
-    return Ticks;
-}
 
 void sampleSensors(void){  //interrupt at update_rate
   ptCounter++;
