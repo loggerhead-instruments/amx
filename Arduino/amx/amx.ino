@@ -132,6 +132,8 @@ boolean briteFlag = 0; // bright LED
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 1; //0=wav, 1=amx
+unsigned int imuOverflow = 0;
+int imuMaxBuffer = 0;
 
 int update_rate = 10;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
@@ -655,7 +657,7 @@ void continueRecording() {
     // is most efficient when full 512 byte sector size
     // writes are used.
     if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
-    while(queue1.available() >= 2) {
+    if(queue1.available() >= 2) {
       buf_count += 1;
       audioIntervalCount += 1;
       memcpy(buffer, queue1.readBuffer(), 256);
@@ -933,7 +935,6 @@ void FileInit()
     SD.mkdir(dirname);
    }
 
-
    // only audio save as wav file, otherwise save as AMX file
    
    // open file 
@@ -967,7 +968,10 @@ void FileInit()
       logFile.print(',');
       logFile.print(longitude); 
       logFile.print(',');
-      logFile.println(lonHem); 
+      logFile.print(lonHem);
+
+      logFile.print(',');
+      logFile.println(imuOverflow);
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -985,7 +989,14 @@ void FileInit()
    }
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
-   Serial.println(filename);
+
+   if(printDiags){
+     Serial.println(filename);
+     Serial.print("Max buffer: "); Serial.println(imuMaxBuffer);
+     Serial.print("Overflow: "); Serial.println(imuOverflow);
+   }
+   imuMaxBuffer = 0;
+   imuOverflow = 0;
    
    while (!frec){
     file_count += 1;
@@ -1225,6 +1236,8 @@ boolean pollImu(){
   //if (printDiags) Serial.println(FIFOpts);
   if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
   {
+     if(FIFOpts == 512) imuOverflow += 1;
+     if(FIFOpts > imuMaxBuffer) imuMaxBuffer = FIFOpts;
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
   
     if (printDiags){
