@@ -68,8 +68,8 @@ int mpuInit(boolean mode)
     I2Cwrite(GyroAddress, 0x1D, 0x03); // low pass filter at 41 Hz (11.8 ms delay)
     
     // enable FIFO
-   // I2Cwrite(GyroAddress, 0x23, 0xF9);  //enable temp, gyro, accel, slave 0 (mag)
-    I2Cwrite(GyroAddress, 0x23, 0x79);  // enable gryo, accel, slave 0 (mag)
+  //  I2Cwrite(GyroAddress, 0x23, 0xF9);  //enable temp, gyro, accel, slave 0 (mag)
+   I2Cwrite(GyroAddress, 0x23, 0x79);  // enable gryo, accel, slave 0 (mag)
    // I2Cwrite(GyroAddress, 0x23, 0xF8);  //enable temp, gyro, accel
 
     // setup compass

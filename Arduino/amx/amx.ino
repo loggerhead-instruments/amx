@@ -54,7 +54,7 @@ Adafruit_MCP23017 mcp;
 #define HWSERIAL Serial1
 
 static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
-static boolean skipGPS = 0; //skip GPS at startup
+static boolean skipGPS = 1; //skip GPS at startup
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -379,7 +379,7 @@ void setup() {
   //SdFile::dateTimeCallback(file_date_time);
 
   LoadScript();
-
+  mpuInit(1);; // update MPU with new settings
   setupDataStructures();
 
   //cDisplay();
@@ -521,7 +521,7 @@ void loop() {
 
     // IMU
     if (fileType & imuFlag){
-      if (pollImu()){
+      while  (pollImu()){
         if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
         if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
             if(printDiags){
@@ -1227,35 +1227,34 @@ boolean pollImu(){
   {
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
   
-     
     if (printDiags){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
-//    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
-//    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
-//    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
-//    
-//    gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
-//   
-//    gyro_x = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]);   
-//    gyro_y = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]); 
-//    gyro_z = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
-//    
-//    magnetom_x = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-//    magnetom_y = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);   
-//    magnetom_z = (int16_t)  (((int16_t)imuBuffer[18] << 8) | imuBuffer[19]);  
+    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
+    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
+    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
+    
+   // gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
+   
+    gyro_x = (int16_t)  (((int16_t)imuBuffer[6] << 8) | imuBuffer[7]);   
+    gyro_y = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]); 
+    gyro_z = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]);   
+    
+    magnetom_x = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
+    magnetom_y = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
+    magnetom_z = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);  
 
-//    Serial.print("a/g/m/t:\t");
-//    Serial.print( accel_x); Serial.print("\t");
-//    Serial.print( accel_y); Serial.print("\t");
-//    Serial.print( accel_z); Serial.print("\t");
-//    Serial.print(gyro_x); Serial.print("\t");
-//    Serial.print(gyro_y); Serial.print("\t");
-//    Serial.print(gyro_z); Serial.print("\t");
-//    Serial.print(magnetom_x); Serial.print("\t");
-//    Serial.print(magnetom_y); Serial.print("\t");
-//    Serial.print(magnetom_z); Serial.print("\t");
-//    Serial.println((float) gyro_temp/337.87+21);
+    Serial.print("a/g/m/t:\t");
+    Serial.print( accel_x); Serial.print("\t");
+    Serial.print( accel_y); Serial.print("\t");
+    Serial.print( accel_z); Serial.print("\t");
+    Serial.print(gyro_x); Serial.print("\t");
+    Serial.print(gyro_y); Serial.print("\t");
+    Serial.print(gyro_z); Serial.print("\t");
+    Serial.print(magnetom_x); Serial.print("\t");
+    Serial.print(magnetom_y); Serial.print("\t");
+    Serial.println(magnetom_z); 
+   // Serial.println((float) gyro_temp/337.87+21);
     }
     
     return true;
@@ -1348,8 +1347,8 @@ void sensorInit(){
 
 // IMU
   mpuInit(1);
-  delay(1000);
-  pollImu(); //will print out values from FIFO
+  while(pollImu()); //will print out values from FIFO
+
 
 // RGB
   islInit(); 
