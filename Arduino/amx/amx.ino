@@ -59,7 +59,7 @@ static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 #define MS5803_01bar 32768.0
-#define MS5803_30bar 8192.0
+#define MS5803_30bar 819.2
 float MS5803_constant = MS5803_01bar; //set to 1 bar sensor
 
 unsigned long baud = 115200;
