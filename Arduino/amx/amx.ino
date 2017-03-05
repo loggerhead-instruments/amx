@@ -145,9 +145,10 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 // GPS
 double latitude, longitude;
 char latHem, lonHem;
-tmElements_t gpsTime;
+
 long gpsTimeout; //increments every GPRMC line read; about 1 per second
 long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
+int gpsYear = 2000, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -303,9 +304,9 @@ void setup() {
 
  ULONG newtime;
  gpsTimeout = 0;
- // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+// ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
   if(!skipGPS){
-   while(gpsTime.Year < 16){
+   while(gpsYear < 16){
      byte incomingByte;
      if(gpsTimeout >= gpsTimeOutThreshold) break;
      while (HWSERIAL.available() > 0) {    
@@ -315,22 +316,21 @@ void setup() {
       }
     }
     if(gpsTimeout <  gpsTimeOutThreshold){
-      newtime = makeTime(gpsTime);
-      Teensy3Clock.set(newtime);
+      setTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
 
    if(printDiags){
-      Serial.print("newtime:"); Serial.println(newtime);
+      Serial.print("now time:"); Serial.println(now());
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
-      Serial.print(gpsTime.Year);  Serial.print("-");
-      Serial.print(gpsTime.Month);  Serial.print("-");
-      Serial.print(gpsTime.Day);  Serial.print("  ");
-      Serial.print(gpsTime.Hour);  Serial.print(":");
-      Serial.print(gpsTime.Minute);  Serial.print(":");
-      Serial.print(gpsTime.Second);
+      Serial.print(gpsYear);  Serial.print("-");
+      Serial.print(gpsMonth);  Serial.print("-");
+      Serial.print(gpsDay);  Serial.print("  ");
+      Serial.print(gpsHour);  Serial.print(":");
+      Serial.print(gpsMinute);  Serial.print(":");
+      Serial.print(gpsSecond);
    }
 
     gpsOff();

@@ -83,18 +83,9 @@ int ProcCmd(char *pCmd)
 		{
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         tmElements_t NewTime;
-         NewTime.Second = tsec;
-         NewTime.Minute = tmin;
-         NewTime.Hour = thour;
-         NewTime.Day = tday;
-         NewTime.Month = tmonth;
-         NewTime.Year = tyear-2000;
-         ULONG newtime = makeTime(NewTime);
-         startTime = newtime;
-         Teensy3Clock.set(newtime); 
+         setTime(thour, tmin, tsec, tday, tmonth, tyear);
          Serial.print("Clock Set: ");
-         Serial.println(newtime);
+         Serial.println(now());
          break;
       }
 

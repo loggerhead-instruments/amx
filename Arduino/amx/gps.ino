@@ -2,7 +2,7 @@
 char gpsStream[maxChar];
 int streamPos;
 
-int gpsYear = 2000, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
+
 
 void gps(byte incomingByte){
   char temp2[2];
@@ -148,7 +148,7 @@ void gps(byte incomingByte){
         token = strtok(NULL, s);
         sprintf(rmcDate, "%s", token);
         sscanf(token, "%2d%2d%2d", &gpsDay, &gpsMonth, &gpsYear);
-        gpsYear += 2000;
+        //gpsYear += 2000;
 //        Serial.println(rmcDate);
 //        Serial.print("Day-Month-Year:");
 //        Serial.print(gpsDay); Serial.print("-");
@@ -168,13 +168,6 @@ void gps(byte incomingByte){
         //Serial.println(rmcChecksum);         
 
         if(rmcValid[0]=='A'){
-           gpsTime.Second = gpsSecond;
-           gpsTime.Minute = gpsMinute;
-           gpsTime.Hour = gpsHour;
-           gpsTime.Day = gpsDay;
-           gpsTime.Month = gpsMonth;
-           gpsTime.Year = gpsYear-2000;  
-
            latitude = rmcLat;
            longitude = rmcLon;
            latHem = rmcLatHem[0];
