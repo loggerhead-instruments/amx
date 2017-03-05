@@ -571,6 +571,7 @@ void loop() {
           Serial.println(AudioMemoryUsageMax());
         }
         frec.close();
+        if (imuOverflow > 0) resetGyroFIFO();
         FileInit();  // make a new file
         buf_count = 0;
        
