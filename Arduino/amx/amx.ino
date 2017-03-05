@@ -53,7 +53,7 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
 static boolean skipGPS = 0; //skip GPS at startup
 static uint8_t myID[8];
 
@@ -287,7 +287,6 @@ void setup() {
   //display.display();
   // Check for external USB connection to microSD
   digitalWrite(ledGreen, HIGH);
-  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   digitalWrite(hydroPowPin, HIGH);
 
   if(!printDiags){ 
@@ -363,7 +362,7 @@ void setup() {
     while (1) {
 //      cDisplay();
 //      display.println("SD error. Restart.");
-//      displayClock(getTeensy3Time(), BOTTOM);
+//      displayClock(now(), BOTTOM);
 //      display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
@@ -382,8 +381,8 @@ void setup() {
 
   //cDisplay();
 
-  t = getTeensy3Time();
-  startTime = getTeensy3Time();
+  t = now();
+  startTime = t;
   startTime -= startTime % 300;  //modulo to nearest 5 minutes
   startTime += 300; //move forward
   stopTime = startTime + rec_dur;  // this will be set on start of recording
@@ -450,7 +449,7 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
-      t = getTeensy3Time();
+      t = now();
 //      cDisplay();
 //      display.println("Next Start");
 //      displayClock(startTime, 20);
@@ -468,7 +467,7 @@ void loop() {
         if (recMode==MODE_DIEL) checkDielTime();
 
         Serial.print("Current Time: ");
-        printTime(getTeensy3Time());
+        printTime(now());
         Serial.print("Stop Time: ");
         printTime(stopTime);
         Serial.print("Next Start:");
@@ -501,7 +500,7 @@ void loop() {
 //      recLoopCount++;
 //      if(recLoopCount>50){
 //        recLoopCount = 0;
-//        t = getTeensy3Time();
+//        t = now();
 //        cDisplay();
 //        if(rec_int > 0) {
 //          display.println("Rec");
@@ -579,7 +578,7 @@ void loop() {
       else
       {
         stopRecording();
-        long ss = startTime - getTeensy3Time() - wakeahead;
+        long ss = startTime - now() - wakeahead;
         if (ss<0) ss=0;
         snooze_hour = floor(ss/3600);
         ss -= snooze_hour * 3600;
@@ -912,7 +911,7 @@ void sdInit(){
     while (1) {
       cDisplay();
       display.println("SD error. Restart.");
-      displayClock(getTeensy3Time(), BOTTOM);
+      displayClock(now(), BOTTOM);
       display.display();
       delay(1000);
       
@@ -923,7 +922,7 @@ void sdInit(){
 
 void FileInit()
 {
-   t = getTeensy3Time();
+   t = now();
    
    if (folderMonth != month(t)){
     if(printDiags) Serial.println("New Folder");
@@ -1056,7 +1055,7 @@ void FileInit()
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
 void file_date_time(uint16_t* date, uint16_t* time) 
 {
-  t = getTeensy3Time();
+  t = now();
   *date=FAT_DATE(year(t),month(t),day(t));
   *time=FAT_TIME(hour(t),minute(t),second(t));
 }
@@ -1135,7 +1134,7 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
        }
@@ -1149,16 +1148,11 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
     }
   }
-}
-
-time_t getTeensy3Time()
-{
-  return Teensy3Clock.get();
 }
 
 unsigned long processSyncMessage() {
@@ -1271,12 +1265,13 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
+   float vDivider = 2.13;
    pinMode(vSense, INPUT);  // get ready to read voltage
    for(int n = 0; n<8; n++){
     voltage += (float) analogRead(vSense) / 1024.0;
     delay(2);
    }
-   voltage = 5.9 * voltage / 8.0;   //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+   voltage = vDivider * 3.3 * voltage / 8.0;   //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
    pinMode(vSense, OUTPUT);  // done reading voltage
    return voltage;
 }
@@ -1378,7 +1373,7 @@ void sensorInit(){
 
 // battery voltage measurement
   Serial.print("Battery: ");
-  Serial.println(analogRead(vSense));
+  Serial.println(readVoltage());
 
 // playback
   mcp.begin();
