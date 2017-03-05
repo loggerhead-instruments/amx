@@ -145,10 +145,11 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 // GPS
 double latitude, longitude;
 char latHem, lonHem;
+int goodGPS = 0;
 
 long gpsTimeout; //increments every GPRMC line read; about 1 per second
 long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
-int gpsYear = 2000, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
+int gpsYear = 0, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -306,7 +307,7 @@ void setup() {
  gpsTimeout = 0;
 // ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
   if(!skipGPS){
-   while(gpsYear < 16){
+   while(!goodGPS){
      byte incomingByte;
      if(gpsTimeout >= gpsTimeOutThreshold) break;
      while (HWSERIAL.available() > 0) {    

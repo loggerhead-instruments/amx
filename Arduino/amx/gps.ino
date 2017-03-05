@@ -172,6 +172,7 @@ void gps(byte incomingByte){
            longitude = rmcLon;
            latHem = rmcLatHem[0];
            lonHem = rmcLonHem[0];
+           goodGPS = 1;
         }
       }
     }
