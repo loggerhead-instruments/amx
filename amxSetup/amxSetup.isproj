@@ -28,10 +28,5 @@
 		</TaggedOutputs> -->
 	</ItemGroup>
 	<Import Project="$(MSBuildExtensionsPath32)\InstallShield\2015Limited\InstallShield.targets"/>
-	<ItemGroup>
-		<ProjectReference Include="..\VisualStudio\AMXconvert.vcxproj">
-			<Name>AMXconvert</Name>
-			<Project>{C21BD715-5663-44FE-8DF4-A7C836FECAA5}</Project>
-		</ProjectReference>
-	</ItemGroup>
+	<ItemGroup/>
 </Project>

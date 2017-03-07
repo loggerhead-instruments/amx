@@ -339,7 +339,7 @@
 		<col def="S0">ISDotNetInstallerArgsCommit</col>
 		<col def="S0">ISDotNetInstallerArgsUninstall</col>
 		<col def="S0">ISDotNetInstallerArgsRollback</col>
-		<row><td>AMXconvert.Primary_Output</td><td>{4C2F3AD2-260B-42AB-BCF5-3693EF370947}</td><td>INSTALLDIR</td><td>2</td><td/><td>amxconvert.primary_output</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
+		<row><td>AMX2WAV.exe</td><td>{927F6E04-A330-439D-A6A8-C86F7E576B25}</td><td>INSTALLDIR</td><td>2</td><td/><td>amx2wav.exe</td><td>17</td><td/><td/><td/><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td><td>/LogFile=</td></row>
 	</table>
 
 	<table name="Condition">
@@ -1048,7 +1048,7 @@
 	<table name="CreateFolder">
 		<col key="yes" def="s72">Directory_</col>
 		<col key="yes" def="s72">Component_</col>
-		<row><td>INSTALLDIR</td><td>AMXconvert.Primary_Output</td></row>
+		<row><td>INSTALLDIR</td><td>AMX2WAV.exe</td></row>
 	</table>
 
 	<table name="CustomAction">
@@ -1860,7 +1860,7 @@
 	<table name="FeatureComponents">
 		<col key="yes" def="s38">Feature_</col>
 		<col key="yes" def="s72">Component_</col>
-		<row><td>AlwaysInstall</td><td>AMXconvert.Primary_Output</td></row>
+		<row><td>AlwaysInstall</td><td>AMX2WAV.exe</td></row>
 	</table>
 
 	<table name="File">
@@ -1875,7 +1875,7 @@
 		<col def="S255">ISBuildSourcePath</col>
 		<col def="I4">ISAttributes</col>
 		<col def="S72">ISComponentSubFolder_</col>
-		<row><td>amxconvert.primary_output</td><td>AMXconvert.Primary_Output</td><td>AMXconvert.Primary Output</td><td>0</td><td/><td/><td/><td>1</td><td>&lt;AMXconvert&gt;|Built</td><td>3</td><td/></row>
+		<row><td>amx2wav.exe</td><td>AMX2WAV.exe</td><td>AMX2WAV.exe</td><td>0</td><td/><td/><td/><td>1</td><td>C:\w\amx\VisualStudio\AMX2WAV\Release\AMX2WAV.exe</td><td>1</td><td/></row>
 	</table>
 
 	<table name="FileSFPCatalog">
@@ -2017,7 +2017,7 @@
 		<col def="S0">FTPLocation</col>
 		<col def="S0">HTTPLocation</col>
 		<col def="S0">Miscellaneous</col>
-		<row><td>AMXconvert.Primary_Output</td><td/><td/><td>_8061DBFB_C988_4047_BD38_21C8BCDDB013_FILTER</td><td/><td/><td/><td/></row>
+		<row><td>AMX2WAV.exe</td><td/><td/><td>_0AC974D2_1D9D_489E_A331_87DBE0A5A302_FILTER</td><td/><td/><td/><td/></row>
 	</table>
 
 	<table name="ISCustomActionReference">
@@ -2096,8 +2096,6 @@
 		<col key="yes" def="s38">Feature_</col>
 		<col key="yes" def="s255">ISMergeModule_</col>
 		<col key="yes" def="i2">Language_</col>
-		<row><td>AlwaysInstall</td><td>Microsoft_VC140_CRT_x86.E281B893_10D7_34CE_BB0E_B69D88E154A5</td><td>0</td></row>
-		<row><td>AlwaysInstall</td><td>Microsoft_VC140_MFC_x86.5840D246_3D34_3071_9C86_D071F20CB55F</td><td>0</td></row>
 	</table>
 
 	<table name="ISFeatureSetupPrerequisites">
@@ -2220,8 +2218,6 @@
 		<col def="s255">Name</col>
 		<col def="S255">Destination</col>
 		<col def="I4">ISAttributes</col>
-		<row><td>Microsoft_VC140_CRT_x86.E281B893_10D7_34CE_BB0E_B69D88E154A5</td><td>0</td><td>Visual C++ 14.0 CRT (x86)</td><td/><td/></row>
-		<row><td>Microsoft_VC140_MFC_x86.5840D246_3D34_3071_9C86_D071F20CB55F</td><td>0</td><td>Visual C++ 14.0 MFC (x86)</td><td/><td/></row>
 	</table>
 
 	<table name="ISMergeModuleCfgValues">
@@ -2577,7 +2573,6 @@
 		<col def="I2">Order</col>
 		<col def="I2">ISSetupLocation</col>
 		<col def="S255">ISReleaseFlags</col>
-		<row><td>_097D6EF0_D873_497B_AEBB_5BBFFF9FA85F_</td><td>Microsoft Visual C++ 2015 Redistributable Package (x86).prq</td><td/><td>1</td><td/></row>
 	</table>
 
 	<table name="ISSetupType">
@@ -3717,6 +3712,8 @@
 		<row><td>ID_STRING4</td><td>1033</td><td>AMXCON~1|AMXconvert</td><td>0</td><td/><td>287697837</td></row>
 		<row><td>ID_STRING5</td><td>1033</td><td>AMXCON~1|AMXconvert</td><td>0</td><td/><td>287685965</td></row>
 		<row><td>ID_STRING6</td><td>1033</td><td>LOGGER~1|Loggerhead Instruments</td><td>0</td><td/><td>287679821</td></row>
+		<row><td>ID_STRING7</td><td>1033</td><td>AMX2WAV</td><td>0</td><td/><td>967138608</td></row>
+		<row><td>ID_STRING8</td><td>1033</td><td>AMX2WAV</td><td>0</td><td/><td>967132496</td></row>
 		<row><td>IIDS_UITEXT_FeatureUninstalled</td><td>1033</td><td>This feature will remain uninstalled.</td><td>0</td><td/><td>287650317</td></row>
 	</table>
 
@@ -3831,6 +3828,8 @@
 		<col def="S255">ISBuildSourcePath</col>
 		<col def="I2">ISIconIndex</col>
 		<row><td>ARPPRODUCTICON.exe</td><td/><td>&lt;ISProductFolder&gt;\redist\Language Independent\OS Independent\setupicon.ico</td><td>0</td></row>
+		<row><td>NewShortcut1_E56F588FD0FC4B60A1DEF7F6FA67EA7D.exe</td><td/><td>C:\w\amx\VisualStudio\AMX2WAV\Release\AMX2WAV.exe</td><td>0</td></row>
+		<row><td>NewShortcut2_4D12EB64229943E3B871223F6762D4CE.exe</td><td/><td>C:\w\amx\VisualStudio\AMX2WAV\Release\AMX2WAV.exe</td><td>0</td></row>
 	</table>
 
 	<table name="IniFile">
@@ -3963,7 +3962,7 @@ UwBpAG4AZwBsAGUASQBtAGEAZwBlAAEARQB4AHAAcgBlAHMAcwA=
 		<row><td>ISTheme</td><td>InstallShield Blue.theme</td></row>
 		<row><td>ISUSLock</td><td>{0353EA08-0EB7-4677-9730-8116CF8DE68E}</td></row>
 		<row><td>ISUSSignature</td><td>{00EB7E96-A5E8-4727-92EC-6CB37971E214}</td></row>
-		<row><td>ISVisitedViews</td><td>viewAssistant,viewRelease,viewShortcuts,viewSystemSearch,viewObjects,viewAppFiles,viewProject,viewISToday</td></row>
+		<row><td>ISVisitedViews</td><td>viewAssistant,viewRelease,viewShortcuts,viewSystemSearch,viewObjects,viewAppFiles,viewProject,viewISToday,viewUpdateService,viewUI</td></row>
 		<row><td>Limited</td><td>1</td></row>
 		<row><td>LockPermissionMode</td><td>1</td></row>
 		<row><td>MsiExecCmdLineOptions</td><td/></row>
@@ -4412,7 +4411,7 @@ UwBpAG4AZwBsAGUASQBtAGEAZwBlAAEARQB4AHAAcgBlAHMAcwA=
 		<col def="L255">FileName</col>
 		<col def="s72">DirProperty</col>
 		<col def="i2">InstallMode</col>
-		<row><td>NewShortcut2</td><td>AMXconvert.Primary_Output</td><td/><td>newfolder1</td><td>2</td></row>
+		<row><td>NewShortcut1</td><td>AMX2WAV.exe</td><td/><td>newfolder1</td><td>2</td></row>
 	</table>
 
 	<table name="RemoveIniFile">
@@ -4498,8 +4497,8 @@ UwBpAG4AZwBsAGUASQBtAGEAZwBlAAEARQB4AHAAcgBlAHMAcwA=
 		<col def="S255">ISComments</col>
 		<col def="S255">ISShortcutName</col>
 		<col def="I4">ISAttributes</col>
-		<row><td>NewShortcut1</td><td>DesktopFolder</td><td>##ID_STRING4##</td><td>AMXconvert.Primary_Output</td><td>AlwaysInstall</td><td/><td/><td/><td/><td/><td>1</td><td/><td/><td/><td/><td/><td/><td/><td/></row>
-		<row><td>NewShortcut2</td><td>newfolder1</td><td>##ID_STRING5##</td><td>AMXconvert.Primary_Output</td><td>AlwaysInstall</td><td/><td/><td/><td/><td/><td>1</td><td/><td/><td/><td/><td/><td/><td/><td/></row>
+		<row><td>NewShortcut1</td><td>newfolder1</td><td>##ID_STRING7##</td><td>AMX2WAV.exe</td><td>[INSTALLDIR]AMX2WAV.exe</td><td/><td/><td/><td>NewShortcut1_E56F588FD0FC4B60A1DEF7F6FA67EA7D.exe</td><td>1</td><td>1</td><td/><td/><td/><td/><td/><td/><td/><td/></row>
+		<row><td>NewShortcut2</td><td>DesktopFolder</td><td>##ID_STRING8##</td><td>AMX2WAV.exe</td><td>[INSTALLDIR]AMX2WAV.exe</td><td/><td/><td/><td>NewShortcut2_4D12EB64229943E3B871223F6762D4CE.exe</td><td>1</td><td>1</td><td/><td/><td/><td/><td/><td/><td/><td/></row>
 	</table>
 
 	<table name="Signature">
