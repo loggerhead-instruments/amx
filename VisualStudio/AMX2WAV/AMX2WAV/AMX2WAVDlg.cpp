@@ -180,13 +180,6 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 	}
 
 
-	//file dialog for saving preference
-	//	  CFileDialog wavfileDlg (FALSE, NULL, TEXT("W"));  
-	//	  if( wavfileDlg.DoModal ()==IDOK )
-	//	  {
-	//		wavfilenamesel = wavfileDlg.GetPathName();  //returns path + filename
-	//	  }
-
 	CString  wavfilenamesel("\\wav\\");
 	temppath = root + wavfilenamesel;
 	pathamx = root + _T("\\*.amx");
@@ -195,21 +188,6 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 	AfxGetApp()->DoWaitCursor(1);
 	WIN32_FIND_DATA FindFileData;
 	HANDLE hFind;
-	//const char *pstring = new char[1024];
-	//pstring = root.GetBuffer(sizeof(pstring));
-	//_chdir(root);
-
-	//success = _chdir(pstring);
-	/*
-	if (success == -1)
-	{
-		AfxMessageBox(_T("Unable to change directory."), MB_OK, 0);
-		m_filename = CString("Done");
-		UpdateData(FALSE);
-		return;
-	}
-	*/
-	//pstring = pathdsg.GetBuffer(sizeof(pstring));
 
 	hFind = FindFirstFile(pathamx.GetBuffer(), &FindFileData);
 	if (hFind == INVALID_HANDLE_VALUE)
