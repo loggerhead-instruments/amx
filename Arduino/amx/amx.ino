@@ -43,18 +43,24 @@
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
-//
-//#define OLED_RESET 4
-//Adafruit_SSD1306 display(OLED_RESET);
-//#define BOTTOM 55
-//
+
 Adafruit_MCP23017 mcp;
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
+// 
+// Dev settings
+//
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 0; //skip GPS at startup
+boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+long rec_dur = 300; // seconds; default = 300s
+long rec_int = 0;
+//
+//
+//
+
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -156,8 +162,7 @@ unsigned int audioIntervalCount = 0;
 int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 300; // seconds; default = 300s
-long rec_int = 0;
+
 int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
@@ -264,6 +269,15 @@ void setup() {
   dfh.Version = 1000;
   dfh.UserID = 5555;
 
+  if (camWave){
+    imuFlag = 0;
+    rgbFlag = 0;
+    audioFlag = 1;
+    camFlag = 1;
+    briteFlag = 1;
+    fileType = 0; // 0 = wav
+  }
+
   read_myID();
   
   Serial.begin(baud);
@@ -319,8 +333,11 @@ void setup() {
       setTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
+  else
+    setTime(0, 0, 0, 1, 1, 2017);
+  
 
-   if(printDiags){
+   if(printDiags > 0){
       Serial.print("now time:"); Serial.println(now());
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
@@ -521,7 +538,7 @@ void loop() {
       while  (pollImu()){
         if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
         if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
-            if(printDiags){
+            if(printDiags == 2){
                 Serial.print("i");
              }
       }
@@ -566,7 +583,7 @@ void loop() {
     if(buf_count >= nbufs_per_file){       // time to stop?
       introperiod = 0;  //LEDS on for first file
       if(rec_int == 0){
-        if(printDiags){
+        if(printDiags > 0){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
         }
@@ -596,7 +613,7 @@ void loop() {
 //            display.display();
 //            delay(100);
 //            display.ssd1306_command(SSD1306_DISPLAYOFF); 
-            if(printDiags){
+            if(printDiags > 0){
               Serial.print("Snooze HH MM SS ");
               Serial.print(snooze_hour);
               Serial.print(snooze_minute);
@@ -673,7 +690,7 @@ void continueRecording() {
 
     if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
 
-    if(printDiags){
+    if(printDiags == 2){
       Serial.print(".");
    }
    
@@ -689,13 +706,13 @@ void continueRecording() {
           readPress();
           updateTemp();
           togglePress = 0;
-          if(printDiags) Serial.println("p");
+          if(printDiags == 2) Serial.println("p");
         }
         else{
           readTemp();
           updatePress();
           togglePress = 1;
-          if(printDiags) Serial.println("t");
+          if(printDiags == 2) Serial.println("t");
         }
       }
   
@@ -926,7 +943,7 @@ void FileInit()
    t = now();
    
    if (folderMonth != month(t)){
-    if(printDiags) Serial.println("New Folder");
+    if(printDiags > 0) Serial.println("New Folder");
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     SdFile::dateTimeCallback(file_date_time);
@@ -988,7 +1005,7 @@ void FileInit()
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
 
-   if(printDiags){
+   if(printDiags > 0){
      Serial.println(filename);
      Serial.print("Max buffer: "); Serial.println(imuMaxBuffer);
      Serial.print("Overflow: "); Serial.println(imuOverflow);
@@ -1047,7 +1064,7 @@ void FileInit()
     if (imuFlag) addSid(3, "3DAMG", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
-  if(printDiags){
+  if(printDiags > 0){
     Serial.print("Buffers: ");
     Serial.println(nbufs_per_file);
   }
@@ -1201,7 +1218,7 @@ boolean pollImu(){
      if(FIFOpts > imuMaxBuffer) imuMaxBuffer = FIFOpts;
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
   
-    if (printDiags){
+    if (printDiags == 2){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
     accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    

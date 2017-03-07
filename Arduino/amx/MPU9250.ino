@@ -105,7 +105,7 @@ byte I2Cwrite(byte addr, byte reg, byte val)
   Wire.write(reg);  // gyro scale, sample rate and LPF
   Wire.write(val);  
   byte ecode=Wire.endTransmission(); //end transmission
-  if (printDiags) Serial.print(ecode);
+  if (printDiags == 2) Serial.print(ecode);
   delay(5);
   return ecode;
 }
