@@ -27,6 +27,7 @@
 
 //#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
+#include <analyze_fft256.h>
 //#include <Wire.h>
 #include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
@@ -52,8 +53,8 @@ Adafruit_MCP23017 mcp;
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
-static boolean skipGPS = 0; //skip GPS at startup
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean skipGPS = 1; //skip GPS at startup
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
@@ -81,8 +82,10 @@ unsigned long baud = 115200;
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
+AudioAnalyzeFFT256       fft256_1; 
 AudioRecordQueue         queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
+AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
@@ -130,6 +133,7 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
+boolean burnFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
@@ -145,6 +149,9 @@ int update_rate = 10;  // rate (Hz) at which interrupt to read RGB and P/T senso
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
+int toneDetect = 0; // counter for detecting burn tone
+int refBin = 50; //reference signal bin
+int toneBin = 58; // tone signal bin
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
@@ -318,7 +325,7 @@ void setup() {
 
  ULONG newtime;
  gpsTimeout = 0;
-// ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+
   if(!skipGPS){
    while(!goodGPS){
      byte incomingByte;
@@ -399,9 +406,14 @@ void setup() {
   //cDisplay();
 
   t = now();
-  startTime = t;
-  startTime -= startTime % 300;  //modulo to nearest 5 minutes
-  startTime += 300; //move forward
+  
+  if (printDiags > 0){
+    startTime = t + 10; // for debugging wait 10s for first recording
+  }
+  else{
+    startTime -= startTime % 300;  //modulo to nearest 5 minutes
+    startTime += 300; //move forward
+  }
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -438,6 +450,7 @@ void setup() {
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
   AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
+  fft256_1.averageTogether(160); // number of FFTs to average together
   
   digitalWrite(hydroPowPin, HIGH);
   if (camFlag) cam_wake();
@@ -473,7 +486,7 @@ void loop() {
 //      displayClock(t, BOTTOM);
 //      display.display();
       
-      if(t >= burnTime){
+      if((t >= burnTime) & burnFlag){
         digitalWrite(BURN, HIGH);
       }
       if(t >= startTime){      // time to start?
@@ -512,6 +525,44 @@ void loop() {
 
     
     continueRecording();  // download data  
+
+    // check for acoustic release signal
+    // must be 10 reads of 9991.4 Hz 12 dB greater than bin 50
+    // binsize = 44100/256 = 172.265625 Hz
+    // bin 50 = 8613.28
+    // bin 58 = 9991.4 Hz
+    // center of bin 58 = 10077.5
+    
+    if(fft256_1.available()){
+      float n1, n2, n3;
+      n1 = fft256_1.read(refBin);
+      n2 = fft256_1.read(toneBin);
+      if(n2 > 0.000001){
+          if(n1> 0.000001){
+            if((n2/n1) > 4) toneDetect += 1;
+          }
+          else
+          toneDetect += 1;
+      }
+      else
+      toneDetect = 0;
+      
+      if(toneDetect > 10) digitalWrite(BURN, HIGH); // burn on
+      
+      if(printDiags==1){
+        SerialUSB.print("FFT: ");
+        for (int i=50; i<66; i++){ //bin 58 = 9991.4 Hz
+          float n = fft256_1.read(i);
+          if( n > 0.000001) {
+            SerialUSB.print(20*log10(n));
+            SerialUSB.print(" ");
+          }
+          else
+            SerialUSB.print(" - ");
+        }
+        SerialUSB.println();
+      }
+    }
     
 //    if(printDiags){  //this is to see if code still running when queue fails change to printDiags to hide
 //      recLoopCount++;
