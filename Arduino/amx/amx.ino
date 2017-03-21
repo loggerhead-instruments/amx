@@ -50,14 +50,18 @@ Adafruit_MCP23017 mcp;
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
+#define SPYCAM 1
+#define FLYCAM 2
+
 // 
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 1; //skip GPS at startup
-boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
-long rec_dur = 300; // seconds; default = 300s
-long rec_int = 0;
+boolean camWave = 1; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+long rec_dur = 60; // seconds; default = 300s
+long rec_int = 60;
+int camType = SPYCAM;
 //
 //
 //
@@ -139,6 +143,8 @@ boolean audioFlag = 1;
 boolean CAMON = 0;
 boolean camFlag = 0;
 boolean briteFlag = 0; // bright LED
+
+
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 1; //0=wav, 1=amx
@@ -445,7 +451,6 @@ void setup() {
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
 
-  delay(5000);
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
@@ -522,8 +527,6 @@ void loop() {
 
   // Record mode
   if (mode == 1) {
-
-    
     continueRecording();  // download data  
 
     // check for acoustic release signal
@@ -641,6 +644,11 @@ void loop() {
         frec.close();
         if (imuOverflow > 0) resetGyroFIFO();
         FileInit();  // make a new file
+        if(CAMON){
+          cam_stop(); // stop current camera file
+          delay(100);
+          cam_start(); // start new camera file
+        }
         buf_count = 0;
        
       }
@@ -693,9 +701,8 @@ void loop() {
           //  AudioInterrupts();
             audio_power_up();
             if (camFlag)  cam_wake();
-
-            islInit(); // RGB light sensor
-            mpuInit(1);  //start gyro
+            if (rgbFlag) islInit(); // RGB light sensor
+            if (imuFlag) mpuInit(1);  //start gyro
             //sdInit();  //reinit SD because voltage can drop in hibernate
          }
         mode = 0;
@@ -1130,23 +1137,59 @@ void file_date_time(uint16_t* date, uint16_t* time)
 }
 
 void cam_wake() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(2000); //power on camera (if off)
-  digitalWrite(CAM_POW, LOW);      
+  if (briteFlag) digitalWrite(ledWhite, HIGH);  
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, HIGH); 
+    delay(3000);
+    digitalWrite(CAM_POW, LOW);
+    delay(100);  // simulate photo press
+    digitalWrite(CAM_POW, HIGH); 
+  } 
+  if(camFlag==FLYCAM){
+    digitalWrite(CAM_POW, HIGH);
+    delay(2000); //power on camera (if off)
+    digitalWrite(CAM_POW, LOW);     
+  } 
   CAMON=1;   
 }
 
 void cam_start() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(500);  // simulate Flywire button press
-  digitalWrite(CAM_POW, LOW);  
-  if (briteFlag) digitalWrite(ledWhite, HIGH);        
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(700);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(500);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }     
+}
+
+void cam_stop(){
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(100);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(100);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }
+  
 }
 
 void cam_off() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(3000); //power down camera (if still on)
-  digitalWrite(CAM_POW, LOW);           
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(600);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);
+  }else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(3000); //power down camera (if still on)
+    digitalWrite(CAM_POW, LOW); 
+  }        
   CAMON=0;
   if (briteFlag) digitalWrite(ledWhite, LOW);
 }
