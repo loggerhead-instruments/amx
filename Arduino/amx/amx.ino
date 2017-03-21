@@ -655,6 +655,10 @@ void loop() {
       else
       {
         stopRecording();
+        if (camFlag) {
+          cam_stop();
+          delay(100);
+        }
         long ss = startTime - now() - wakeahead;
         if (ss<0) ss=0;
         snooze_hour = floor(ss/3600);
@@ -1141,9 +1145,6 @@ void cam_wake() {
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, HIGH); 
     delay(3000);
-    digitalWrite(CAM_POW, LOW);
-    delay(100);  // simulate photo press
-    digitalWrite(CAM_POW, HIGH); 
   } 
   if(camFlag==FLYCAM){
     digitalWrite(CAM_POW, HIGH);
@@ -1169,7 +1170,7 @@ void cam_start() {
 void cam_stop(){
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
-    delay(100);  // simulate  button press
+    delay(200);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
   }
   else{
@@ -1182,10 +1183,9 @@ void cam_stop(){
 
 void cam_off() {
   if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, LOW);
-    delay(600);  // simulate  button press
-    digitalWrite(CAM_POW, HIGH);
-  }else{
+    delay(2000);
+  }
+  else{
     digitalWrite(CAM_POW, HIGH);
     delay(3000); //power down camera (if still on)
     digitalWrite(CAM_POW, LOW); 
