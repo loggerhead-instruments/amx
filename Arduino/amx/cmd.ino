@@ -101,6 +101,7 @@ int ProcCmd(char *pCmd)
          NewTime.Month = tmonth;
          NewTime.Year = tyear-2000;
          burnTime = makeTime(NewTime);
+         burnFlag = 1;
          break;
       }
       
