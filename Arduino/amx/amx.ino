@@ -61,7 +61,7 @@ static boolean skipGPS = 1; //skip GPS at startup
 boolean camWave = 1; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
-int camType = SPYCAM;
+int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 //
 //
 //
@@ -1142,7 +1142,6 @@ void file_date_time(uint16_t* date, uint16_t* time)
 }
 
 void cam_wake() {
-  if (briteFlag) digitalWrite(ledWhite, HIGH);  
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, HIGH); 
     delay(3000);
@@ -1156,6 +1155,7 @@ void cam_wake() {
 }
 
 void cam_start() {
+  if (briteFlag) digitalWrite(ledWhite, HIGH);  
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
     delay(1000);  // simulate  button press
@@ -1166,12 +1166,13 @@ void cam_start() {
     delay(500);  // simulate  button press
     digitalWrite(CAM_POW, LOW);  
   }     
+  
 }
 
 void cam_stop(){
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
-    delay(200);  // simulate  button press
+    delay(400);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
   }
   else{
@@ -1179,7 +1180,7 @@ void cam_stop(){
     delay(100);  // simulate  button press
     digitalWrite(CAM_POW, LOW);  
   }
-  
+  if (briteFlag) digitalWrite(ledWhite, LOW);
 }
 
 void cam_off() {
@@ -1192,7 +1193,6 @@ void cam_off() {
     digitalWrite(CAM_POW, LOW); 
   }        
   CAMON=0;
-  if (briteFlag) digitalWrite(ledWhite, LOW);
 }
 
 void AudioInit(){
