@@ -646,13 +646,7 @@ void loop() {
         frec.close();
         if (imuOverflow > 0) resetGyroFIFO();
         FileInit();  // make a new file
-        if(CAMON){
-          cam_stop(); // stop current camera file
-          delay(100);
-          cam_start(); // start new camera file
-        }
         buf_count = 0;
-       
       }
       else
       {
@@ -1164,7 +1158,7 @@ void cam_wake() {
 void cam_start() {
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
-    delay(700);  // simulate  button press
+    delay(1000);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
   }
   else{
@@ -1438,18 +1432,22 @@ void sensorInit(){
   digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
 
-// IMU
-  mpuInit(1);
-  while(pollImu()); //will print out values from FIFO
+  // IMU
+  if(imuFlag){
+    mpuInit(1);
+    while(pollImu()); //will print out values from FIFO
+  }
 
 
-// RGB
-  islInit(); 
-  islRead();
-  islRead();
-  Serial.print("R:"); Serial.println(islRed);
-  Serial.print("G:"); Serial.println(islGreen);
-  Serial.print("B:"); Serial.println(islBlue);
+  // RGB
+  if(rgbFlag){
+    islInit(); 
+    islRead();
+    islRead();
+    Serial.print("R:"); Serial.println(islRed);
+    Serial.print("G:"); Serial.println(islGreen);
+    Serial.print("B:"); Serial.println(islBlue);
+  }
   
 // Pressure--auto identify which if any is present
   pressure_sensor = 0;
