@@ -59,8 +59,8 @@ Adafruit_MCP23017 mcp;
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 1; //skip GPS at startup
 boolean camWave = 1; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
-long rec_dur = 60; // seconds; default = 300s
-long rec_int = 60;
+long rec_dur = 300; // seconds; default = 300s
+long rec_int = 0;
 int camType = SPYCAM;
 //
 //
@@ -326,6 +326,7 @@ void setup() {
   }
   
  // wait here to get GPS time
+  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
@@ -351,7 +352,7 @@ void setup() {
   
 
    if(printDiags > 0){
-      Serial.print("now time:"); Serial.println(now());
+      Serial.print("now time:"); Serial.println(getTeensy3Time());
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -392,7 +393,7 @@ void setup() {
     while (1) {
 //      cDisplay();
 //      display.println("SD error. Restart.");
-//      displayClock(now(), BOTTOM);
+//      displayClock(getTeensy3Time(), BOTTOM);
 //      display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
@@ -411,7 +412,7 @@ void setup() {
 
   //cDisplay();
 
-  t = now();
+  t = getTeensy3Time();
   
   if (printDiags > 0){
     startTime = t + 10; // for debugging wait 10s for first recording
@@ -484,7 +485,8 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
-      t = now();
+      t = getTeensy3Time();
+      
 //      cDisplay();
 //      display.println("Next Start");
 //      displayClock(startTime, 20);
@@ -502,7 +504,7 @@ void loop() {
         if (recMode==MODE_DIEL) checkDielTime();
 
         Serial.print("Current Time: ");
-        printTime(now());
+        printTime(getTeensy3Time());
         Serial.print("Stop Time: ");
         printTime(stopTime);
         Serial.print("Next Start:");
@@ -571,7 +573,7 @@ void loop() {
 //      recLoopCount++;
 //      if(recLoopCount>50){
 //        recLoopCount = 0;
-//        t = now();
+//        t = getTeensy3Time();
 //        cDisplay();
 //        if(rec_int > 0) {
 //          display.println("Rec");
@@ -659,7 +661,7 @@ void loop() {
           cam_stop();
           delay(100);
         }
-        long ss = startTime - now() - wakeahead;
+        long ss = startTime - getTeensy3Time() - wakeahead;
         if (ss<0) ss=0;
         snooze_hour = floor(ss/3600);
         ss -= snooze_hour * 3600;
@@ -668,8 +670,8 @@ void loop() {
         snooze_second = ss;
         if( snooze_hour + snooze_minute + snooze_second >=10){
             digitalWrite(hydroPowPin, LOW); //hydrophone off
-            mpuInit(0);  //gyro to sleep
-            islSleep(); // RGB light sensor
+            if (imuFlag) mpuInit(0);  //gyro to sleep
+            if (rgbFlag) islSleep(); // RGB light sensor
             audio_power_down();
             if (camFlag) cam_off();
 //            cDisplay();
@@ -677,6 +679,7 @@ void loop() {
 //            delay(100);
 //            display.ssd1306_command(SSD1306_DISPLAYOFF); 
             if(printDiags > 0){
+              printTime(getTeensy3Time());
               Serial.print("Snooze HH MM SS ");
               Serial.print(snooze_hour);
               Serial.print(snooze_minute);
@@ -698,8 +701,10 @@ void loop() {
             /// ... Sleeping ....
             
             // Waking up
+            
            // if (printDiags==0) usbDisable();
            // display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+           if(printDiags>0) printTime(getTeensy3Time());
             digitalWrite(hydroPowPin, HIGH); // hydrophone on 
           //  audio_enable();
           //  AudioInterrupts();
@@ -991,7 +996,7 @@ void sdInit(){
     while (1) {
       cDisplay();
       display.println("SD error. Restart.");
-      displayClock(now(), BOTTOM);
+      displayClock(getTeensy3Time(), BOTTOM);
       display.display();
       delay(1000);
       
@@ -1002,7 +1007,7 @@ void sdInit(){
 
 void FileInit()
 {
-   t = now();
+   t = getTeensy3Time();
    
    if (folderMonth != month(t)){
     if(printDiags > 0) Serial.println("New Folder");
@@ -1047,8 +1052,10 @@ void FileInit()
       logFile.print(',');
       logFile.print(lonHem);
 
-      logFile.print(',');
-      logFile.println(imuOverflow);
+      if(imuFlag){
+        logFile.print(',');
+        logFile.println(imuOverflow);
+      }
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -1135,7 +1142,7 @@ void FileInit()
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
 void file_date_time(uint16_t* date, uint16_t* time) 
 {
-  t = now();
+  t = getTeensy3Time();
   *date=FAT_DATE(year(t),month(t),day(t));
   *time=FAT_TIME(hour(t),minute(t),second(t));
 }
@@ -1246,7 +1253,7 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
        }
@@ -1260,7 +1267,7 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
     }
@@ -1529,3 +1536,7 @@ void gpsWake(){
   HWSERIAL.flush();
 }
 
+time_t getTeensy3Time()
+{
+  return Teensy3Clock.get();
+}
