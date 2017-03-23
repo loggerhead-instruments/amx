@@ -1036,20 +1036,24 @@ void FileInit()
       logFile.print(',');
       logFile.print(systemGain); 
 
-      logFile.print(',');
-      logFile.print(latitude); 
-      logFile.print(',');
-      logFile.print(latHem); 
-
-      logFile.print(',');
-      logFile.print(longitude); 
-      logFile.print(',');
-      logFile.print(lonHem);
+      if(skipGPS==0){
+        logFile.print(',');
+        logFile.print(latitude); 
+        logFile.print(',');
+        logFile.print(latHem); 
+  
+        logFile.print(',');
+        logFile.print(longitude); 
+        logFile.print(',');
+        logFile.print(lonHem);
+      }
 
       if(imuFlag){
         logFile.print(',');
-        logFile.println(imuOverflow);
+        logFile.print(imuOverflow);
       }
+
+      logFile.println();
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -1420,16 +1424,15 @@ void sensorInit(){
   gpsOn();
 
   Serial.println("Sensor Init");
+  digitalWrite(ledWhite, LOW);
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
-  digitalWrite(ledWhite, HIGH);
   digitalWrite(VHF, HIGH);
   delay(2000);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
-  digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
 
   // IMU
