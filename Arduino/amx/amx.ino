@@ -62,6 +62,7 @@ boolean camWave = 1; // one flag to swtich all settings to use camera control an
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
+float max_cam_hours_rec = 8.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets 8 hours with 32 GB card
 //
 //
 //
@@ -181,6 +182,7 @@ int snooze_hour;
 int snooze_minute;
 int snooze_second;
 long buf_count;
+float total_hour_recorded = 0.0;
 long nbufs_per_file;
 boolean settingsChanged = 0;
 
@@ -352,7 +354,7 @@ void setup() {
   
 
    if(printDiags > 0){
-      Serial.print("now time:"); Serial.println(getTeensy3Time());
+      Serial.println(getTeensy3Time());
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -638,6 +640,7 @@ void loop() {
       
     if(buf_count >= nbufs_per_file){       // time to stop?
       introperiod = 0;  //LEDS on for first file
+      total_hour_recorded += (float) rec_dur / 3600.0;
       if(rec_int == 0){
         if(printDiags > 0){
           Serial.print("Audio Memory Max");
@@ -1054,6 +1057,14 @@ void FileInit()
       }
 
       logFile.println();
+
+      if(((voltage < 3.8) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
+        cam_stop();
+        cam_off();
+        camFlag = 0; 
+        if(printDiags) Serial.println("Camera disabled");
+        logFile.println("Camera stopped");
+      }
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -1076,6 +1087,8 @@ void FileInit()
      Serial.println(filename);
      Serial.print("Max buffer: "); Serial.println(imuMaxBuffer);
      Serial.print("Overflow: "); Serial.println(imuOverflow);
+     Serial.print("Hours rec:"); Serial.println(total_hour_recorded);
+     Serial.print(voltage); Serial.println("V");
    }
    imuMaxBuffer = 0;
    imuOverflow = 0;
