@@ -336,6 +336,7 @@ void setup() {
  gpsTimeout = 0;
 
   if(!skipGPS){
+   gpsOn();
    while(!goodGPS){
      byte incomingByte;
      if(gpsTimeout >= gpsTimeOutThreshold) break;
@@ -1160,7 +1161,7 @@ void file_date_time(uint16_t* date, uint16_t* time)
 
 void cam_wake() {
   if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, HIGH); 
+   digitalWrite(GPS_POW, HIGH);
     delay(3000);
   } 
   if(camFlag==FLYCAM){
@@ -1202,7 +1203,9 @@ void cam_stop(){
 
 void cam_off() {
   if(camFlag==SPYCAM){
-    delay(2000);
+    delay(2000); //give last file chance to close
+    digitalWrite(GPS_POW, LOW);
+    digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
   }
   else{
     digitalWrite(CAM_POW, HIGH);
@@ -1437,7 +1440,7 @@ void sensorInit(){
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  gpsOn();
+  gpsOff();
 
   Serial.println("Sensor Init");
   digitalWrite(ledWhite, LOW);
