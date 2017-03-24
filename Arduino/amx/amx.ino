@@ -1395,15 +1395,16 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   //float vDivider = 2.13; //when using 3.3 V ref
-   float vDivider = 4.5; 
+   //float vDivider = 2.13; //when using 3.3 V ref R9 100K
+   float vDivider = 4.5;  // when using 1.2 V ref R9 301K
+   float vRef = 1.2;
    pinMode(vSense, INPUT);  // get ready to read voltage
-   analogReference(INTERNAL); //1.2V ref more stable than 3.3
-   int navg = 8;
+   if (vRef==1.2) analogReference(INTERNAL); //1.2V ref more stable than 3.3 according to PJRC
+   int navg = 16;
    for(int n = 0; n<navg; n++){
     voltage += (float) analogRead(vSense);
    }
-   voltage = vDivider * 1.2 * voltage / 1024.0 / navg;  
+   voltage = vDivider * vRef * voltage / 1024.0 / navg;  
    pinMode(vSense, OUTPUT);  // done reading voltage
    return voltage;
 }
