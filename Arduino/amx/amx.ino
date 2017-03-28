@@ -485,20 +485,15 @@ void loop() {
         resetFunc();
       }
   }
+
+  t = getTeensy3Time();
+  if((t >= burnTime) & burnFlag){
+     digitalWrite(BURN, HIGH);
+  }
+  
   // Standby mode
   if(mode == 0)
   {
-      t = getTeensy3Time();
-      
-//      cDisplay();
-//      display.println("Next Start");
-//      displayClock(startTime, 20);
-//      displayClock(t, BOTTOM);
-//      display.display();
-      
-      if((t >= burnTime) & burnFlag){
-        digitalWrite(BURN, HIGH);
-      }
       if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
@@ -527,6 +522,7 @@ void loop() {
 //        display.display();
 
         mode = 1;
+        if (briteFlag) digitalWrite(ledWhite, HIGH);  
         startRecording();
       }
   }
@@ -1534,7 +1530,6 @@ void cam_start() {
     delay(500);  // simulate  button press
     digitalWrite(CAM_POW, LOW);  
   }     
-  if (briteFlag) digitalWrite(ledWhite, HIGH);  
   CAMON = 2;
 }
 
