@@ -142,7 +142,7 @@ boolean burnFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
-boolean camFlag = 0;
+int camFlag = 0;
 boolean briteFlag = 0; // bright LED
 
 
@@ -177,7 +177,7 @@ int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 
-int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -499,6 +499,9 @@ void loop() {
       if((t >= burnTime) & burnFlag){
         digitalWrite(BURN, HIGH);
       }
+      if((t >= startTime - 1) & CAMON==1){ //start camera 1 second before audio because button press duration
+        if (camFlag)  cam_start();
+      }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
         
@@ -525,7 +528,6 @@ void loop() {
 
         mode = 1;
         startRecording();
-        if (camFlag)  cam_start();
       }
   }
 
@@ -1059,7 +1061,7 @@ void FileInit()
 
       logFile.println();
 
-      if(((voltage < 3.8) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
+      if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
         cam_stop();
         cam_off();
         camFlag = 0; 
@@ -1159,61 +1161,6 @@ void file_date_time(uint16_t* date, uint16_t* time)
   *time=FAT_TIME(hour(t),minute(t),second(t));
 }
 
-void cam_wake() {
-  if(camFlag==SPYCAM){
-   digitalWrite(GPS_POW, HIGH);
-    delay(3000);
-  } 
-  if(camFlag==FLYCAM){
-    digitalWrite(CAM_POW, HIGH);
-    delay(2000); //power on camera (if off)
-    digitalWrite(CAM_POW, LOW);     
-  } 
-  CAMON=1;   
-}
-
-void cam_start() {
-  if (briteFlag) digitalWrite(ledWhite, HIGH);  
-  if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, LOW);
-    delay(1000);  // simulate  button press
-    digitalWrite(CAM_POW, HIGH);  
-  }
-  else{
-    digitalWrite(CAM_POW, HIGH);
-    delay(500);  // simulate  button press
-    digitalWrite(CAM_POW, LOW);  
-  }     
-  
-}
-
-void cam_stop(){
-  if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, LOW);
-    delay(400);  // simulate  button press
-    digitalWrite(CAM_POW, HIGH);  
-  }
-  else{
-    digitalWrite(CAM_POW, HIGH);
-    delay(100);  // simulate  button press
-    digitalWrite(CAM_POW, LOW);  
-  }
-  if (briteFlag) digitalWrite(ledWhite, LOW);
-}
-
-void cam_off() {
-  if(camFlag==SPYCAM){
-    delay(2000); //give last file chance to close
-    digitalWrite(GPS_POW, LOW);
-    digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
-  }
-  else{
-    digitalWrite(CAM_POW, HIGH);
-    delay(3000); //power down camera (if still on)
-    digitalWrite(CAM_POW, LOW); 
-  }        
-  CAMON=0;
-}
 
 void AudioInit(){
     // Enable the audio shield, select input, and enable output
@@ -1559,4 +1506,62 @@ void gpsWake(){
 time_t getTeensy3Time()
 {
   return Teensy3Clock.get();
+}
+
+
+void cam_wake() {
+  if(camFlag==SPYCAM){
+   digitalWrite(CAM_POW, HIGH);  
+   digitalWrite(GPS_POW, HIGH);
+   delay(3000);
+  } 
+  if(camFlag==FLYCAM){
+    digitalWrite(CAM_POW, HIGH);
+    delay(2000); //power on camera (if off)
+    digitalWrite(CAM_POW, LOW);     
+  } 
+  CAMON = 1;   
+}
+
+void cam_start() {
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(500);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(500);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }     
+  if (briteFlag) digitalWrite(ledWhite, HIGH);  
+  CAMON = 2;
+}
+
+void cam_stop(){
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(400);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(100);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }
+  if (briteFlag) digitalWrite(ledWhite, LOW);
+}
+
+void cam_off() {
+  if(camFlag==SPYCAM){
+    delay(3000); //give last file chance to close
+    digitalWrite(GPS_POW, LOW);
+    digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(3000); //power down camera (if still on)
+    digitalWrite(CAM_POW, LOW); 
+  }        
+  CAMON = 0;
 }
