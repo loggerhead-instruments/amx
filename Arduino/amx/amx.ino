@@ -418,7 +418,7 @@ void setup() {
   t = getTeensy3Time();
   
   if (printDiags > 0){
-    startTime = t + 10; // for debugging wait 10s for first recording
+    startTime = t + wakeahead; // for debugging wait 10s for first recording
   }
   else{
     startTime -= startTime % 300;  //modulo to nearest 5 minutes
@@ -499,7 +499,7 @@ void loop() {
       if((t >= burnTime) & burnFlag){
         digitalWrite(BURN, HIGH);
       }
-      if((t >= startTime - 1) & CAMON==1){ //start camera 1 second before audio because button press duration
+      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
       if(t >= startTime){      // time to start?
