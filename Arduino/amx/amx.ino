@@ -522,7 +522,7 @@ void loop() {
 //        display.display();
 
         mode = 1;
-        if (briteFlag) digitalWrite(ledWhite, HIGH);  
+        if (briteFlag & camFlag) digitalWrite(ledWhite, HIGH);  
         startRecording();
       }
   }
@@ -1060,6 +1060,7 @@ void FileInit()
       if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
         cam_stop();
         cam_off();
+        
         camFlag = 0; 
         if(printDiags) Serial.println("Camera disabled");
         logFile.println("Camera stopped");
