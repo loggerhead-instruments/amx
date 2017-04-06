@@ -27,6 +27,7 @@
 
 //#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
+#include <analyze_fft256.h>
 //#include <Wire.h>
 #include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
@@ -43,18 +44,29 @@
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
-//
-//#define OLED_RESET 4
-//Adafruit_SSD1306 display(OLED_RESET);
-//#define BOTTOM 55
-//
+
 Adafruit_MCP23017 mcp;
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
 
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics
-static boolean skipGPS = 0; //skip GPS at startup
+#define SPYCAM 1
+#define FLYCAM 2
+
+// 
+// Dev settings
+//
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean skipGPS = 1; //skip GPS at startup
+boolean camWave = 1; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+long rec_dur = 300; // seconds; default = 300s
+long rec_int = 0;
+int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
+float max_cam_hours_rec = 8.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets 8 hours with 32 GB card
+//
+//
+//
+
 static uint8_t myID[8];
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
@@ -75,8 +87,10 @@ unsigned long baud = 115200;
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
+AudioAnalyzeFFT256       fft256_1; 
 AudioRecordQueue         queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
+AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
@@ -124,11 +138,14 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
+boolean burnFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
-boolean camFlag = 0;
+int camFlag = 0;
 boolean briteFlag = 0; // bright LED
+
+
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 byte fileType = 1; //0=wav, 1=amx
@@ -139,6 +156,9 @@ int update_rate = 10;  // rate (Hz) at which interrupt to read RGB and P/T senso
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
+int toneDetect = 0; // counter for detecting burn tone
+int refBin = 50; //reference signal bin
+int toneBin = 58; // tone signal bin
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
@@ -156,13 +176,13 @@ unsigned int audioIntervalCount = 0;
 int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
-long rec_dur = 300; // seconds; default = 300s
-long rec_int = 0;
-int wakeahead = 10;  //wake from snooze to give hydrophone and camera time to power up
+
+int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
 long buf_count;
+float total_hour_recorded = 0.0;
 long nbufs_per_file;
 boolean settingsChanged = 0;
 
@@ -264,6 +284,15 @@ void setup() {
   dfh.Version = 1000;
   dfh.UserID = 5555;
 
+  if (camWave){
+    imuFlag = 0;
+    rgbFlag = 0;
+    audioFlag = 1;
+    camFlag = 1;
+    briteFlag = 1;
+    fileType = 0; // 0 = wav
+  }
+
   read_myID();
   
   Serial.begin(baud);
@@ -299,13 +328,15 @@ void setup() {
   }
   
  // wait here to get GPS time
+  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
  ULONG newtime;
  gpsTimeout = 0;
-// ULONG newtime = 1451606400 + 290; // +290 so when debugging only have to wait 10s to start recording
+
   if(!skipGPS){
+   gpsOn();
    while(!goodGPS){
      byte incomingByte;
      if(gpsTimeout >= gpsTimeOutThreshold) break;
@@ -319,9 +350,12 @@ void setup() {
       setTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
+  else
+    setTime(0, 0, 0, 1, 1, 2017);
+  
 
-   if(printDiags){
-      Serial.print("now time:"); Serial.println(now());
+   if(printDiags > 0){
+      Serial.println(getTeensy3Time());
       Serial.println(latitude,4);
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -362,7 +396,7 @@ void setup() {
     while (1) {
 //      cDisplay();
 //      display.println("SD error. Restart.");
-//      displayClock(now(), BOTTOM);
+//      displayClock(getTeensy3Time(), BOTTOM);
 //      display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
@@ -381,10 +415,15 @@ void setup() {
 
   //cDisplay();
 
-  t = now();
-  startTime = t;
-  startTime -= startTime % 300;  //modulo to nearest 5 minutes
-  startTime += 300; //move forward
+  t = getTeensy3Time();
+  
+  if (printDiags > 0){
+    startTime = t + wakeahead; // for debugging wait 10s for first recording
+  }
+  else{
+    startTime -= startTime % 300;  //modulo to nearest 5 minutes
+    startTime += 300; //move forward
+  }
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -416,11 +455,11 @@ void setup() {
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
 
-  delay(5000);
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
   AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
+  fft256_1.averageTogether(160); // number of FFTs to average together
   
   digitalWrite(hydroPowPin, HIGH);
   if (camFlag) cam_wake();
@@ -446,18 +485,17 @@ void loop() {
         resetFunc();
       }
   }
+
+  t = getTeensy3Time();
+  if((t >= burnTime) & burnFlag){
+     digitalWrite(BURN, HIGH);
+  }
+  
   // Standby mode
   if(mode == 0)
   {
-      t = now();
-//      cDisplay();
-//      display.println("Next Start");
-//      displayClock(startTime, 20);
-//      displayClock(t, BOTTOM);
-//      display.display();
-      
-      if(t >= burnTime){
-        digitalWrite(BURN, HIGH);
+      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
+        if (camFlag)  cam_start();
       }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
@@ -467,7 +505,7 @@ void loop() {
         if (recMode==MODE_DIEL) checkDielTime();
 
         Serial.print("Current Time: ");
-        printTime(now());
+        printTime(getTeensy3Time());
         Serial.print("Stop Time: ");
         printTime(stopTime);
         Serial.print("Next Start:");
@@ -484,23 +522,59 @@ void loop() {
 //        display.display();
 
         mode = 1;
+        if (briteFlag & camFlag) digitalWrite(ledWhite, HIGH);  
         startRecording();
-        if (camFlag)  cam_start();
       }
   }
 
 
   // Record mode
   if (mode == 1) {
-
-    
     continueRecording();  // download data  
+
+    // check for acoustic release signal
+    // must be 10 reads of 9991.4 Hz 12 dB greater than bin 50
+    // binsize = 44100/256 = 172.265625 Hz
+    // bin 50 = 8613.28
+    // bin 58 = 9991.4 Hz
+    // center of bin 58 = 10077.5
+    
+    if(fft256_1.available()){
+      float n1, n2, n3;
+      n1 = fft256_1.read(refBin);
+      n2 = fft256_1.read(toneBin);
+      if(n2 > 0.000001){
+          if(n1> 0.000001){
+            if((n2/n1) > 4) toneDetect += 1;
+          }
+          else
+          toneDetect += 1;
+      }
+      else
+      toneDetect = 0;
+      
+      if(toneDetect > 10) digitalWrite(BURN, HIGH); // burn on
+      
+      if(printDiags==1){
+        SerialUSB.print("FFT: ");
+        for (int i=50; i<66; i++){ //bin 58 = 9991.4 Hz
+          float n = fft256_1.read(i);
+          if( n > 0.000001) {
+            SerialUSB.print(20*log10(n));
+            SerialUSB.print(" ");
+          }
+          else
+            SerialUSB.print(" - ");
+        }
+        SerialUSB.println();
+      }
+    }
     
 //    if(printDiags){  //this is to see if code still running when queue fails change to printDiags to hide
 //      recLoopCount++;
 //      if(recLoopCount>50){
 //        recLoopCount = 0;
-//        t = now();
+//        t = getTeensy3Time();
 //        cDisplay();
 //        if(rec_int > 0) {
 //          display.println("Rec");
@@ -521,7 +595,7 @@ void loop() {
       while  (pollImu()){
         if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
         if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
-            if(printDiags){
+            if(printDiags == 2){
                 Serial.print("i");
              }
       }
@@ -565,8 +639,9 @@ void loop() {
       
     if(buf_count >= nbufs_per_file){       // time to stop?
       introperiod = 0;  //LEDS on for first file
+      total_hour_recorded += (float) rec_dur / 3600.0;
       if(rec_int == 0){
-        if(printDiags){
+        if(printDiags > 0){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
         }
@@ -574,12 +649,15 @@ void loop() {
         if (imuOverflow > 0) resetGyroFIFO();
         FileInit();  // make a new file
         buf_count = 0;
-       
       }
       else
       {
         stopRecording();
-        long ss = startTime - now() - wakeahead;
+        if (camFlag) {
+          cam_stop();
+          delay(100);
+        }
+        long ss = startTime - getTeensy3Time() - wakeahead;
         if (ss<0) ss=0;
         snooze_hour = floor(ss/3600);
         ss -= snooze_hour * 3600;
@@ -588,15 +666,16 @@ void loop() {
         snooze_second = ss;
         if( snooze_hour + snooze_minute + snooze_second >=10){
             digitalWrite(hydroPowPin, LOW); //hydrophone off
-            mpuInit(0);  //gyro to sleep
-            islSleep(); // RGB light sensor
+            if (imuFlag) mpuInit(0);  //gyro to sleep
+            if (rgbFlag) islSleep(); // RGB light sensor
             audio_power_down();
             if (camFlag) cam_off();
 //            cDisplay();
 //            display.display();
 //            delay(100);
 //            display.ssd1306_command(SSD1306_DISPLAYOFF); 
-            if(printDiags){
+            if(printDiags > 0){
+              printTime(getTeensy3Time());
               Serial.print("Snooze HH MM SS ");
               Serial.print(snooze_hour);
               Serial.print(snooze_minute);
@@ -618,16 +697,17 @@ void loop() {
             /// ... Sleeping ....
             
             // Waking up
+            
            // if (printDiags==0) usbDisable();
            // display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+           if(printDiags>0) printTime(getTeensy3Time());
             digitalWrite(hydroPowPin, HIGH); // hydrophone on 
           //  audio_enable();
           //  AudioInterrupts();
             audio_power_up();
             if (camFlag)  cam_wake();
-
-            islInit(); // RGB light sensor
-            mpuInit(1);  //start gyro
+            if (rgbFlag) islInit(); // RGB light sensor
+            if (imuFlag) mpuInit(1);  //start gyro
             //sdInit();  //reinit SD because voltage can drop in hibernate
          }
         mode = 0;
@@ -673,7 +753,7 @@ void continueRecording() {
 
     if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
 
-    if(printDiags){
+    if(printDiags == 2){
       Serial.print(".");
    }
    
@@ -689,13 +769,13 @@ void continueRecording() {
           readPress();
           updateTemp();
           togglePress = 0;
-          if(printDiags) Serial.println("p");
+          if(printDiags == 2) Serial.println("p");
         }
         else{
           readTemp();
           updatePress();
           togglePress = 1;
-          if(printDiags) Serial.println("t");
+          if(printDiags == 2) Serial.println("t");
         }
       }
   
@@ -912,7 +992,7 @@ void sdInit(){
     while (1) {
       cDisplay();
       display.println("SD error. Restart.");
-      displayClock(now(), BOTTOM);
+      displayClock(getTeensy3Time(), BOTTOM);
       display.display();
       delay(1000);
       
@@ -923,10 +1003,10 @@ void sdInit(){
 
 void FileInit()
 {
-   t = now();
+   t = getTeensy3Time();
    
    if (folderMonth != month(t)){
-    if(printDiags) Serial.println("New Folder");
+    if(printDiags > 0) Serial.println("New Folder");
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     SdFile::dateTimeCallback(file_date_time);
@@ -958,18 +1038,33 @@ void FileInit()
       logFile.print(',');
       logFile.print(systemGain); 
 
-      logFile.print(',');
-      logFile.print(latitude); 
-      logFile.print(',');
-      logFile.print(latHem); 
+      if(skipGPS==0){
+        logFile.print(',');
+        logFile.print(latitude); 
+        logFile.print(',');
+        logFile.print(latHem); 
+  
+        logFile.print(',');
+        logFile.print(longitude); 
+        logFile.print(',');
+        logFile.print(lonHem);
+      }
 
-      logFile.print(',');
-      logFile.print(longitude); 
-      logFile.print(',');
-      logFile.print(lonHem);
+      if(imuFlag){
+        logFile.print(',');
+        logFile.print(imuOverflow);
+      }
 
-      logFile.print(',');
-      logFile.println(imuOverflow);
+      logFile.println();
+
+      if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
+        cam_stop();
+        cam_off();
+        
+        camFlag = 0; 
+        if(printDiags) Serial.println("Camera disabled");
+        logFile.println("Camera stopped");
+      }
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -988,10 +1083,12 @@ void FileInit()
     
    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
 
-   if(printDiags){
+   if(printDiags > 0){
      Serial.println(filename);
      Serial.print("Max buffer: "); Serial.println(imuMaxBuffer);
      Serial.print("Overflow: "); Serial.println(imuOverflow);
+     Serial.print("Hours rec:"); Serial.println(total_hour_recorded);
+     Serial.print(voltage); Serial.println("V");
    }
    imuMaxBuffer = 0;
    imuOverflow = 0;
@@ -1047,7 +1144,7 @@ void FileInit()
     if (imuFlag) addSid(3, "3DAMG", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
-  if(printDiags){
+  if(printDiags > 0){
     Serial.print("Buffers: ");
     Serial.println(nbufs_per_file);
   }
@@ -1056,32 +1153,11 @@ void FileInit()
 //This function returns the date and time for SD card file access and modify time. One needs to call in setup() to register this callback function: SdFile::dateTimeCallback(file_date_time);
 void file_date_time(uint16_t* date, uint16_t* time) 
 {
-  t = now();
+  t = getTeensy3Time();
   *date=FAT_DATE(year(t),month(t),day(t));
   *time=FAT_TIME(hour(t),minute(t),second(t));
 }
 
-void cam_wake() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(2000); //power on camera (if off)
-  digitalWrite(CAM_POW, LOW);      
-  CAMON=1;   
-}
-
-void cam_start() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(500);  // simulate Flywire button press
-  digitalWrite(CAM_POW, LOW);  
-  if (briteFlag) digitalWrite(ledWhite, HIGH);        
-}
-
-void cam_off() {
-  digitalWrite(CAM_POW, HIGH);
-  delay(3000); //power down camera (if still on)
-  digitalWrite(CAM_POW, LOW);           
-  CAMON=0;
-  if (briteFlag) digitalWrite(ledWhite, LOW);
-}
 
 void AudioInit(){
     // Enable the audio shield, select input, and enable output
@@ -1135,7 +1211,7 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
        }
@@ -1149,7 +1225,7 @@ void checkDielTime(){
        startTime = makeTime(tmStart);
        Serial.print("New diel start:");
        printTime(startTime);
-       if(startTime < now()) startTime += SECS_PER_DAY;  // make sure after current time
+       if(startTime < getTeensy3Time()) startTime += SECS_PER_DAY;  // make sure after current time
        Serial.print("New diel start:");
        printTime(startTime);
     }
@@ -1201,7 +1277,7 @@ boolean pollImu(){
      if(FIFOpts > imuMaxBuffer) imuMaxBuffer = FIFOpts;
      Read_Gyro(BUFFERSIZE);  //download block from FIFO
   
-    if (printDiags){
+    if (printDiags == 2){
     // print out first line of block
     // MSB byte first, then LSB, X,Y,Z
     accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
@@ -1266,13 +1342,16 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.13;
+   //float vDivider = 2.13; //when using 3.3 V ref R9 100K
+   float vDivider = 4.5;  // when using 1.2 V ref R9 301K
+   float vRef = 1.2;
    pinMode(vSense, INPUT);  // get ready to read voltage
-   for(int n = 0; n<8; n++){
-    voltage += (float) analogRead(vSense) / 1024.0;
-    delay(2);
+   if (vRef==1.2) analogReference(INTERNAL); //1.2V ref more stable than 3.3 according to PJRC
+   int navg = 16;
+   for(int n = 0; n<navg; n++){
+    voltage += (float) analogRead(vSense);
    }
-   voltage = vDivider * 3.3 * voltage / 8.0;   //fudging scaling based on actual measurements; shoud be max of 3.3V at 1023
+   voltage = vDivider * vRef * voltage / 1024.0 / navg;  
    pinMode(vSense, OUTPUT);  // done reading voltage
    return voltage;
 }
@@ -1305,33 +1384,36 @@ void sensorInit(){
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  gpsOn();
+  gpsOff();
 
   Serial.println("Sensor Init");
+  digitalWrite(ledWhite, LOW);
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
-  digitalWrite(ledWhite, HIGH);
   digitalWrite(VHF, HIGH);
   delay(2000);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
-  digitalWrite(ledWhite, LOW);
   digitalWrite(VHF, LOW);
 
-// IMU
-  mpuInit(1);
-  while(pollImu()); //will print out values from FIFO
+  // IMU
+  if(imuFlag){
+    mpuInit(1);
+    while(pollImu()); //will print out values from FIFO
+  }
 
 
-// RGB
-  islInit(); 
-  islRead();
-  islRead();
-  Serial.print("R:"); Serial.println(islRed);
-  Serial.print("G:"); Serial.println(islGreen);
-  Serial.print("B:"); Serial.println(islBlue);
+  // RGB
+  if(rgbFlag){
+    islInit(); 
+    islRead();
+    islRead();
+    Serial.print("R:"); Serial.println(islRed);
+    Serial.print("G:"); Serial.println(islGreen);
+    Serial.print("B:"); Serial.println(islBlue);
+  }
   
 // Pressure--auto identify which if any is present
   pressure_sensor = 0;
@@ -1418,3 +1500,64 @@ void gpsWake(){
   HWSERIAL.flush();
 }
 
+time_t getTeensy3Time()
+{
+  return Teensy3Clock.get();
+}
+
+
+void cam_wake() {
+  if(camFlag==SPYCAM){
+   digitalWrite(CAM_POW, HIGH);  
+   digitalWrite(GPS_POW, HIGH);
+   delay(3000);
+  } 
+  if(camFlag==FLYCAM){
+    digitalWrite(CAM_POW, HIGH);
+    delay(2000); //power on camera (if off)
+    digitalWrite(CAM_POW, LOW);     
+  } 
+  CAMON = 1;   
+}
+
+void cam_start() {
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(500);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(500);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }     
+  CAMON = 2;
+}
+
+void cam_stop(){
+  if(camFlag==SPYCAM){
+    digitalWrite(CAM_POW, LOW);
+    delay(400);  // simulate  button press
+    digitalWrite(CAM_POW, HIGH);  
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(100);  // simulate  button press
+    digitalWrite(CAM_POW, LOW);  
+  }
+  if (briteFlag) digitalWrite(ledWhite, LOW);
+}
+
+void cam_off() {
+  if(camFlag==SPYCAM){
+    delay(3000); //give last file chance to close
+    digitalWrite(GPS_POW, LOW);
+    digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
+  }
+  else{
+    digitalWrite(CAM_POW, HIGH);
+    delay(3000); //power down camera (if still on)
+    digitalWrite(CAM_POW, LOW); 
+  }        
+  CAMON = 0;
+}

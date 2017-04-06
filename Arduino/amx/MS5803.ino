@@ -172,7 +172,7 @@ void calcPressTemp(){
   depth = -(1010.0 -  pressure_mbar) / mbar_per_m;
   temperature = T16 / 100.0;
 
-  if (printDiags){
+  if (printDiags == 2){
     Serial.print("MS5803 constant:"); Serial.println(MS5803_constant);
     Serial.print("D1:"); Serial.println(D1);
     Serial.print("D2:"); Serial.println(D2);
