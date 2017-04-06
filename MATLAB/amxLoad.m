@@ -35,6 +35,7 @@ ADC=[];
 PTMP=[];
 INER_ts=[];
 PTMP_ts=[];
+light = [];
 
 for x=1:length(SID_REC)
     cur_sid=(SID_REC(x).nSID) + 1;
@@ -46,6 +47,7 @@ for x=1:length(SID_REC)
     end
     if(SID_SPEC(cur_sid).SID(1)=='L')
         RGB=vertcat(RGB,SID_REC(x).data);
+        RGB_SID = cur_sid;
     end
     if(SID_SPEC(cur_sid).SID(1)=='I')
         IMU=vertcat(IMU,SID_REC(x).data);
@@ -68,6 +70,10 @@ INER.mag.x = IMU(7:9:end) * SID_SPEC(IMU_SID).sensor.cal(7);
 INER.mag.y = IMU(8:9:end) * SID_SPEC(IMU_SID).sensor.cal(8);
 INER.mag.z = IMU(9:9:end) * SID_SPEC(IMU_SID).sensor.cal(9);
 
+light.red = RGB(1:3:end) * SID_SPEC(RGB_SID).sensor.cal(1);
+light.green = RGB(2:3:end) * SID_SPEC(RGB_SID).sensor.cal(2);
+light.blue = RGB(3:3:end) * SID_SPEC(RGB_SID).sensor.cal(3);
+
 if(length(AUDIO)>0)
     figure(1)
     plot(AUDIO);
@@ -76,24 +82,33 @@ end
 figure(2)
 subplot(3,1,1)
 plot(INER.accel.x, 'b');
+ylabel('g');
 hold on;
 plot(INER.accel.y, 'r');
+ylabel('g');
 plot(INER.accel.z, 'g');
+ylabel('g');
 title('accelerometer')
 
 subplot(3,1,2)
 
 title('gyroscope')
 plot(INER.gyro.x, 'b');
+ylabel('deg/s');
 hold on;
 plot(INER.gyro.y, 'r');
+ylabel('deg/s');
 plot(INER.gyro.z, 'g');
+ylabel('deg/s');
 
 subplot(3,1,3)
 plot(INER.mag.x, 'b');
+ylabel('uT');
 hold on;
 plot(INER.mag.y, 'r');
+ylabel('uT');
 plot(INER.mag.z, 'g');
+ylabel('uT');
 title('magnetometer')
 
 figure(3)
@@ -105,18 +120,21 @@ plot(PT(2:2:end));
 ylabel('Temperature');
 
 figure(4)
-plot(RGB(1:3:end), 'r');
+plot(light.red, 'r');
+ylabel('uWpercm^2');
 hold on
-plot(RGB(2:3:end), 'g');
-plot(RGB(3:3:end), 'b');
+plot(light.green, 'g');
+ylabel('uWpercm^2');
+plot(light.blue, 'b');
+ylabel('uWpercm^2');
 title('Light');
-
 
 figure(5)
 subplot(2,1,1)
 plot(O2(1:2:end));
+title('O2');
 ylabel('Temp');
 subplot(2,1,2)
 plot(O2(2:2:end));
 ylabel('Phase');
-title('O2');
+
