@@ -76,7 +76,7 @@ while(eofstat==0)
     cur_sid=(SID_REC(reccounter).nSID) + 1;
     if(cur_sid >0 & cur_sid<8)         
         if(SID_SPEC(cur_sid).DForm==2)
-            if (SID_SPEC(cur_sid).SID(1)=='3')
+            if (SID_SPEC(cur_sid).SID(1)=='I')
                 SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'int16', 'ieee-be');
             else
                 SID_REC(reccounter).data=fread(fid,SID_SPEC(cur_sid).nSamples,'int16');

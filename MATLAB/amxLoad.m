@@ -26,7 +26,7 @@ if(ans==0)
     PT=[];
     RGB=[];
     IMU=[];
-    amxdata5=[];
+    O2=[];
 end
 
 INER=[];
@@ -38,46 +38,62 @@ PTMP_ts=[];
 
 for x=1:length(SID_REC)
     cur_sid=(SID_REC(x).nSID) + 1;
-    if(cur_sid==1)
+    if(SID_SPEC(cur_sid).SID(1)=='A')
         AUDIO=vertcat(AUDIO,SID_REC(x).data);
     end
-    if(cur_sid==2)
+    if(SID_SPEC(cur_sid).SID(1)=='P')
         PT=vertcat(PT,SID_REC(x).data);
     end
-    if(cur_sid==3)
+    if(SID_SPEC(cur_sid).SID(1)=='L')
         RGB=vertcat(RGB,SID_REC(x).data);
     end
-    if(cur_sid==4)
+    if(SID_SPEC(cur_sid).SID(1)=='I')
         IMU=vertcat(IMU,SID_REC(x).data);
+        IMU_SID = cur_sid;
     end
-        if(cur_sid==5)
-        amxdata5=vertcat(amxdata5,SID_REC(x).data);
+        if(SID_SPEC(cur_sid).SID(1)=='O')
+        O2=vertcat(O2,SID_REC(x).data);
     end
 end
 
-figure(1)
-plot(AUDIO);
+INER.accel.x = IMU(1:9:end) * SID_SPEC(IMU_SID).sensor.cal(1);
+INER.accel.y = IMU(2:9:end) * SID_SPEC(IMU_SID).sensor.cal(2);
+INER.accel.z = IMU(3:9:end) * SID_SPEC(IMU_SID).sensor.cal(3);
+
+INER.gyro.x = IMU(4:9:end) * SID_SPEC(IMU_SID).sensor.cal(4);
+INER.gyro.y = IMU(5:9:end) * SID_SPEC(IMU_SID).sensor.cal(5);
+INER.gyro.z = IMU(6:9:end) * SID_SPEC(IMU_SID).sensor.cal(6);
+
+INER.mag.x = IMU(7:9:end) * SID_SPEC(IMU_SID).sensor.cal(7);
+INER.mag.y = IMU(8:9:end) * SID_SPEC(IMU_SID).sensor.cal(8);
+INER.mag.z = IMU(9:9:end) * SID_SPEC(IMU_SID).sensor.cal(9);
+
+if(length(AUDIO)>0)
+    figure(1)
+    plot(AUDIO);
+end
 
 figure(2)
 subplot(3,1,1)
-plot(IMU(1:9:end), 'b');
+plot(INER.accel.x, 'b');
 hold on;
-plot(IMU(2:9:end), 'r');
-plot(IMU(3:9:end), 'g');
+plot(INER.accel.y, 'r');
+plot(INER.accel.z, 'g');
 title('accelerometer')
 
 subplot(3,1,2)
-plot(IMU(4:9:end), 'b');
-hold on;
-plot(IMU(5:9:end), 'r');
-plot(IMU(6:9:end), 'g');
+
 title('gyroscope')
+plot(INER.gyro.x, 'b');
+hold on;
+plot(INER.gyro.y, 'r');
+plot(INER.gyro.z, 'g');
 
 subplot(3,1,3)
-plot(IMU(7:9:end), 'b');
+plot(INER.mag.x, 'b');
 hold on;
-plot(IMU(8:9:end), 'r');
-plot(IMU(9:9:end), 'g');
+plot(INER.mag.y, 'r');
+plot(INER.mag.z, 'g');
 title('magnetometer')
 
 figure(3)
@@ -96,3 +112,11 @@ plot(RGB(3:3:end), 'b');
 title('Light');
 
 
+figure(5)
+subplot(2,1,1)
+plot(O2(1:2:end));
+ylabel('Temp');
+subplot(2,1,2)
+plot(O2(2:2:end));
+ylabel('Phase');
+title('O2');
