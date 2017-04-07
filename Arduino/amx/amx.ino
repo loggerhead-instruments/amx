@@ -62,7 +62,7 @@ boolean camWave = 1; // one flag to swtich all settings to use camera control an
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-float max_cam_hours_rec = 8.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets 8 hours with 32 GB card
+float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 //
 //
 //
@@ -138,12 +138,13 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
-boolean burnFlag = 0;
+int burnFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
 int camFlag = 0;
 boolean briteFlag = 0; // bright LED
+long burnMinutes = 0;
 
 
 boolean LEDSON=0;
@@ -416,6 +417,10 @@ void setup() {
   //cDisplay();
 
   t = getTeensy3Time();
+
+  if(burnFlag==2){
+    burnTime = t + (burnMinutes * 60);
+  }
   
   if (printDiags > 0){
     startTime = t + wakeahead; // for debugging wait 10s for first recording
@@ -487,7 +492,7 @@ void loop() {
   }
 
   t = getTeensy3Time();
-  if((t >= burnTime) & burnFlag){
+  if((t >= burnTime) & (burnFlag>0)){
      digitalWrite(BURN, HIGH);
   }
   
