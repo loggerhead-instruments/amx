@@ -178,7 +178,7 @@ int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 
-int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 30;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -499,7 +499,7 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
-      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
+      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 2 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
       if(t >= startTime){      // time to start?
@@ -1528,7 +1528,7 @@ void cam_wake() {
 void cam_start() {
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
-    delay(500);  // simulate  button press
+    delay(1000);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
   }
   else{
