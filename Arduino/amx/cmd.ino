@@ -83,9 +83,11 @@ int ProcCmd(char *pCmd)
 		{
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         setTime(thour, tmin, tsec, tday, tmonth, tyear);
-         Serial.print("Clock Set: ");
+         setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear + 2000);
+         Serial.print("Clock Set (now): ");
          Serial.println(now());
+         Serial.print("Clock set (getTeensyTime): ");
+         Serial.println(getTeensy3Time());
          break;
       }
 

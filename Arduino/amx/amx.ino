@@ -348,11 +348,11 @@ void setup() {
       }
     }
     if(gpsTimeout <  gpsTimeOutThreshold){
-      setTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
+      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
   else
-    setTime(0, 0, 0, 1, 1, 2017);
+    setTeensyTime(0, 0, 0, 1, 1, 2017);
   
 
    if(printDiags > 0){
