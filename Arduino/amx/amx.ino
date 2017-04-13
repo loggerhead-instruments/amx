@@ -415,9 +415,11 @@ void setup() {
   if(burnFlag==2){
     burnTime = t + (burnMinutes * 60);
   }
-  
+
+  startTime = t;
   if (printDiags > 0){
-    startTime = t + wakeahead; // for debugging wait 10s for first recording
+    startTime -= startTime % 120;  //modulo to nearest 5 minutes
+    startTime += 120; //move forward
   }
   else{
     startTime -= startTime % 300;  //modulo to nearest 5 minutes
@@ -494,7 +496,7 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
-      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 2 seconds before to give a chance to get going
+      if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
       if(t >= startTime){      // time to start?
