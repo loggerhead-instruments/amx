@@ -145,7 +145,7 @@ boolean CAMON = 0;
 int camFlag = 0;
 boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
-
+int burnLog = 0; //burn status for log file
 
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -351,21 +351,15 @@ void setup() {
       setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
-  else
-    setTeensyTime(0, 0, 0, 1, 1, 2017);
   
-
    if(printDiags > 0){
       Serial.println(getTeensy3Time());
+      Serial.print("lat: ");
       Serial.println(latitude,4);
+      Serial.print("lon: ");
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
-      Serial.print(gpsYear);  Serial.print("-");
-      Serial.print(gpsMonth);  Serial.print("-");
-      Serial.print(gpsDay);  Serial.print("  ");
-      Serial.print(gpsHour);  Serial.print(":");
-      Serial.print(gpsMinute);  Serial.print(":");
-      Serial.print(gpsSecond);
+      printTime(getTeensy3Time());
    }
 
     gpsOff();
@@ -494,6 +488,7 @@ void loop() {
   t = getTeensy3Time();
   if((t >= burnTime) & (burnFlag>0)){
      digitalWrite(BURN, HIGH);
+     burnLog = 1;
   }
   
   // Standby mode
@@ -558,7 +553,10 @@ void loop() {
       else
       toneDetect = 0;
       
-      if(toneDetect > 10) digitalWrite(BURN, HIGH); // burn on
+      if(toneDetect > 10) {
+        digitalWrite(BURN, HIGH); // burn on
+        burnLog = 2;
+      }
       
       if(printDiags==1){
         SerialUSB.print("FFT: ");
@@ -1060,6 +1058,9 @@ void FileInit()
         logFile.print(imuOverflow);
       }
 
+      logFile.print(',');
+      logFile.print(burnLog);
+      
       logFile.println();
 
       if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours

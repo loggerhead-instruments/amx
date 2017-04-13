@@ -101,9 +101,11 @@ int ProcCmd(char *pCmd)
          NewTime.Hour = thour;
          NewTime.Day = tday;
          NewTime.Month = tmonth;
-         NewTime.Year = tyear-2000;
-         burnTime = makeTime(NewTime);
+         NewTime.Year = tyear + 2000 - 1970;
+         burnTime = makeTime(NewTime); // makeTime is offset from 1970
          burnFlag = 1;
+         Serial.print("Burn Time:");
+         Serial.println(burnTime);
          break;
       }
 
