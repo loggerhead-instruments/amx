@@ -1543,22 +1543,23 @@ void cam_start() {
 }
 
 void cam_stop(){
+  if (briteFlag) digitalWrite(ledWhite, LOW);
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
     delay(400);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
+    delay(6000); //give camera time to close file
   }
   else{
     digitalWrite(CAM_POW, HIGH);
     delay(100);  // simulate  button press
     digitalWrite(CAM_POW, LOW);  
   }
-  if (briteFlag) digitalWrite(ledWhite, LOW);
 }
 
 void cam_off() {
   if(camFlag==SPYCAM){
-    delay(3000); //give last file chance to close
+    delay(1000); //give last file chance to close
     digitalWrite(GPS_POW, LOW);
     digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
   }
