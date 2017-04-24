@@ -49,7 +49,7 @@ for x=1:length(SID_REC)
         RGB=vertcat(RGB,SID_REC(x).data);
         RGB_SID = cur_sid;
     end
-    if(SID_SPEC(cur_sid).SID(1)=='I')
+    if(SID_SPEC(cur_sid).SID(1)=='I' | SID_SPEC(cur_sid).SID(1)=='3')
         IMU=vertcat(IMU,SID_REC(x).data);
         IMU_SID = cur_sid;
     end
@@ -91,9 +91,8 @@ ylabel('g');
 title('accelerometer')
 
 subplot(3,1,2)
-
-title('gyroscope')
 plot(INER.gyro.x, 'b');
+title('gyroscope')
 ylabel('deg/s');
 hold on;
 plot(INER.gyro.y, 'r');
