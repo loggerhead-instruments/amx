@@ -62,7 +62,7 @@ boolean camWave = 1; // one flag to swtich all settings to use camera control an
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-float max_cam_hours_rec = 8.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets 8 hours with 32 GB card
+float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 //
 //
 //
@@ -138,13 +138,14 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
-boolean burnFlag = 0;
+int burnFlag = 0;
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
 int camFlag = 0;
 boolean briteFlag = 0; // bright LED
-
+long burnMinutes = 0;
+int burnLog = 0; //burn status for log file
 
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -177,7 +178,7 @@ int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 
-int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 30;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -347,24 +348,18 @@ void setup() {
       }
     }
     if(gpsTimeout <  gpsTimeOutThreshold){
-      setTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
+      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
     }
   }
-  else
-    setTime(0, 0, 0, 1, 1, 2017);
   
-
    if(printDiags > 0){
       Serial.println(getTeensy3Time());
+      Serial.print("lat: ");
       Serial.println(latitude,4);
+      Serial.print("lon: ");
       Serial.println(longitude, 4);
       Serial.print("YY-MM-DD HH:MM:SS ");
-      Serial.print(gpsYear);  Serial.print("-");
-      Serial.print(gpsMonth);  Serial.print("-");
-      Serial.print(gpsDay);  Serial.print("  ");
-      Serial.print(gpsHour);  Serial.print(":");
-      Serial.print(gpsMinute);  Serial.print(":");
-      Serial.print(gpsSecond);
+      printTime(getTeensy3Time());
    }
 
     gpsOff();
@@ -416,9 +411,15 @@ void setup() {
   //cDisplay();
 
   t = getTeensy3Time();
-  
+
+  if(burnFlag==2){
+    burnTime = t + (burnMinutes * 60);
+  }
+
+  startTime = t;
   if (printDiags > 0){
-    startTime = t + wakeahead; // for debugging wait 10s for first recording
+    startTime -= startTime % 120;  //modulo to nearest 5 minutes
+    startTime += 120; //move forward
   }
   else{
     startTime -= startTime % 300;  //modulo to nearest 5 minutes
@@ -487,8 +488,9 @@ void loop() {
   }
 
   t = getTeensy3Time();
-  if((t >= burnTime) & burnFlag){
+  if((t >= burnTime) & (burnFlag>0)){
      digitalWrite(BURN, HIGH);
+     burnLog = 1;
   }
   
   // Standby mode
@@ -553,7 +555,10 @@ void loop() {
       else
       toneDetect = 0;
       
-      if(toneDetect > 10) digitalWrite(BURN, HIGH); // burn on
+      if(toneDetect > 10) {
+        digitalWrite(BURN, HIGH); // burn on
+        burnLog = 2;
+      }
       
       if(printDiags==1){
         SerialUSB.print("FFT: ");
@@ -1055,6 +1060,9 @@ void FileInit()
         logFile.print(imuOverflow);
       }
 
+      logFile.print(',');
+      logFile.print(burnLog);
+      
       logFile.println();
 
       if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
@@ -1523,7 +1531,7 @@ void cam_wake() {
 void cam_start() {
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
-    delay(500);  // simulate  button press
+    delay(1000);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
   }
   else{
@@ -1535,22 +1543,23 @@ void cam_start() {
 }
 
 void cam_stop(){
+  if (briteFlag) digitalWrite(ledWhite, LOW);
   if(camFlag==SPYCAM){
     digitalWrite(CAM_POW, LOW);
     delay(400);  // simulate  button press
     digitalWrite(CAM_POW, HIGH);  
+    delay(6000); //give camera time to close file
   }
   else{
     digitalWrite(CAM_POW, HIGH);
     delay(100);  // simulate  button press
     digitalWrite(CAM_POW, LOW);  
   }
-  if (briteFlag) digitalWrite(ledWhite, LOW);
 }
 
 void cam_off() {
   if(camFlag==SPYCAM){
-    delay(3000); //give last file chance to close
+    delay(1000); //give last file chance to close
     digitalWrite(GPS_POW, LOW);
     digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
   }
