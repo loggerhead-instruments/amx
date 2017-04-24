@@ -58,11 +58,12 @@ Adafruit_MCP23017 mcp;
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 1; //skip GPS at startup
-boolean camWave = 1; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
+byte fileType = 1; //0=wav, 1=amx
 //
 //
 //
@@ -138,7 +139,7 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
-int burnFlag = 0;
+int burnFlag = 0; // set by setup.txt file if use BW or BM
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
@@ -149,7 +150,6 @@ int burnLog = 0; //burn status for log file
 
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
-byte fileType = 1; //0=wav, 1=amx
 unsigned int imuOverflow = 0;
 int imuMaxBuffer = 0;
 
@@ -178,7 +178,7 @@ int systemGain = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 
-int wakeahead = 30;  //wake from snooze to give hydrophone and camera time to power up
+int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
@@ -460,7 +460,7 @@ void setup() {
   // uses this memory to buffer incoming audio.
   AudioMemory(100);
   AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
-  fft256_1.averageTogether(160); // number of FFTs to average together
+ // fft256_1.averageTogether(160); // number of FFTs to average together
   
   digitalWrite(hydroPowPin, HIGH);
   if (camFlag) cam_wake();
@@ -540,7 +540,8 @@ void loop() {
     // bin 50 = 8613.28
     // bin 58 = 9991.4 Hz
     // center of bin 58 = 10077.5
-    
+
+    /*
     if(fft256_1.available()){
       float n1, n2, n3;
       n1 = fft256_1.read(refBin);
@@ -574,7 +575,7 @@ void loop() {
         SerialUSB.println();
       }
     }
-    
+    */
 //    if(printDiags){  //this is to see if code still running when queue fails change to printDiags to hide
 //      recLoopCount++;
 //      if(recLoopCount>50){
