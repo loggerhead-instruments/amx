@@ -89,6 +89,7 @@ unsigned long baud = 115200;
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
 AudioAnalyzeFFT256       fft256_1; 
+AudioRecordQueue         queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
@@ -152,7 +153,7 @@ boolean introperiod=1;  //flag for introductory period; used for keeping LED on 
 unsigned int imuOverflow = 0;
 int imuMaxBuffer = 0;
 
-int update_rate = 10;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
+int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
@@ -228,8 +229,14 @@ unsigned char prev_dtr = 0;
 
 // IMU
 int FIFOpts;
-#define BUFFERSIZE 180 // used this length because it is divisible by 18 bytes (e.g. A*3,M*3,G*3); 512 byte FIFO on MPU9250
-byte imuBuffer[BUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+#define IMUBUFFERSIZE 1800 // used this length because it is divisible by 18 bytes (e.g. A*3,M*3,G*3);
+byte imuBuffer[IMUBUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+byte time2writeIMU=0; 
+int IMUCounter = 0;
+volatile int bufferposIMU = 0;
+int halfbufIMU = IMUBUFFERSIZE/2;
+boolean firstwrittenIMU;
+byte imuTempBuffer[20];
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
@@ -595,16 +602,23 @@ void loop() {
 //      }
 //    }
 
-    // IMU
-    if (fileType & imuFlag){
-      while  (pollImu()){
-        if(frec.write((uint8_t *)&sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-        if(frec.write((uint8_t *)&imuBuffer[0], BUFFERSIZE)==-1) resetFunc();  
-            if(printDiags == 2){
-                Serial.print("i");
-             }
-      }
+    // write IMU values to file
+    if(time2writeIMU==1)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
+      time2writeIMU = 0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
+    if(time2writeIMU==2)
+    {
+      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
+      time2writeIMU = 0;
+      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+    } 
     
     // write Pressure & Temperature to file
     if(time2writePT==1)
@@ -651,7 +665,7 @@ void loop() {
           Serial.println(AudioMemoryUsageMax());
         }
         frec.close();
-        if (imuOverflow > 0) resetGyroFIFO();
+
         FileInit();  // make a new file
         buf_count = 0;
       }
@@ -724,7 +738,6 @@ void loop() {
 void startRecording() {
   Serial.println("startRecording");
   FileInit();
-  resetGyroFIFO();
   if (fileType) Timer1.attachInterrupt(sampleSensors);
   buf_count = 0;
   digitalWrite(ledGreen, HIGH);
@@ -849,6 +862,60 @@ void incrementRGBbufpos(unsigned short val){
   {
     time2writeRGB = 1; 
     firstwrittenRGB = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
+
+void incrementIMU(){
+  imuBuffer[bufferposIMU] = (uint8_t) accel_x;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) accel_x>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) accel_y;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) accel_y>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) accel_z;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) accel_z>>8;
+  bufferposIMU++;
+
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_x;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_x>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_y;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_y>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_z;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) gyro_z>>8;
+  bufferposIMU++;
+
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_x;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_x>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_y;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_y>>8;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_z;
+  bufferposIMU++;
+  imuBuffer[bufferposIMU] = (uint8_t) magnetom_z>>8;
+  bufferposIMU++;
+  
+  if(bufferposIMU==IMUBUFFERSIZE)
+  {
+    bufferposIMU = 0;
+    time2writeIMU= 2;  // set flag to write second half
+    firstwrittenIMU = 0; 
+  }
+ 
+  if((bufferposRGB>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
+  {
+    time2writeIMU = 1; 
+    firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
   }
 }
 
@@ -1149,7 +1216,7 @@ void FileInit()
     addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
     if (pressure_sensor>0) addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
     if (rgbFlag) addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "3DAMG", RAW_SID, BUFFERSIZE / 2, sensor[3], DFORM_SHORT, imu_srate);
+    if (imuFlag) addSid(3, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
     addSid(4, "END", 0, 0, sensor[4], 0, 0);
   }
   if(printDiags > 0){
@@ -1247,7 +1314,12 @@ unsigned long processSyncMessage() {
 
 void sampleSensors(void){  //interrupt at update_rate
   ptCounter++;
- 
+
+  if(imuFlag) {
+    readImu();
+    incrementIMU();
+  }
+  
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
       if (rgbFlag){
@@ -1275,50 +1347,6 @@ void sampleSensors(void){  //interrupt at update_rate
   }
 }
 
-boolean pollImu(){
-  FIFOpts=getImuFifo();
-  //Serial.print("IMU FIFO pts: ");
-  //if (printDiags) Serial.println(FIFOpts);
-  if(FIFOpts>BUFFERSIZE)  //once have enough data for a block, download and write to disk
-  {
-     if(FIFOpts == 512) imuOverflow += 1;
-     if(FIFOpts > imuMaxBuffer) imuMaxBuffer = FIFOpts;
-     Read_Gyro(BUFFERSIZE);  //download block from FIFO
-  
-    if (printDiags == 2){
-    // print out first line of block
-    // MSB byte first, then LSB, X,Y,Z
-    accel_x = (int16_t) ((int16_t)imuBuffer[0] << 8 | imuBuffer[1]);    
-    accel_y = (int16_t) ((int16_t)imuBuffer[2] << 8 | imuBuffer[3]);   
-    accel_z = (int16_t) ((int16_t)imuBuffer[4] << 8 | imuBuffer[5]);    
-    
-   // gyro_temp = (int16_t) (((int16_t)imuBuffer[6]) << 8 | imuBuffer[7]);   
-   
-    gyro_x = (int16_t)  (((int16_t)imuBuffer[6] << 8) | imuBuffer[7]);   
-    gyro_y = (int16_t)  (((int16_t)imuBuffer[8] << 8) | imuBuffer[9]); 
-    gyro_z = (int16_t)  (((int16_t)imuBuffer[10] << 8) | imuBuffer[11]);   
-    
-    magnetom_x = (int16_t)  (((int16_t)imuBuffer[12] << 8) | imuBuffer[13]);   
-    magnetom_y = (int16_t)  (((int16_t)imuBuffer[14] << 8) | imuBuffer[15]);   
-    magnetom_z = (int16_t)  (((int16_t)imuBuffer[16] << 8) | imuBuffer[17]);  
-
-    Serial.print("a/g/m/t:\t");
-    Serial.print( accel_x); Serial.print("\t");
-    Serial.print( accel_y); Serial.print("\t");
-    Serial.print( accel_z); Serial.print("\t");
-    Serial.print(gyro_x); Serial.print("\t");
-    Serial.print(gyro_y); Serial.print("\t");
-    Serial.print(gyro_z); Serial.print("\t");
-    Serial.print(magnetom_x); Serial.print("\t");
-    Serial.print(magnetom_y); Serial.print("\t");
-    Serial.println(magnetom_z); 
-   // Serial.println((float) gyro_temp/337.87+21);
-    }
-    
-    return true;
-  }
-  return false;
-}
 
 void resetFunc(void){
   CPU_RESTART
@@ -1365,16 +1393,6 @@ float readVoltage(){
 }
 
 void sensorInit(){
- // initialize and test sensors
-//
-//const int ledGreen = 17;
-//const int BURN = 5;
-//const int SDSW = 3;
-//const int ledWhite = 21;
-//const int usbSense = 6;
-//const int vSense = A14;  // moved to Pin 21 for X1
-//const int GPS_POW = 16;
-//const int gpsState = 15;
   pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
@@ -1409,7 +1427,36 @@ void sensorInit(){
   // IMU
   if(imuFlag){
     mpuInit(1);
-    while(pollImu()); //will print out values from FIFO
+
+    for(int i=0; i<1000; i++){
+      readImu();
+      accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
+      accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
+      accel_z = (int16_t) ((int16_t)imuTempBuffer[4] << 8 | imuTempBuffer[5]);    
+      
+      gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
+     
+      gyro_x = (int16_t)  (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);   
+      gyro_y = (int16_t)  (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]); 
+      gyro_z = (int16_t)  (((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);   
+      
+      magnetom_x = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
+      magnetom_y = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);   
+      magnetom_z = (int16_t)  (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]);  
+  
+      Serial.print("a/g/m/t:\t");
+      Serial.print( accel_x); Serial.print("\t");
+      Serial.print( accel_y); Serial.print("\t");
+      Serial.print( accel_z); Serial.print("\t");
+      Serial.print(gyro_x); Serial.print("\t");
+      Serial.print(gyro_y); Serial.print("\t");
+      Serial.print(gyro_z); Serial.print("\t");
+      Serial.print(magnetom_x); Serial.print("\t");
+      Serial.print(magnetom_y); Serial.print("\t");
+      Serial.print(magnetom_z); Serial.print("\t");
+      Serial.println(gyro_temp);
+      delay(200);
+    }
   }
 
 
