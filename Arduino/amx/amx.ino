@@ -603,55 +603,45 @@ void loop() {
     // write IMU values to file
     if(time2writeIMU==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      digitalWrite(ledGreen, HIGH);
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeIMU==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+      digitalWrite(ledGreen, LOW);
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     } 
     
     // write Pressure & Temperature to file
     if(time2writePT==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writePT==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }   
   
     // write RGB values to file
     if(time2writeRGB==1)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     }
     if(time2writeRGB==2)
     {
-      if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
       if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
-      if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
@@ -738,7 +728,6 @@ void startRecording() {
   FileInit();
   if (fileType) Timer1.attachInterrupt(sampleSensors);
   buf_count = 0;
-  digitalWrite(ledGreen, HIGH);
   queue1.begin();
   Serial.println("Queue Begin");
 }
@@ -750,7 +739,7 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
-    if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
+   // if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
     if(queue1.available() >= 2) {
       buf_count += 1;
       audioIntervalCount += 1;
@@ -767,7 +756,7 @@ void continueRecording() {
       }
     }
 
-    if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
+   // if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
 
     if(printDiags == 2){
       Serial.print(".");
@@ -867,22 +856,19 @@ void incrementRGBbufpos(unsigned short val){
 void incrementIMU(){
   for(int i=0; i<6; i++){
     imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //accelerometer X,Y,Z
+    bufferposIMU++;
   }
-
   // skipping IMU temperature in 6 and 7
-  
   for(int i=8; i<20; i++){
     imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //gyro and mag
     bufferposIMU++;
   }
-  
   if(bufferposIMU==IMUBUFFERSIZE)
   {
     bufferposIMU = 0;
     time2writeIMU= 2;  // set flag to write second half
     firstwrittenIMU = 0; 
   }
- 
   if((bufferposRGB>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
   {
     time2writeIMU = 1; 
@@ -1285,17 +1271,9 @@ void sampleSensors(void){  //interrupt at update_rate
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
       if (rgbFlag){
-  //      islRead();  
-        //RGBbuffer[bufferposRGB] = islRed;
         incrementRGBbufpos(islRed);
-        //RGBbuffer[bufferposRGB] = islGreen;
         incrementRGBbufpos(islGreen);
-       // RGBbuffer[bufferposRGB] = islBlue;
         incrementRGBbufpos(islBlue);
-        // Serial.print("RGB:");Serial.print("\t");
-        //Serial.print(islRed); Serial.print("\t");
-        //Serial.print(islGreen); Serial.print("\t");
-        //Serial.println(islBlue); 
       }
       
       // MS5803 pressure and temperature
