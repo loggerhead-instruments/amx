@@ -89,7 +89,6 @@ unsigned long baud = 115200;
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
 AudioAnalyzeFFT256       fft256_1; 
-AudioRecordQueue         queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
