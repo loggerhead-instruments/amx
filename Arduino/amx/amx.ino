@@ -869,7 +869,7 @@ void incrementIMU(){
     time2writeIMU= 2;  // set flag to write second half
     firstwrittenIMU = 0; 
   }
-  if((bufferposRGB>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
+  if((bufferposIMU>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
   {
     time2writeIMU = 1; 
     firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
