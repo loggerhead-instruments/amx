@@ -59,7 +59,7 @@ Adafruit_MCP23017 mcp;
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 1; //skip GPS at startup
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
-long rec_dur = 300; // seconds; default = 300s
+long rec_dur = 30; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
@@ -150,8 +150,6 @@ int burnLog = 0; //burn status for log file
 
 boolean LEDSON=0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
-unsigned int imuOverflow = 0;
-int imuMaxBuffer = 0;
 
 int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
@@ -776,6 +774,7 @@ void continueRecording() {
    }
    
     // we are updating sensors here because reading within interrupt causes board to seize
+    readImu();
     float audioDuration = audioIntervalCount * audioIntervalSec;
     if (fileType & (audioDuration > (1.0 / sensor_srate / 2.0))){
       audioIntervalCount = 0;
@@ -866,44 +865,16 @@ void incrementRGBbufpos(unsigned short val){
 }
 
 void incrementIMU(){
-  imuBuffer[bufferposIMU] = (uint8_t) accel_x;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) accel_x>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) accel_y;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) accel_y>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) accel_z;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) accel_z>>8;
-  bufferposIMU++;
+  for(int i=0; i<6; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //accelerometer X,Y,Z
+  }
 
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_x;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_x>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_y;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_y>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_z;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) gyro_z>>8;
-  bufferposIMU++;
-
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_x;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_x>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_y;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_y>>8;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_z;
-  bufferposIMU++;
-  imuBuffer[bufferposIMU] = (uint8_t) magnetom_z>>8;
-  bufferposIMU++;
+  // skipping IMU temperature in 6 and 7
+  
+  for(int i=8; i<20; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //gyro and mag
+    bufferposIMU++;
+  }
   
   if(bufferposIMU==IMUBUFFERSIZE)
   {
@@ -1122,11 +1093,6 @@ void FileInit()
         logFile.print(lonHem);
       }
 
-      if(imuFlag){
-        logFile.print(',');
-        logFile.print(imuOverflow);
-      }
-
       logFile.print(',');
       logFile.print(burnLog);
       
@@ -1160,13 +1126,10 @@ void FileInit()
 
    if(printDiags > 0){
      Serial.println(filename);
-     Serial.print("Max buffer: "); Serial.println(imuMaxBuffer);
-     Serial.print("Overflow: "); Serial.println(imuOverflow);
      Serial.print("Hours rec:"); Serial.println(total_hour_recorded);
      Serial.print(voltage); Serial.println("V");
    }
-   imuMaxBuffer = 0;
-   imuOverflow = 0;
+
    
    while (!frec){
     file_count += 1;
@@ -1316,7 +1279,6 @@ void sampleSensors(void){  //interrupt at update_rate
   ptCounter++;
 
   if(imuFlag) {
-    readImu();
     incrementIMU();
   }
   
@@ -1428,7 +1390,7 @@ void sensorInit(){
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<1000; i++){
+    for(int i=0; i<60; i++){
       readImu();
       accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
       accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
