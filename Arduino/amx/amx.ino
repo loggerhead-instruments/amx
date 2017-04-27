@@ -64,6 +64,7 @@ long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
+int moduloSeconds = 30; // round to nearest start time
 //
 //
 //
@@ -180,7 +181,7 @@ int wakeahead = 20;  //wake from snooze to give hydrophone and camera time to po
 int snooze_hour;
 int snooze_minute;
 int snooze_second;
-long buf_count;
+volatile long buf_count;
 float total_hour_recorded = 0.0;
 long nbufs_per_file;
 boolean settingsChanged = 0;
@@ -228,13 +229,13 @@ unsigned char prev_dtr = 0;
 // IMU
 int FIFOpts;
 #define IMUBUFFERSIZE 1800 // used this length because it is divisible by 18 bytes (e.g. A*3,M*3,G*3);
-byte imuBuffer[IMUBUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
-byte time2writeIMU=0; 
-int IMUCounter = 0;
+volatile byte imuBuffer[IMUBUFFERSIZE]; // buffer used to store IMU sensor data before writes in bytes
+volatile byte time2writeIMU=0; 
+volatile int IMUCounter = 0;
 volatile int bufferposIMU = 0;
 int halfbufIMU = IMUBUFFERSIZE/2;
-boolean firstwrittenIMU;
-byte imuTempBuffer[20];
+volatile boolean firstwrittenIMU;
+volatile uint8_t imuTempBuffer[20];
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
@@ -267,23 +268,25 @@ uint16_t TEMPSENS; //Temperature sensitivity coefficient C6
 
 // Pressure, Temp double buffer
 #define PTBUFFERSIZE 40
-float PTbuffer[PTBUFFERSIZE];
-byte time2writePT = 0; 
-int ptCounter = 0;
+volatile float PTbuffer[PTBUFFERSIZE];
+volatile byte time2writePT = 0; 
+volatile int ptCounter = 0;
 volatile byte bufferposPT=0;
 byte halfbufPT = PTBUFFERSIZE/2;
-boolean firstwrittenPT;
+volatile boolean firstwrittenPT;
 
 // RGB buffer
 #define RGBBUFFERSIZE 120
-byte RGBbuffer[RGBBUFFERSIZE];
-byte time2writeRGB=0; 
-int RGBCounter = 0;
+volatile byte RGBbuffer[RGBBUFFERSIZE];
+volatile byte time2writeRGB=0; 
+volatile int RGBCounter = 0;
 volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
-boolean firstwrittenRGB;
+volatile boolean firstwrittenRGB;
 
 #define HWSERIAL Serial1
+
+IntervalTimer slaveTimer;
 
 void setup() {
   dfh.Version = 1000;
@@ -305,6 +308,7 @@ void setup() {
   delay(500);
  // Wire.begin();
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+  Wire.setDefaultTimeout(10000);
   sensorInit(); // initialize and test sensors
 
   pinMode(usbSense, OUTPUT);
@@ -422,8 +426,8 @@ void setup() {
 
   startTime = t;
   if (printDiags > 0){
-    startTime -= startTime % 120;  //modulo to nearest 5 minutes
-    startTime += 120; //move forward
+    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+    startTime += moduloSeconds; //move forward
   }
   else{
     startTime -= startTime % 300;  //modulo to nearest 5 minutes
@@ -473,7 +477,8 @@ void setup() {
   // create first folder to hold data
   folderMonth = -1;  //set to -1 so when first file made will create directory
   
-  if (fileType) Timer1.initialize(1000000 / update_rate); // initialize with 100 ms period when update_rate = 10 Hz
+  //if (fileType) Timer1.initialize(1000000 / update_rate); // initialize with 100 ms period when update_rate = 10 Hz
+
 }
 
 //
@@ -726,14 +731,17 @@ void loop() {
 void startRecording() {
   Serial.println("startRecording");
   FileInit();
-  if (fileType) Timer1.attachInterrupt(sampleSensors);
+ // if (fileType) Timer1.attachInterrupt(sampleSensors);
+  if (fileType) {
+    slaveTimer.begin(sampleSensors, 1000000 / update_rate); 
+    //slaveTimer.priority(200);
+  }
   buf_count = 0;
   queue1.begin();
   Serial.println("Queue Begin");
 }
 
 void continueRecording() {
-  if (queue1.available() >= 2) {
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
@@ -761,37 +769,6 @@ void continueRecording() {
     if(printDiags == 2){
       Serial.print(".");
    }
-   
-    // we are updating sensors here because reading within interrupt causes board to seize
-    readImu();
-    float audioDuration = audioIntervalCount * audioIntervalSec;
-    if (fileType & (audioDuration > (1.0 / sensor_srate / 2.0))){
-      audioIntervalCount = 0;
-      if (rgbFlag) islRead(); 
-
-      // MS5803 pressure and temperature
-      if (pressure_sensor==1){
-        if(togglePress){
-          readPress();
-          updateTemp();
-          togglePress = 0;
-          if(printDiags == 2) Serial.println("p");
-        }
-        else{
-          readTemp();
-          updatePress();
-          togglePress = 1;
-          if(printDiags == 2) Serial.println("t");
-        }
-      }
-  
-      // Keller PA7LD pressure and temperature
-      if (pressure_sensor==2){
-        kellerRead();
-        kellerConvert();  // start conversion for next reading
-      }
-    }
-  }
 }
 
 void stopRecording() {
@@ -805,8 +782,9 @@ void stopRecording() {
   //queue1.clear();
 
   AudioMemoryUsageMaxReset();
-  if (fileType) Timer1.detachInterrupt();
-
+  //if (fileType) Timer1.detachInterrupt();
+  if (fileType) slaveTimer.end();
+  
   // to do: add flush for PTbuffer and Gyro
   
   //frec.timestamp(T_WRITE,(uint16_t) year(t),month(t),day(t),hour(t),minute(t),second);
@@ -816,65 +794,7 @@ void stopRecording() {
   //Serial.println(rms);
 }
 
-// increment PTbuffer position by 1 sample. This does not check for overflow, because collected at a slow rate
-void incrementPTbufpos(){
-  bufferposPT++;
-   if(bufferposPT==PTBUFFERSIZE)
-   {
-     bufferposPT=0;
-     time2writePT=2;  // set flag to write second half
-     firstwrittenPT=0; 
-   }
- 
-  if((bufferposPT>=halfbufPT) & !firstwrittenPT)  //at end of first buffer
-  {
-    time2writePT=1; 
-    firstwrittenPT=1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
-  }
-}
 
-void incrementRGBbufpos(unsigned short val){
-  RGBbuffer[bufferposRGB] = (uint8_t) val;
-  bufferposRGB++;
-  RGBbuffer[bufferposRGB] = (uint8_t) val>>8;
-  bufferposRGB++;
-  
-   if(bufferposRGB==RGBBUFFERSIZE)
-   {
-     bufferposRGB = 0;
-     time2writeRGB= 2;  // set flag to write second half
-     firstwrittenRGB = 0; 
-   }
- 
-  if((bufferposRGB>=halfbufRGB) & !firstwrittenRGB)  //at end of first buffer
-  {
-    time2writeRGB = 1; 
-    firstwrittenRGB = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
-  }
-}
-
-void incrementIMU(){
-  for(int i=0; i<6; i++){
-    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //accelerometer X,Y,Z
-    bufferposIMU++;
-  }
-  // skipping IMU temperature in 6 and 7
-  for(int i=8; i<20; i++){
-    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //gyro and mag
-    bufferposIMU++;
-  }
-  if(bufferposIMU==IMUBUFFERSIZE)
-  {
-    bufferposIMU = 0;
-    time2writeIMU= 2;  // set flag to write second half
-    firstwrittenIMU = 0; 
-  }
-  if((bufferposIMU>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
-  {
-    time2writeIMU = 1; 
-    firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
-  }
-}
 
 void setupDataStructures(void){
   // setup sidSpec and sidSpec buffers...hard coded for now
@@ -1263,22 +1183,37 @@ unsigned long processSyncMessage() {
 
 void sampleSensors(void){  //interrupt at update_rate
   ptCounter++;
-
   if(imuFlag) {
+    readImu();
     incrementIMU();
+    accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);
   }
   
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
       if (rgbFlag){
+        islRead(); 
         incrementRGBbufpos(islRed);
         incrementRGBbufpos(islGreen);
         incrementRGBbufpos(islBlue);
       }
+
+      // MS5803 pressure and temperature
+      if (pressure_sensor==1){
+          readTemp();
+          readPress();     
+          calcPressTemp();   
+          updateTemp();
+          updatePress();
+      }
+      // Keller PA7LD pressure and temperature
+      if (pressure_sensor==2){
+        kellerRead();
+        kellerConvert();  // start conversion for next reading
+      }
       
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
-        calcPressTemp();
         PTbuffer[bufferposPT] = pressure_mbar;
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
@@ -1287,7 +1222,65 @@ void sampleSensors(void){  //interrupt at update_rate
   }
 }
 
+// increment PTbuffer position by 1 sample. This does not check for overflow, because collected at a slow rate
+void incrementPTbufpos(){
+  bufferposPT++;
+   if(bufferposPT==PTBUFFERSIZE)
+   {
+     bufferposPT=0;
+     time2writePT=2;  // set flag to write second half
+     firstwrittenPT=0; 
+   }
+ 
+  if((bufferposPT>=halfbufPT) & !firstwrittenPT)  //at end of first buffer
+  {
+    time2writePT=1; 
+    firstwrittenPT=1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
 
+void incrementRGBbufpos(unsigned short val){
+  RGBbuffer[bufferposRGB] = (uint8_t) val;
+  bufferposRGB++;
+  RGBbuffer[bufferposRGB] = (uint8_t) val>>8;
+  bufferposRGB++;
+  
+   if(bufferposRGB==RGBBUFFERSIZE)
+   {
+     bufferposRGB = 0;
+     time2writeRGB= 2;  // set flag to write second half
+     firstwrittenRGB = 0; 
+   }
+ 
+  if((bufferposRGB>=halfbufRGB) & !firstwrittenRGB)  //at end of first buffer
+  {
+    time2writeRGB = 1; 
+    firstwrittenRGB = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
+
+void incrementIMU(){
+  for(int i=0; i<6; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //accelerometer X,Y,Z
+    bufferposIMU++;
+  }
+  // skipping IMU temperature in 6 and 7
+  for(int i=8; i<20; i++){
+    imuBuffer[bufferposIMU] = (uint8_t) imuTempBuffer[i]; //gyro and mag
+    bufferposIMU++;
+  }
+  if(bufferposIMU==IMUBUFFERSIZE)
+  {
+    bufferposIMU = 0;
+    time2writeIMU= 2;  // set flag to write second half
+    firstwrittenIMU = 0; 
+  }
+  if((bufferposIMU>=halfbufIMU) & !firstwrittenIMU)  //at end of first buffer
+  {
+    time2writeIMU = 1; 
+    firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
+  }
+}
 void resetFunc(void){
   CPU_RESTART
 }
@@ -1368,7 +1361,7 @@ void sensorInit(){
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<60; i++){
+    for(int i=0; i<10; i++){
       readImu();
       accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
       accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
