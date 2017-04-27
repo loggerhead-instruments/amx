@@ -59,12 +59,12 @@ Adafruit_MCP23017 mcp;
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 static boolean skipGPS = 1; //skip GPS at startup
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
-long rec_dur = 30; // seconds; default = 300s
+long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
-int moduloSeconds = 30; // round to nearest start time
+int moduloSeconds = 60; // round to nearest start time
 //
 //
 //
@@ -256,7 +256,7 @@ int16_t islGreen;
 byte Tbuff[3];
 byte Pbuff[3];
 volatile float pressure_mbar, temperature, depth;
-boolean togglePress; //flag to toggle conversion of pressure and temperature
+volatile boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
 uint16_t PSENS; //pressure sensitivity C1
@@ -1188,6 +1188,14 @@ void sampleSensors(void){  //interrupt at update_rate
     incrementIMU();
     accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);
   }
+
+
+ // MS5803 start temperature conversion half-way through
+  if((ptCounter>=(1.0 / sensor_srate) * update_rate / 2.0) & (pressure_sensor==1)  & togglePress){ 
+    readPress();   
+    updateTemp();
+    togglePress = 0;
+  }
   
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
@@ -1200,11 +1208,10 @@ void sampleSensors(void){  //interrupt at update_rate
 
       // MS5803 pressure and temperature
       if (pressure_sensor==1){
-          readTemp();
-          readPress();     
-          calcPressTemp();   
-          updateTemp();
+          readTemp(); 
           updatePress();
+          calcPressTemp();
+          togglePress = 1;
       }
       // Keller PA7LD pressure and temperature
       if (pressure_sensor==2){
@@ -1311,9 +1318,9 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   //float vDivider = 2.13; //when using 3.3 V ref R9 100K
-   float vDivider = 4.5;  // when using 1.2 V ref R9 301K
-   float vRef = 1.2;
+   float vDivider = 2.13; //when using 3.3 V ref R9 100K
+   //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
+   float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
    if (vRef==1.2) analogReference(INTERNAL); //1.2V ref more stable than 3.3 according to PJRC
    int navg = 16;
@@ -1391,7 +1398,6 @@ void sensorInit(){
       delay(200);
     }
   }
-
 
   // RGB
   if(rgbFlag){
