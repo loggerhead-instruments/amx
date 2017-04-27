@@ -1,7 +1,7 @@
 // i2c functions for Teensy 3.x i2c_t3 library
 
 
-void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, uint8_t * dest)
+void readBytes(uint8_t address, uint8_t subAddress, uint8_t count, volatile uint8_t * dest)
 {  
   Wire.beginTransmission(address);   // Initialize the Tx buffer
   Wire.write(subAddress);            // Put slave register address in Tx buffer
