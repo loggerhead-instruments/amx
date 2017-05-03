@@ -128,12 +128,17 @@ plot(light.blue, 'b');
 ylabel('uWpercm^2');
 title('Light');
 
-figure(5)
-subplot(2,1,1)
-plot(O2(1:2:end));
-title('O2');
-ylabel('Temp');
-subplot(2,1,2)
-plot(O2(2:2:end));
-ylabel('Phase');
+if(length(O2))
+    figure(5)
+    subplot(3,1,1)
+    plot(O2(1:3:end));
+    title('O2');
+    ylabel('Temp');
+    subplot(3,1,2)
+    plot(O2(2:3:end));
+    ylabel('Phase');
+    subplot(3,1,3)
+    plot(O2(3:3:end));
+    ylabel('Amplitude');
+end
 
