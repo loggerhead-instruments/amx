@@ -57,7 +57,7 @@ Adafruit_MCP23017 mcp;
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
-static boolean skipGPS = 1; //skip GPS at startup
+static boolean skipGPS = 0; //skip GPS at startup
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
@@ -356,7 +356,7 @@ void setup() {
       }
     }
     if(gpsTimeout <  gpsTimeOutThreshold){
-      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear);
+      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear + 2000);
     }
   }
   
