@@ -53,10 +53,15 @@ Adafruit_MCP23017 mcp;
 #define SPYCAM 1
 #define FLYCAM 2
 
+// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
+#define MS5803_01bar 32768.0
+#define MS5803_30bar 819.2
+
 // 
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 static boolean skipGPS = 0; //skip GPS at startup
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 long rec_dur = 300; // seconds; default = 300s
@@ -65,16 +70,14 @@ int camType = SPYCAM; // when on continuously cameras make a new file every 10 m
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
+long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
+int depthThreshold = 2; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
+int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
 //
 //
 
 static uint8_t myID[8];
-
-// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
-#define MS5803_01bar 32768.0
-#define MS5803_30bar 819.2
-float MS5803_constant = MS5803_01bar; //set to 1 bar sensor
 
 unsigned long baud = 115200;
 
@@ -149,7 +152,7 @@ boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
 int burnLog = 0; //burn status for log file
 
-boolean LEDSON=0;
+volatile boolean LEDSON = 1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 
 int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
@@ -168,7 +171,7 @@ char latHem, lonHem;
 int goodGPS = 0;
 
 long gpsTimeout; //increments every GPRMC line read; about 1 per second
-long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
+
 int gpsYear = 0, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
@@ -246,7 +249,6 @@ int16_t gyro_x;
 int16_t gyro_y;
 int16_t gyro_z;
 float gyro_temp;
-
 // RGB
 int16_t islRed;
 int16_t islBlue;
@@ -309,6 +311,16 @@ void setup() {
  // Wire.begin();
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Wire.setDefaultTimeout(10000);
+
+  if(printDiags > 0){
+      Serial.print("YY-MM-DD HH:MM:SS ");
+      // show 3 ticks to know crystal is working
+      for (int n=0; n<3; n++){
+        printTime(getTeensy3Time());
+        delay(1000);
+      }
+   }
+  
   sensorInit(); // initialize and test sensors
 
   pinMode(usbSense, OUTPUT);
@@ -348,8 +360,10 @@ void setup() {
    gpsOn();
    while(!goodGPS){
      byte incomingByte;
+     digitalWrite(ledGreen, LOW);
      if(gpsTimeout >= gpsTimeOutThreshold) break;
      while (HWSERIAL.available() > 0) {    
+      digitalWrite(ledGreen, HIGH);
       incomingByte = HWSERIAL.read();
       Serial.write(incomingByte);
       gps(incomingByte);  // parse incoming GPS data
@@ -370,7 +384,7 @@ void setup() {
       printTime(getTeensy3Time());
    }
 
-    gpsOff();
+   digitalWrite(ledGreen, HIGH);
 //while(digitalRead(gpsState)){
 //   //gpsSleep();
 //   gpsHibernate();
@@ -388,7 +402,7 @@ void setup() {
 //  display.println("Loggerhead");
 //  display.display();
   
-  delay(10000);
+  delay(1000);
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
@@ -498,8 +512,31 @@ void loop() {
 
   t = getTeensy3Time();
   if((t >= burnTime) & (burnFlag>0)){
-     digitalWrite(BURN, HIGH);
+     digitalWrite(BURN, HIGH);  // burn on
+     digitalWrite(VHF, HIGH);   // VHF on
+     digitalWrite(ledGreen, LOW);
      burnLog = 1;
+     if (mode == 1) stopRecording();
+     if (camFlag) {
+      cam_stop();
+      delay(100);
+     }
+     frec.close();
+     audio_power_down();
+     gpsOff(); // power down GPS and camera
+      
+     while(1){
+        alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
+        Snooze.sleep(config_teensy32);
+
+        // ... asleep ...
+        for(int n = 0; n<10; n++){
+          digitalWrite(ledGreen, HIGH);
+          delay(200);
+          digitalWrite(ledGreen, LOW);
+          delay(100);
+        }
+     }
   }
   
   // Standby mode
@@ -608,22 +645,22 @@ void loop() {
     // write IMU values to file
     if(time2writeIMU==1)
     {
-      digitalWrite(ledGreen, HIGH);
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
+      if(LEDSON) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
-      digitalWrite(ledGreen, LOW);
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
+      if(LEDSON) digitalWrite(ledGreen, LOW);
     } 
     
     // write Pressure & Temperature to file
     if(time2writePT==1)
-    {
+    { 
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
@@ -1199,6 +1236,9 @@ void sampleSensors(void){  //interrupt at update_rate
   
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
+      int saltValOff = checkSalt(); // get value with saltSIG low
+      digitalWrite(saltSIG, HIGH); // start signal for salt and let time reading sensors let it get high for checkSalt
+      
       if (rgbFlag){
         islRead(); 
         incrementRGBbufpos(islRed);
@@ -1212,6 +1252,7 @@ void sampleSensors(void){  //interrupt at update_rate
           updatePress();
           calcPressTemp();
           togglePress = 1;
+          checkDepthVHF();
       }
       // Keller PA7LD pressure and temperature
       if (pressure_sensor==2){
@@ -1226,6 +1267,21 @@ void sampleSensors(void){  //interrupt at update_rate
         PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
       }
+      int saltValOn = checkSalt();
+      digitalWrite(saltSIG, LOW);
+      if(abs(saltValOn - saltValOff) < saltThreshold){
+        LEDSON = 1; //this makes them blink
+      }
+      else{
+        digitalWrite(ledGreen, LOW);
+        LEDSON = 0;
+      }
+      if(printDiags){
+      Serial.print("Off: ");
+      Serial.print(saltValOff);
+      Serial.print("  On: ");
+      Serial.println(saltValOn);
+    }
   }
 }
 
@@ -1345,6 +1401,7 @@ void sensorInit(){
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(SALT, INPUT);
+  pinMode(saltSIG, OUTPUT);
   analogReference(DEFAULT);
 
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
@@ -1445,8 +1502,10 @@ void sensorInit(){
   }
 
 // salt switch
+  digitalWrite(saltSIG, HIGH);
   Serial.print("Salt: ");
   Serial.println(analogRead(SALT));
+  digitalWrite(saltSIG, LOW);
 
 // battery voltage measurement
   Serial.print("Battery: ");
@@ -1556,3 +1615,18 @@ void cam_off() {
   }        
   CAMON = 0;
 }
+
+void checkDepthVHF(){
+  if((-1 * depth) < depthThreshold) {
+    digitalWrite(VHF, HIGH);
+  }
+  else{
+    digitalWrite(VHF, LOW);
+  }
+}
+
+int checkSalt(){
+  return analogRead(SALT);
+}
+
+
