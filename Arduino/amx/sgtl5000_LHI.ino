@@ -407,8 +407,7 @@
 #define CHIP_ANA_TEST2      0x003A //  intended only for debug.
 
 #define CHIP_SHORT_CTRL     0x003C
-
-
+#define DAP_AVC_CTRL        0x0124 //audio volume control
 
 bool audio_enable(void)
 {
@@ -420,15 +419,18 @@ bool audio_enable(void)
 
   chipWrite(CHIP_ANA_POWER, 0x4060);  // VDDD is externally driven with 1.8V
   chipWrite(CHIP_LINREG_CTRL, 0x006C);  // VDDA & VDDIO both over 3.1V
+  
   chipWrite(CHIP_REF_CTRL, 0x01F0); // VAG=1.575, normal ramp, no bias current;
-  chipWrite(CHIP_MIC_CTRL, 0x00); // Mic bias off; Mic Amplifier gain 0 dB
   //chipWrite(CHIP_REF_CTRL, 0x01F2); // VAG=1.575, normal ramp, +12.5% bias current
+    
+  chipWrite(CHIP_MIC_CTRL, 0x00); // Mic bias off; Mic Amplifier gain 0 dB
+
   chipWrite(CHIP_LINE_OUT_CTRL, 0x0F22); // LO_VAGCNTRL=1.65V, OUT_CURRENT=0.54mA
   chipWrite(CHIP_SHORT_CTRL, 0x4446);  // allow up to 125mA
   chipWrite(CHIP_ANA_CTRL, 0x0137);  // enable zero cross detectors
   
  // chipWrite(CHIP_ANA_POWER, 0x40FF); // power up: lineout, hp, adc, dac
-  chipWrite(CHIP_ANA_POWER, 0x00E2); // power up: adc
+  chipWrite(CHIP_ANA_POWER, 0x00A2); // power up:  adc Stereo = E2; Mono (Left): A2
   
   //chipWrite(CHIP_DIG_POWER, 0x0073); // power up all digital stuff
   chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
@@ -439,15 +441,17 @@ bool audio_enable(void)
   chipWrite(CHIP_I2S_CTRL, 0x0130); // SCLK=32*Fs, 16bit, I2S format
   // default signal routing is ok?
   chipWrite(CHIP_SSS_CTRL, 0x0010); // ADC->I2S, I2S->DAC
-  chipWrite(CHIP_ADCDAC_CTRL, 0x0000); // disable dac mute
-  chipWrite(CHIP_DAC_VOL, 0x3C3C); // digital gain, 0dB
+  //chipWrite(CHIP_ADCDAC_CTRL, 0x000C); // DAC mute; ADC high pass and bypass normal operation
+  chipWrite(CHIP_ADCDAC_CTRL, 0x000D); // DAC mute; ADC high pass bypassed
+  chipWrite(CHIP_DAC_VOL, 0xFFFF); // dac mute
   chipWrite(CHIP_ANA_HP_CTRL, 0x7F7F); // set headphone volume (lowest level)
   //chipWrite(CHIP_ANA_CTRL, 0x0036);  // enable zero cross detectors; line input
-  
-  chipWrite(CHIP_ANA_CTRL, 0x0115);  // lineout mute, headphone mute, no zero cross detectors, line input selected
-  
-  //mute = false;
-  // semi_automated = true;
+
+  chipWrite(DAP_AVC_CTRL, 0x0000); //no automatic volume control
+  chipWrite(CHIP_ANA_CTRL, 0x0114);  // lineout mute, headphone mute, no zero cross detectors, line input selected
+  chipWrite(CHIP_MIC_CTRL, 0x0000); //microphone off
+  chipWrite(CHIP_ANA_ADC_CTRL, 0x0000); // 0 dB gain
+  //chipWrite(CHIP_ANA_ADC_CTRL, 0x0100); // -6 dB gain
   return true;
 }
 
