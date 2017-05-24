@@ -70,13 +70,6 @@ int ProcCmd(char *pCmd)
     {
       briteFlag = 1;
     }
-    
-    // Disable LEDS
-    case ('L' + ('D'<<8)):
-    {
-        LEDSON=0;
-        break;
-    }
 
 		// Set of Real Time Clock
 		case ('T' + ('M'<<8)):

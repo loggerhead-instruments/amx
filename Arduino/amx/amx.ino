@@ -648,14 +648,14 @@ void loop() {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
-      if(LEDSON) digitalWrite(ledGreen, HIGH);
+      if (LEDSON==1) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
-      if(LEDSON) digitalWrite(ledGreen, LOW);
+      if (LEDSON==1) digitalWrite(ledGreen, LOW);
     } 
     
     // write Pressure & Temperature to file
