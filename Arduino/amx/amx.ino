@@ -63,10 +63,13 @@ Adafruit_MCP23017 mcp;
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 static boolean skipGPS = 0; //skip GPS at startup
-boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
+int camFlag = 1;
+boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
+
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
@@ -102,7 +105,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 const int myInput = AUDIO_INPUT_LINEIN;
 
 // Pin Assignments
-const int CAM_POW = 4;
+const int CAM_TRIG = 4;
 const int hydroPowPin = 21;
 const int VHF = 8;
 const int displayPow = 20;
@@ -147,7 +150,7 @@ int burnFlag = 0; // set by setup.txt file if use BW or BM
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
-int camFlag = 0;
+
 boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
 int burnLog = 0; //burn status for log file
@@ -348,7 +351,7 @@ void setup() {
     }
   }
   
- // wait here to get GPS time
+ // wait here to get GPS timeca
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
@@ -356,8 +359,43 @@ void setup() {
  ULONG newtime;
  gpsTimeout = 0;
 
+
+
+ 
+// GPS configuration
   if(!skipGPS){
    gpsOn();
+   delay(1000);
+   gpsSpewOff();
+   waitForGPS();
+
+   SerialUSB.println();
+   SerialUSB.println("GPS Status");
+   gpsStatusLogger();
+   
+   // if any data in GPSlogger, download it to microSD
+   SerialUSB.println();
+   SerialUSB.println("Dump GPS");
+   gpsDumpLogger();
+
+
+   // erase data if download was good
+   SerialUSB.println();
+   SerialUSB.println("Erase GPS");
+   gpsEraseLogger();
+   
+   // start GPS logger
+   SerialUSB.println();
+   SerialUSB.println("Start logging");
+   gpsStartLogger();
+
+   SerialUSB.println();
+   SerialUSB.println("GPS Status");
+   gpsStatusLogger();
+   SerialUSB.println();
+
+   gpsSpewOn();
+   
    while(!goodGPS){
      byte incomingByte;
      digitalWrite(ledGreen, LOW);
@@ -369,10 +407,14 @@ void setup() {
       gps(incomingByte);  // parse incoming GPS data
       }
     }
+    
     if(gpsTimeout <  gpsTimeOutThreshold){
       setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear + 2000);
-    }
-  }
+    } 
+
+    gpsSpewOff();
+    waitForGPS();
+  } // skip GPS
   
    if(printDiags > 0){
       Serial.println(getTeensy3Time());
@@ -385,6 +427,9 @@ void setup() {
    }
 
    digitalWrite(ledGreen, HIGH);
+
+
+   
 //while(digitalRead(gpsState)){
 //   //gpsSleep();
 //   gpsHibernate();
@@ -1389,7 +1434,7 @@ float readVoltage(){
 }
 
 void sensorInit(){
-  pinMode(CAM_POW, OUTPUT);
+  pinMode(CAM_TRIG, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
@@ -1404,6 +1449,7 @@ void sensorInit(){
   pinMode(saltSIG, OUTPUT);
   analogReference(DEFAULT);
 
+  digitalWrite(CAM_TRIG, HIGH);
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
@@ -1538,20 +1584,7 @@ void gpsOff(){
   digitalWrite(GPS_POW, LOW);
 }
 
-void gpsSleep(){
-  HWSERIAL.println("$PMTK161,0*28");
-  HWSERIAL.flush();
-}
 
-void gpsHibernate(){
-  HWSERIAL.println("$PMTK225,4*2F");
-  HWSERIAL.flush();
-}
-
-void gpsWake(){
-  HWSERIAL.println(".");
-  HWSERIAL.flush();
-}
 
 time_t getTeensy3Time()
 {
@@ -1561,28 +1594,28 @@ time_t getTeensy3Time()
 
 void cam_wake() {
   if(camFlag==SPYCAM){
-   digitalWrite(CAM_POW, HIGH);  
+   digitalWrite(CAM_TRIG, HIGH);  
    digitalWrite(GPS_POW, HIGH);
    delay(3000);
   } 
   if(camFlag==FLYCAM){
-    digitalWrite(CAM_POW, HIGH);
+    digitalWrite(CAM_TRIG, HIGH);
     delay(2000); //power on camera (if off)
-    digitalWrite(CAM_POW, LOW);     
+    digitalWrite(CAM_TRIG, LOW);     
   } 
   CAMON = 1;   
 }
 
 void cam_start() {
   if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, LOW);
+    digitalWrite(CAM_TRIG, LOW);
     delay(1000);  // simulate  button press
-    digitalWrite(CAM_POW, HIGH);  
+    digitalWrite(CAM_TRIG, HIGH);  
   }
   else{
-    digitalWrite(CAM_POW, HIGH);
+    digitalWrite(CAM_TRIG, HIGH);
     delay(500);  // simulate  button press
-    digitalWrite(CAM_POW, LOW);  
+    digitalWrite(CAM_TRIG, LOW);  
   }     
   CAMON = 2;
 }
@@ -1590,15 +1623,15 @@ void cam_start() {
 void cam_stop(){
   if (briteFlag) digitalWrite(ledWhite, LOW);
   if(camFlag==SPYCAM){
-    digitalWrite(CAM_POW, LOW);
+    digitalWrite(CAM_TRIG, LOW);
     delay(400);  // simulate  button press
-    digitalWrite(CAM_POW, HIGH);  
+    digitalWrite(CAM_TRIG, HIGH);  
     delay(6000); //give camera time to close file
   }
   else{
-    digitalWrite(CAM_POW, HIGH);
+    digitalWrite(CAM_TRIG, HIGH);
     delay(100);  // simulate  button press
-    digitalWrite(CAM_POW, LOW);  
+    digitalWrite(CAM_TRIG, LOW);  
   }
 }
 
@@ -1606,12 +1639,12 @@ void cam_off() {
   if(camFlag==SPYCAM){
     delay(1000); //give last file chance to close
     digitalWrite(GPS_POW, LOW);
-    digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
+    digitalWrite(CAM_TRIG, LOW); //so doesn't draw power through trigger line
   }
   else{
-    digitalWrite(CAM_POW, HIGH);
+    digitalWrite(CAM_TRIG, HIGH);
     delay(3000); //power down camera (if still on)
-    digitalWrite(CAM_POW, LOW); 
+    digitalWrite(CAM_TRIG, LOW); 
   }        
   CAMON = 0;
 }

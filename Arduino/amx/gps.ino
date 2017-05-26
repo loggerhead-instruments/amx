@@ -1,8 +1,21 @@
+#define PMTK_LOCUS_STARTLOG  "$PMTK185,0*22"
+#define PMTK_LOCUS_STOPLOG "$PMTK185,1*23"
+#define PMTK_LOCUS_STARTSTOPACK "$PMTK001,185,3*3C"
+#define PMTK_LOCUS_QUERY_STATUS "$PMTK183*38"
+#define PMTK_LOCUS_ERASE_FLASH "$PMTK184,1*22"
+#define PMTK_LOCUS_DUMP "$PMTK622,1*29"
+// turn on only the second sentence (GPRMC)
+#define PMTK_SET_NMEA_OUTPUT_RMCONLY "$PMTK314,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*29"
+// turn on GPRMC and GGA
+#define PMTK_SET_NMEA_OUTPUT_RMCGGA "$PMTK314,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
+// turn on ALL THE DATA
+#define PMTK_SET_NMEA_OUTPUT_ALLDATA "$PMTK314,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
+// turn off output
+#define PMTK_SET_NMEA_OUTPUT_OFF "$PMTK314,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
+
 #define maxChar 256
 char gpsStream[maxChar];
 int streamPos;
-
-
 
 void gps(byte incomingByte){
   char temp2[2];
@@ -184,5 +197,63 @@ void gps(byte incomingByte){
   if(streamPos >= maxChar) streamPos = 0;
 }
 
+void gpsStartLogger(){
+  HWSERIAL.println(PMTK_LOCUS_STARTLOG);
+  waitForGPS();
+}
 
+void gpsStopLogger(){
+  HWSERIAL.println(PMTK_LOCUS_STOPLOG);
+  waitForGPS();
+}
+
+void gpsDumpLogger(){
+  HWSERIAL.println(PMTK_LOCUS_DUMP);
+  waitForGPS();
+
+  // grab data here and put it in a file
+}
+
+void gpsEraseLogger(){
+  HWSERIAL.println(PMTK_LOCUS_ERASE_FLASH);
+  waitForGPS();
+}
+
+void gpsStatusLogger(){
+  HWSERIAL.println(PMTK_LOCUS_QUERY_STATUS);
+  waitForGPS();
+}
+
+void gpsSleep(){
+  HWSERIAL.println("$PMTK161,0*28");
+  HWSERIAL.flush();
+}
+
+void gpsHibernate(){
+  HWSERIAL.println("$PMTK225,4*2F");
+  HWSERIAL.flush();
+}
+
+void gpsWake(){
+  HWSERIAL.println(".");
+  HWSERIAL.flush();
+}
+
+void gpsSpewOff(){
+  HWSERIAL.println(PMTK_SET_NMEA_OUTPUT_OFF);
+}
+
+void gpsSpewOn(){
+  HWSERIAL.println(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+}
+
+void waitForGPS(){
+  for(int n=0; n<100; n++){
+    delay(20);
+    while (HWSERIAL.available() > 0) {    
+        byte incomingByte = HWSERIAL.read();
+        Serial.write(incomingByte);
+    }
+  }
+}
 
