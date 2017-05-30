@@ -16,8 +16,9 @@
 #define maxChar 256
 char gpsStream[maxChar];
 int streamPos;
+volatile boolean endGpsLog;
 
-void gps(byte incomingByte){
+int gps(byte incomingByte){
   char temp2[2];
   char temp3[3];
   char temp5[5];
@@ -31,64 +32,6 @@ void gps(byte incomingByte){
    // Serial.println(gpsStream);
     //process last message
     if(streamPos > 10){
-      // $GNGGA,003549.000,2716.6206,N,08227.4920,W,2,12,0.93,33.0,M,-28.8,M,,*7E
-      // for some reason using strcmp misses some codes; so we will just do 1 char at a time
-      //   memcpy(&temp5[0], &gpsStream[1], 5);
-      //   char testStr[5];
-      //   strcpy(testStr, "GNGGA");
-      
-      //if(strcmp(temp5, testStr) == 0){
- /*     if(gpsStream[1]=='G' & gpsStream[2]=='N' &  gpsStream[3]=='G' &  gpsStream[4]=='G' &  gpsStream[5]=='A'){
-        // Serial.println("got one");
-         // check response status
-        
-         int curPos = 7;
-         memcpy(&temp2[0], &gpsStream[curPos], 2);
-         sscanf(temp2, "%d", &gpsHour);
-         curPos += 2;
-         memcpy(&temp2[0], &gpsStream[curPos], 2);
-         sscanf(temp2, "%d", &gpsMinute); 
-         curPos += 2;
-         memcpy(&temp2[0], &gpsStream[curPos], 2);
-         sscanf(temp2, "%d", &gpsSecond);
-
-         gpsTime.sec = gpsSecond;
-         gpsTime.minute = gpsMinute;
-         gpsTime.hour = gpsHour;
-
-         curPos = 18;
-         memcpy(&temp2[0], &gpsStream[curPos], 2);
-         curPos += 2;
-         int latDeg;
-         float latMin;
-         float tempVal;
-         sscanf(temp2, "%d", &latDeg);
-         memcpy(&temp7[0], &gpsStream[curPos], 7);
-         sscanf(temp7, "%f", &latMin);
-         tempVal = (double) latDeg + (latMin / 60.0);
-         if (tempVal>0.0 & tempVal<=90.0){
-          latitude = tempVal;
-          curPos = 28;
-          memcpy(&latHem, &gpsStream[curPos], 1);
-         }
-         
-         curPos = 30;
-         memcpy(&temp3[0], &gpsStream[curPos], 3);
-         curPos += 3;
-         int lonDeg;
-         float lonMin;
-         sscanf(temp3, "%d", &lonDeg);
-         memcpy(&temp7[0], &gpsStream[curPos], 7);
-         sscanf(temp7, "%f", &lonMin);
-         tempVal = (double) lonDeg + (lonMin / 60.0);
-         if (tempVal>0.0 & tempVal<=180.0){
-          longitude = tempVal;
-          curPos = 41;
-          memcpy(&lonHem, &gpsStream[curPos], 1);
-         }
-     }
-*/
-      
       // OriginGPS
       // $GNRMC,134211.000,A,2715.5428,N,08228.7924,W,1.91,167.64,020816,,,A*62
       // Adafruit GPS
@@ -106,6 +49,13 @@ void gps(byte incomingByte){
       float rmcMag;//           020.3,E      Magnetic variation 20.3 deg East
       char rmcMagHem[2];
       char rmcChecksum[4 + 1]; //           *68          mandatory checksum
+
+      // check for end of log dump  $PMTKLOX,2*47
+      if(gpsStream[1]=='P' & gpsStream[2]=='M' &  gpsStream[3]=='T' &  gpsStream[4]=='K' &  gpsStream[5]=='L'  
+      & gpsStream[6]=='O' &  gpsStream[7]=='X' &  gpsStream[8]==',' &  gpsStream[9]=='2' & gpsStream[10]=='*' 
+      & gpsStream[11]=='4' & gpsStream[12]=='7'){
+        endGpsLog = 1;
+      }
 
       if(gpsStream[1]=='G' & gpsStream[2]=='P' &  gpsStream[3]=='R' &  gpsStream[4]=='M' &  gpsStream[5]=='C'){
        char temp[streamPos + 1];
@@ -207,13 +157,6 @@ void gpsStopLogger(){
   waitForGPS();
 }
 
-void gpsDumpLogger(){
-  HWSERIAL.println(PMTK_LOCUS_DUMP);
-  waitForGPS();
-
-  // grab data here and put it in a file
-}
-
 void gpsEraseLogger(){
   HWSERIAL.println(PMTK_LOCUS_ERASE_FLASH);
   waitForGPS();
@@ -257,3 +200,34 @@ void waitForGPS(){
   }
 }
 
+
+int gpsDumpLogger(){
+  // open file for storing data; append
+  endGpsLog = 0;
+   if(File logFile = SD.open("GPSLOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+    // serial number
+      for(int n=0; n<8; n++){
+        logFile.print(myID[n]);
+      }
+
+   HWSERIAL.println(PMTK_LOCUS_DUMP);
+   int dumping = 1;
+   while(endGpsLog==0){
+    digitalWrite(ledGreen, LOW);
+       while (HWSERIAL.available() > 0) {    
+        digitalWrite(ledGreen, HIGH);
+        byte incomingByte = HWSERIAL.read();
+        gps(incomingByte);
+        Serial.write(incomingByte);
+        logFile.write(incomingByte);
+    }
+    if(gpsTimeout >= gpsTimeOutThreshold) return 0;
+   }
+      logFile.close();
+   }
+   else{
+    if(printDiags) Serial.print("Log open fail.");
+    return 0;
+   }
+   return 1;
+}

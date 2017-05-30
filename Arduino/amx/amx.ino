@@ -323,6 +323,29 @@ void setup() {
         delay(1000);
       }
    }
+
+   delay(1000);
+  // Initialize the SD card
+  SPI.setMOSI(7);
+  SPI.setSCK(14);
+  if (!(SD.begin(10))) {
+    // stop here if no SD card, but print a message
+    Serial.println("Unable to access the SD card");
+    
+    while (1) {
+//      cDisplay();
+//      display.println("SD error. Restart.");
+//      displayClock(getTeensy3Time(), BOTTOM);
+//      display.display();
+      for (int flashMe=0; flashMe<3; flashMe++){
+      delay(100);
+      digitalWrite(ledGreen, HIGH);
+      delay(100);
+      digitalWrite(ledGreen, LOW);
+      }
+      delay(400);
+    }
+  }
   
   sensorInit(); // initialize and test sensors
 
@@ -358,9 +381,6 @@ void setup() {
 
  ULONG newtime;
  gpsTimeout = 0;
-
-
-
  
 // GPS configuration
   if(!skipGPS){
@@ -376,14 +396,13 @@ void setup() {
    // if any data in GPSlogger, download it to microSD
    SerialUSB.println();
    SerialUSB.println("Dump GPS");
-   gpsDumpLogger();
+   if(gpsDumpLogger()==1){
+     // erase data if download was good
+     SerialUSB.println();
+     SerialUSB.println("Erase GPS");
+     gpsEraseLogger();
+   }
 
-
-   // erase data if download was good
-   SerialUSB.println();
-   SerialUSB.println("Erase GPS");
-   gpsEraseLogger();
-   
    // start GPS logger
    SerialUSB.println();
    SerialUSB.println("Start logging");
@@ -447,28 +466,7 @@ void setup() {
 //  display.println("Loggerhead");
 //  display.display();
   
-  delay(1000);
-  // Initialize the SD card
-  SPI.setMOSI(7);
-  SPI.setSCK(14);
-  if (!(SD.begin(10))) {
-    // stop here if no SD card, but print a message
-    Serial.println("Unable to access the SD card");
-    
-    while (1) {
-//      cDisplay();
-//      display.println("SD error. Restart.");
-//      displayClock(getTeensy3Time(), BOTTOM);
-//      display.display();
-      for (int flashMe=0; flashMe<3; flashMe++){
-      delay(100);
-      digitalWrite(ledGreen, HIGH);
-      delay(100);
-      digitalWrite(ledGreen, LOW);
-      }
-      delay(400);
-    }
-  }
+ 
   //SdFile::dateTimeCallback(file_date_time);
 
   LoadScript();

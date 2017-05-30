@@ -102,7 +102,7 @@ int ProcCmd(char *pCmd)
          break;
       }
 
-    // Burn Minutes (burn set number of minutes after start
+    // Burn Minutes (burn set number of minutes after start)
     case ('B' + ('M'<<8)):
     {
          sscanf(&pCmd[3],"%d",&lv1);
