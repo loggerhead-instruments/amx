@@ -74,7 +74,7 @@ float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to sa
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
 long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
-int depthThreshold = 2; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
+float depthThreshold = 2.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
 //
@@ -691,7 +691,7 @@ void loop() {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
-      if (LEDSON==1) digitalWrite(ledGreen, HIGH);
+      if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
@@ -730,8 +730,9 @@ void loop() {
     } 
       
     if(buf_count >= nbufs_per_file){       // time to stop?
-      introperiod = 0;  //LEDS on for first file
+      
       total_hour_recorded += (float) rec_dur / 3600.0;
+      if(total_hour_recorded > 1.0) introperiod = 0;  //LEDS on for first file
       if(rec_int == 0){
         if(printDiags > 0){
           Serial.print("Audio Memory Max");
@@ -1279,8 +1280,8 @@ void sampleSensors(void){  //interrupt at update_rate
   
   if(ptCounter>=(1.0 / sensor_srate) * update_rate){
       ptCounter = 0;
-      int saltValOff = checkSalt(); // get value with saltSIG low
-      digitalWrite(saltSIG, HIGH); // start signal for salt and let time reading sensors let it get high for checkSalt
+    //  int saltValOff = checkSalt(); // get value with saltSIG low
+    //  digitalWrite(saltSIG, HIGH); // start signal for salt and let time reading sensors let it get high for checkSalt
       
       if (rgbFlag){
         islRead(); 
@@ -1310,7 +1311,7 @@ void sampleSensors(void){  //interrupt at update_rate
         PTbuffer[bufferposPT] = temperature;
         incrementPTbufpos();
       }
-      int saltValOn = checkSalt();
+   /*   int saltValOn = checkSalt();
       digitalWrite(saltSIG, LOW);
       if(abs(saltValOn - saltValOff) < saltThreshold){
         LEDSON = 1; //this makes them blink
@@ -1319,12 +1320,13 @@ void sampleSensors(void){  //interrupt at update_rate
         digitalWrite(ledGreen, LOW);
         LEDSON = 0;
       }
-      if(printDiags){
-      Serial.print("Off: ");
-      Serial.print(saltValOff);
-      Serial.print("  On: ");
-      Serial.println(saltValOn);
-    }
+      */
+//      if(printDiags){
+//      Serial.print("Off: ");
+//      Serial.print(saltValOff);
+//      Serial.print("  On: ");
+//      Serial.println(saltValOn);
+//    }
   }
 }
 
@@ -1648,12 +1650,17 @@ void cam_off() {
 }
 
 void checkDepthVHF(){
-  if((-1 * depth) < depthThreshold) {
+  if(depth < depthThreshold) {
     digitalWrite(VHF, HIGH);
   }
   else{
     digitalWrite(VHF, LOW);
   }
+  if(printDiags) {
+    Serial.print("Depth ");
+    Serial.println(depth);
+  }
+  
 }
 
 int checkSalt(){
