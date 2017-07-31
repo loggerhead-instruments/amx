@@ -193,7 +193,7 @@ int ProcCmd(char *pCmd)
       break;
     }
     // default simulateDepth = 0
-    case ('P' + ('S'<<8)):
+    case ('S' + ('D'<<8)):
     {
       simulateDepth = 1;
       break;
