@@ -865,7 +865,7 @@ void checkPlay(){
         playNow = 1;
         playTime = t + 2; // wait 2 seconds for playback board to power up
         playBackDepthExceeded = 2;
-        Serial.print("Trigger playback");
+        Serial.println("Trigger playback");
       }
     }
   }

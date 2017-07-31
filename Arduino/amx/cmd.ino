@@ -148,6 +148,52 @@ int ProcCmd(char *pCmd)
          Serial.println(startTime);
          break;
       } 
+
+
+    //default nPlayBackFiles = 5; // number of playback files
+    case ('P' + ('F'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      nPlayBackFiles = lv1;
+      break;
+    }
+    //default maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
+    case ('P' + ('I'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      maxPlayBackTime = lv1;
+      break;
+    }
+    //default longestPlayback = 30; // longest file for playback, used to power down playback board
+    case ('P' + ('D'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      longestPlayback = lv1;
+      break;
+    }
+    //default playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
+    case ('P' + ('T'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      playBackDepthThreshold = lv1;
+      break;
+    }
+    //default depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+    case ('P' + ('A'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      depthChangeTrigger = lv1;
+      break;
+    }
+    //default playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
+    case ('P' + ('R'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      playBackResetDepth = lv1;
+      break;
+    }
+
+    
 	}	
 	return TRUE;
 }
