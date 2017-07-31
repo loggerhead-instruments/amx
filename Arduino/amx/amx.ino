@@ -69,6 +69,9 @@ long rec_int = 0;
 
 int maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
 int longestPlayback = 30; // longest file for playback, used to shut off recording
+float playBackDepthThreshold = 10.0; // animal must go deeper than this depth to trigger threshold
+float playBackResetDepth = 2.0; // animal needs to come back above this depth before next playback can happen
+float depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 int camFlag =01;
@@ -176,7 +179,8 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 // Playback
 int playNow = 0;
 int trackNumber = 0;
-
+int playBackDepthExceeded = 0;
+float maxDepth, curDepth;  
 
 // GPS
 double latitude, longitude;
@@ -834,11 +838,24 @@ void loop() {
 }
 
 void checkPlay(){
-  if (depth > 1) {
+  if(depth > maxDepth) maxDepth = curDepth; // track maximum depth
+  if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) playBackDepthExceeded = 1;  // check if went deeper than a certain depth
+
+  // check if after exceeding playback depth, came shallow enough to allow another playback
+  if(playBackDepthExceeded==2){
+    if(depth < playBackResetDepth){
+      maxDepth = depth;
+      playBackDepthExceeded = 0;
+    }
+  }
+
+  // Trigger playback if on ascent came up enough
+  if ((playBackDepthExceeded==1) & (maxDepth - curDepth > depthChangeTrigger)) {
     if(t - playTime > maxPlayBackTime){ // prevent from playing back more than once per x seconds
       playBackOn();
       playNow = 1;
       playTime = t + 2;
+      playBackDepthExceeded = 2;
     }
     
   }
