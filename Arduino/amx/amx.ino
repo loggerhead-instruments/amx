@@ -845,10 +845,10 @@ void checkPlay(){
   }
 
   // waiting for playback algorithm to be satisfied to trigger playback
+  // prevent from playing back more than once per x seconds
   if(playNow==0){
-      if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) {
+      if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0) & (t - playTime > minPlayBackInterval)) {
       playBackDepthExceeded = 1;  // check if went deeper than a certain depth
-      
       if(printDiags){
         Serial.print("Playback depth exceeded: ");
         Serial.println(depth);
@@ -869,7 +869,6 @@ void checkPlay(){
   
     // Trigger playback if on ascent came up enough
     if ((playBackDepthExceeded==1) & (maxDepth - depth > ascentDepthTrigger) & (nPlayed < maxPlayBacks)) {
-      if(t - playTime > minPlayBackInterval){ // prevent from playing back more than once per x seconds
         playBackOn();
         playNow = 1;
         playTime = t + 2; // wait 2 seconds for playback board to power up
@@ -877,8 +876,7 @@ void checkPlay(){
         if(printDiags) {
           Serial.print("Trigger playback ");
           Serial.println(nPlayed);
-        }
-      }
+        } 
     }
   }
 
