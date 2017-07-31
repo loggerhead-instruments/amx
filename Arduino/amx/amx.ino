@@ -66,6 +66,10 @@ static boolean skipGPS = 1; //skip GPS at startup
 
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
+
+int maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
+int longestPlayback = 30; // longest file for playback, used to shut off recording
+
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 int camFlag =01;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
@@ -142,6 +146,7 @@ time_t startTime;
 time_t stopTime;
 time_t t;
 time_t burnTime;
+time_t playTime;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
@@ -167,6 +172,11 @@ int refBin = 50; //reference signal bin
 int toneBin = 58; // tone signal bin
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
+
+// Playback
+int playNow = 0;
+int trackNumber = 0;
+
 
 // GPS
 double latitude, longitude;
@@ -728,6 +738,20 @@ void loop() {
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
     } 
+
+    checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number
+    if((playNow==1) & (t >= playTime)) {
+      playNow = 2;
+      playTrackNumber(trackNumber);
+      trackNumber += 1;
+      if(trackNumber > 9) trackNumber = 0;
+    }
+    if(playNow==2){
+      if (t-playTime > longestPlayback){
+        playBackOff();
+        playNow = 0;
+      }
+    }
       
     if(buf_count >= nbufs_per_file){       // time to stop?
       
@@ -806,6 +830,17 @@ void loop() {
         mode = 0;
       }
     }
+  }
+}
+
+void checkPlay(){
+  if (depth > 1) {
+    if(t - playTime > maxPlayBackTime){ // prevent from playing back more than once per x seconds
+      playBackOn();
+      playNow = 1;
+      playTime = t + 2;
+    }
+    
   }
 }
 
