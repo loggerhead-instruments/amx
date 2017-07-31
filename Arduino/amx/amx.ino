@@ -67,15 +67,17 @@ static boolean skipGPS = 1; //skip GPS at startup
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 
+int nPlayBackFiles = 5; // number of playback files
 int maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
-int longestPlayback = 30; // longest file for playback, used to shut off recording
-float playBackDepthThreshold = 10.0; // animal must go deeper than this depth to trigger threshold
-float playBackResetDepth = 2.0; // animal needs to come back above this depth before next playback can happen
+int longestPlayback = 30; // longest file for playback, used to power down playback board
+float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
 float depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+float playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
+
 int simulateDepth = 1;
-float depthProfile[] = {0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
-                      0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
-                      0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0}; //simulated depth profile; one value per minute
+float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
+                      0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
+                      0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0}; //simulated depth profile; one value per minute
 
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
@@ -185,7 +187,7 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 int playNow = 0;
 int trackNumber = 0;
 int playBackDepthExceeded = 0;
-float maxDepth, curDepth;  
+float maxDepth;  
 
 // GPS
 double latitude, longitude;
@@ -748,19 +750,7 @@ void loop() {
       time2writeRGB = 0;
     } 
 
-    checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number
-    if((playNow==1) & (t >= playTime)) {
-      playNow = 2;
-      playTrackNumber(trackNumber);
-      trackNumber += 1;
-      if(trackNumber > 9) trackNumber = 0;
-    }
-    if(playNow==2){
-      if (t-playTime > longestPlayback){
-        playBackOff();
-        playNow = 0;
-      }
-    }
+    checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
       
     if(buf_count >= nbufs_per_file){       // time to stop?
       
@@ -843,35 +833,57 @@ void loop() {
 }
 
 void checkPlay(){
-  if(depth > maxDepth) maxDepth = curDepth; // track maximum depth
+  if(depth > maxDepth) {
+    maxDepth = depth; // track maximum depth
+    Serial.print("Max Depth: ");
+    Serial.println(maxDepth);
+  }
+
+  // waiting for playback algorithm to be satisfied to trigger playback
+  if(playNow==0){
+      if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) {
+      playBackDepthExceeded = 1;  // check if went deeper than a certain depth
+      Serial.print("Playback depth exceeded: ");
+      Serial.println(depth);
+    }
   
-  if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) {
-    playBackDepthExceeded = 1;  // check if went deeper than a certain depth
-    Serial.print("Playback depth exceeded: ");
-    Serial.println(depth);
-  }
-
-  // check if after exceeding playback depth, came shallow enough to allow another playback
-  if(playBackDepthExceeded==2){
-    if(depth < playBackResetDepth){
-      maxDepth = depth;
-      playBackDepthExceeded = 0;
-      Serial.print("Reset depth: ");
-      Serial.println(depth);
+    // check if after exceeding playback depth, came shallow enough to allow another playback
+    if(playBackDepthExceeded==2){
+      if(depth < playBackResetDepth){
+        maxDepth = depth;
+        playBackDepthExceeded = 0;
+        Serial.print("Reset depth: ");
+        Serial.println(depth);
+      }
+    }
+  
+    // Trigger playback if on ascent came up enough
+    if ((playBackDepthExceeded==1) & (maxDepth - depth > depthChangeTrigger)) {
+      Serial.println("Ascent trigger");
+      if(t - playTime > maxPlayBackTime){ // prevent from playing back more than once per x seconds
+        playBackOn();
+        playNow = 1;
+        playTime = t + 2; // wait 2 seconds for playback board to power up
+        playBackDepthExceeded = 2;
+        Serial.print("Trigger playback");
+      }
     }
   }
 
-  // Trigger playback if on ascent came up enough
-  if ((playBackDepthExceeded==1) & (maxDepth - curDepth > depthChangeTrigger)) {
-    if(t - playTime > maxPlayBackTime){ // prevent from playing back more than once per x seconds
-      playBackOn();
-      playNow = 1;
-      playTime = t + 2;
-      playBackDepthExceeded = 2;
-      Serial.print("Trigger playback: ");
-      Serial.println(depth);
-    }
-    
+  // trigger playback after delay
+  if((playNow==1) & (t >= playTime)) {
+      playNow = 2;
+      playTrackNumber(trackNumber);
+      trackNumber += 1;
+      if(trackNumber >= nPlayBackFiles) trackNumber = 0;
+  }
+
+  // turn off playback board
+  if(playNow==2){
+      if (t-playTime > longestPlayback){
+        playBackOff();
+        playNow = 0;
+      }
   }
 }
 
@@ -1623,6 +1635,7 @@ void sensorInit(){
     Serial.print("Depth: "); Serial.println(depth);
     Serial.print("Temperature: "); Serial.println(temperature);
   }
+  if(simulateDepth) depth = 0;
 
 // battery voltage measurement
   Serial.print("Battery: ");
