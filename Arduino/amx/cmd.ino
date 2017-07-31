@@ -178,11 +178,11 @@ int ProcCmd(char *pCmd)
       playBackDepthThreshold = lv1;
       break;
     }
-    //default depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+    //default ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
     case ('P' + ('A'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
-      depthChangeTrigger = lv1;
+      ascentDepthTrigger = lv1;
       break;
     }
     //default playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
