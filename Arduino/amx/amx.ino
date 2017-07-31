@@ -72,6 +72,11 @@ int longestPlayback = 30; // longest file for playback, used to shut off recordi
 float playBackDepthThreshold = 10.0; // animal must go deeper than this depth to trigger threshold
 float playBackResetDepth = 2.0; // animal needs to come back above this depth before next playback can happen
 float depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+int simulateDepth = 1;
+float depthProfile[] = {0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
+                      0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
+                      0.0, 2.0, 12.0, 10.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0}; //simulated depth profile; one value per minute
+
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 int camFlag =01;
@@ -839,13 +844,20 @@ void loop() {
 
 void checkPlay(){
   if(depth > maxDepth) maxDepth = curDepth; // track maximum depth
-  if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) playBackDepthExceeded = 1;  // check if went deeper than a certain depth
+  
+  if((depth > playBackDepthThreshold) & (playBackDepthExceeded==0)) {
+    playBackDepthExceeded = 1;  // check if went deeper than a certain depth
+    Serial.print("Playback depth exceeded: ");
+    Serial.println(depth);
+  }
 
   // check if after exceeding playback depth, came shallow enough to allow another playback
   if(playBackDepthExceeded==2){
     if(depth < playBackResetDepth){
       maxDepth = depth;
       playBackDepthExceeded = 0;
+      Serial.print("Reset depth: ");
+      Serial.println(depth);
     }
   }
 
@@ -856,6 +868,8 @@ void checkPlay(){
       playNow = 1;
       playTime = t + 2;
       playBackDepthExceeded = 2;
+      Serial.print("Trigger playback: ");
+      Serial.println(depth);
     }
     
   }
@@ -1355,7 +1369,12 @@ void sampleSensors(void){  //interrupt at update_rate
         kellerRead();
         kellerConvert();  // start conversion for next reading
       }
-      
+
+      if(simulateDepth) depth = depthProfile[minute(t)];
+      if(printDiags){
+        Serial.print("D:");
+        Serial.println(depth);
+      }
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
@@ -1692,11 +1711,6 @@ void checkDepthVHF(){
   else{
     digitalWrite(VHF, LOW);
   }
-  if(printDiags) {
-    Serial.print("Depth ");
-    Serial.println(depth);
-  }
-  
 }
 
 int checkSalt(){
