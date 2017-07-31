@@ -73,6 +73,7 @@ int longestPlayback = 30; // longest file for playback, used to power down playb
 float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
 float ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
 float playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
+int maxPlayBacks = 20; // maximum number of times to play
 
 int simulateDepth = 0;
 float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
@@ -188,6 +189,7 @@ int playNow = 0;
 int trackNumber = 0;
 int playBackDepthExceeded = 0;
 float maxDepth;  
+int nPlayed = 0;
 
 // GPS
 double latitude, longitude;
@@ -866,13 +868,16 @@ void checkPlay(){
     }
   
     // Trigger playback if on ascent came up enough
-    if ((playBackDepthExceeded==1) & (maxDepth - depth > ascentDepthTrigger)) {
+    if ((playBackDepthExceeded==1) & (maxDepth - depth > ascentDepthTrigger) & (nPlayed < maxPlayBacks)) {
       if(t - playTime > minPlayBackInterval){ // prevent from playing back more than once per x seconds
         playBackOn();
         playNow = 1;
         playTime = t + 2; // wait 2 seconds for playback board to power up
         playBackDepthExceeded = 2;
-        if(printDiags) Serial.println("Trigger playback");
+        if(printDiags) {
+          Serial.print("Trigger playback ");
+          Serial.println(nPlayed);
+        }
       }
     }
   }
@@ -883,6 +888,7 @@ void checkPlay(){
       playTrackNumber(trackNumber);
       trackNumber += 1;
       if(trackNumber >= nPlayBackFiles) trackNumber = 0;
+      nPlayed++;
   }
 
   // turn off playback board

@@ -192,6 +192,13 @@ int ProcCmd(char *pCmd)
       playBackResetDepth = lv1;
       break;
     }
+    //default maxPlayBacks = 20; // tag needs to come back above this depth before next playback can happen
+    case ('P' + ('M'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      maxPlayBacks = lv1;
+      break;
+    }
     // default simulateDepth = 0
     case ('S' + ('D'<<8)):
     {
