@@ -62,12 +62,12 @@ Adafruit_MCP23017 mcp;
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
-static boolean skipGPS = 0; //skip GPS at startup
+static boolean skipGPS = 1; //skip GPS at startup
 
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-int camFlag = 1;
+int camFlag =01;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
@@ -1446,14 +1446,13 @@ void sensorInit(){
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(SALT, INPUT);
-  pinMode(saltSIG, OUTPUT);
+  pinMode(saltSIG, INPUT);
   analogReference(DEFAULT);
 
   digitalWrite(CAM_TRIG, HIGH);
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  gpsOff();
 
   Serial.println("Sensor Init");
   digitalWrite(ledWhite, LOW);
@@ -1466,6 +1465,13 @@ void sensorInit(){
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
+
+  // playback
+  playBackOn();
+  Serial.println("Playback On");
+  delay(1000);
+  playTrackNumber(1);
+
 
   // IMU
   if(imuFlag){
@@ -1547,33 +1553,13 @@ void sensorInit(){
     Serial.print("Temperature: "); Serial.println(temperature);
   }
 
-// salt switch
-  digitalWrite(saltSIG, HIGH);
-  Serial.print("Salt: ");
-  Serial.println(analogRead(SALT));
-  digitalWrite(saltSIG, LOW);
-
 // battery voltage measurement
   Serial.print("Battery: ");
   Serial.println(readVoltage());
 
-// playback
-  mcp.begin();
-  for(int i=0; i<14; i++){
-    mcp.pinMode(i, OUTPUT);
-    mcp.digitalWrite(i, HIGH);
-  }
-  mcp.pinMode(11, INPUT); // activity pin (low when playing)
-  
-  // test playback of file 0
-  mcp.digitalWrite(0, LOW);
-  delay(200);
-  mcp.digitalWrite(0, HIGH);
-
-  // GPS
-  Serial.print("GPS:");
-  Serial.println(digitalRead(gpsState));
-  
+  // playback
+  playBackOff();
+  Serial.println("Playback Off");  
 }
 
 void gpsOn(){
@@ -1595,7 +1581,6 @@ time_t getTeensy3Time()
 void cam_wake() {
   if(camFlag==SPYCAM){
    digitalWrite(CAM_TRIG, HIGH);  
-   digitalWrite(GPS_POW, HIGH);
    delay(3000);
   } 
   if(camFlag==FLYCAM){
@@ -1638,7 +1623,6 @@ void cam_stop(){
 void cam_off() {
   if(camFlag==SPYCAM){
     delay(1000); //give last file chance to close
-    digitalWrite(GPS_POW, LOW);
     digitalWrite(CAM_TRIG, LOW); //so doesn't draw power through trigger line
   }
   else{
