@@ -74,7 +74,7 @@ float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to tr
 float depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
 float playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
 
-int simulateDepth = 1;
+int simulateDepth = 0;
 float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
                       0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0,
                       0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 1.0, 2.0, 4.0}; //simulated depth profile; one value per minute

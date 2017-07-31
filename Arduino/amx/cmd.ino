@@ -192,7 +192,12 @@ int ProcCmd(char *pCmd)
       playBackResetDepth = lv1;
       break;
     }
-
+    // default simulateDepth = 0
+    case ('P' + ('S'<<8)):
+    {
+      simulateDepth = 1;
+      break;
+    }
     
 	}	
 	return TRUE;
