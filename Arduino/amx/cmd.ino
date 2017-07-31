@@ -157,11 +157,11 @@ int ProcCmd(char *pCmd)
       nPlayBackFiles = lv1;
       break;
     }
-    //default maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
+    //default minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
     case ('P' + ('I'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
-      maxPlayBackTime = lv1;
+      minPlayBackInterval = lv1;
       break;
     }
     //default longestPlayback = 30; // longest file for playback, used to power down playback board

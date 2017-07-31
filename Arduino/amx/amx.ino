@@ -68,7 +68,7 @@ long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 
 int nPlayBackFiles = 5; // number of playback files
-int maxPlayBackTime = 120; // keep playbacks from being closer than x seconds
+int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
 int longestPlayback = 30; // longest file for playback, used to power down playback board
 float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
 float depthChangeTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
@@ -860,7 +860,7 @@ void checkPlay(){
     // Trigger playback if on ascent came up enough
     if ((playBackDepthExceeded==1) & (maxDepth - depth > depthChangeTrigger)) {
       Serial.println("Ascent trigger");
-      if(t - playTime > maxPlayBackTime){ // prevent from playing back more than once per x seconds
+      if(t - playTime > minPlayBackInterval){ // prevent from playing back more than once per x seconds
         playBackOn();
         playNow = 1;
         playTime = t + 2; // wait 2 seconds for playback board to power up
