@@ -367,7 +367,8 @@ void setup() {
       delay(400);
     }
   }
-  
+
+  LoadScript();
   sensorInit(); // initialize and test sensors
 
   pinMode(usbSense, OUTPUT);
