@@ -128,7 +128,7 @@ const int SALT = A11;
 const int saltSIG = 3;
 const int ledGreen = 17;
 const int BURN = 5;
-const int ledWhite = 2;
+const int AUDIO_AMP = 2;
 const int usbSense = 6;
 const int vSense = A14;  // moved to Pin 21 for X1
 const int GPS_POW = 16;
@@ -637,7 +637,6 @@ void loop() {
 //        display.display();
 
         mode = 1;
-        if (briteFlag & camFlag) digitalWrite(ledWhite, HIGH);  
         startRecording();
       }
   }
@@ -1473,7 +1472,7 @@ void sensorInit(){
   pinMode(GPS_POW, OUTPUT);
   pinMode(gpsState, INPUT);
   pinMode(BURN, OUTPUT);
-  pinMode(ledWhite, OUTPUT);
+  pinMode(AUDIO_AMP, OUTPUT);
   //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
@@ -1487,7 +1486,7 @@ void sensorInit(){
   digitalWrite(displayPow, HIGH);  // also used as Salt output
 
   Serial.println("Sensor Init");
-  digitalWrite(ledWhite, LOW);
+
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
@@ -1503,6 +1502,7 @@ void sensorInit(){
   Serial.println("Playback On");
   delay(1000);
   playTrackNumber(1);
+  delay(4000);
 
 
   // IMU
@@ -1639,7 +1639,6 @@ void cam_start() {
 }
 
 void cam_stop(){
-  if (briteFlag) digitalWrite(ledWhite, LOW);
   if(camFlag==SPYCAM){
     digitalWrite(CAM_TRIG, LOW);
     delay(400);  // simulate  button press
