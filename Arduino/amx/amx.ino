@@ -15,7 +15,6 @@
 
 /* To Do: 
  * burn wire 1 & 2
- * play sound
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -39,13 +38,11 @@
 //#include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
-#include "Adafruit_MCP23017.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-Adafruit_MCP23017 mcp;
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
