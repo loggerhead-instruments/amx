@@ -65,6 +65,13 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+    // Disable LEDs
+    case ('L' + ('D'<<8)):
+    {
+      LEDSON = 0;
+      break;
+    }
+    
     // Enable bright LED
     case ('B' + ('L'<<8)):
     {
