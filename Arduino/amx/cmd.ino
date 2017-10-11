@@ -216,28 +216,10 @@ boolean LoadScript()
   char c;
   short i;
   int j = 0;
-  int i =0;
 
   File file;
   unsigned long TM_byte;
   int comment_TM = 0;
-
-  // Read simulated depth file
-  file = SD.open("depth.txt");
-  if(file){
-    do{
-      j = 0;
-      do{ // scan next line
-        c = file.read();
-        if(c!='\r') s[j] = c;
-        j++;
-        if(i>29) break;
-      }while(c!='\n');
-      sscanf(s,"%d",depthProfile[i]);
-      i++;
-    }while(file.available() & i < 59)
-    file.close();
-  }
 
   // Read card setup.txt file to set date and time, recording interval
   file=SD.open("setup.txt");
@@ -283,6 +265,29 @@ boolean LoadScript()
    // display.println("no setup file");
     return 0;
   }
+
+  // Read simulated depth file
+  file = SD.open("depth.txt");
+  Serial.println("Depth file");
+  if(file){
+    do{
+      j = 0;
+      do{ // scan next line
+        c = file.read();
+        if(c!='\r') s[j] = c;
+        j++;
+        if(j>29) break;
+      }while(c!='\n');
+      Serial.print(c);
+      sscanf(s,"%f",&depthProfile[i]);
+      Serial.print(i); Serial.print(" ");
+      Serial.print(depthProfile[i]);
+      i++;
+      if(i==60) break;
+    }while(file.available());
+    file.close();
+  }
+  
  return 1;	
 }
 

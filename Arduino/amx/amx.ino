@@ -329,22 +329,12 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
-  HWSERIAL.begin(9600); //GPS
+  HWSERIAL.begin(9600); //playback
   delay(500);
  // Wire.begin();
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Wire.setDefaultTimeout(10000);
 
-  if(printDiags > 0){
-      Serial.print("YY-MM-DD HH:MM:SS ");
-      // show 3 ticks to know crystal is working
-      for (int n=0; n<3; n++){
-        printTime(getTeensy3Time());
-        delay(1000);
-      }
-   }
-
-   delay(1000);
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
@@ -369,6 +359,15 @@ void setup() {
 
   LoadScript();
   sensorInit(); // initialize and test sensors
+
+  if(printDiags > 0){
+      Serial.print("YY-MM-DD HH:MM:SS ");
+      // show 3 ticks to know crystal is working
+      for (int n=0; n<3; n++){
+        printTime(getTeensy3Time());
+        delay(1000);
+      }
+   }
 
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
