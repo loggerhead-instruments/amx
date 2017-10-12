@@ -79,7 +79,7 @@ float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 
 
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-int camFlag =01;
+int camFlag = 0;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression

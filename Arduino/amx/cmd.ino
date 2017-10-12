@@ -238,7 +238,7 @@ boolean LoadScript()
         do{
             c = file.read();
 	          if(c!='\r') s[i++] = c;
-            if(c=='T') 
+            if((c=='T') & (i==1)) 
             {
               TM_byte = file.position() - 1;
               comment_TM = 1;
