@@ -85,35 +85,97 @@ if (n %% 9)  {
   INER = INER[-(n + 1 - (n %% 9)): -n]
 }
 n = length(INER)
-INER = data.frame("accelY" = accel_cal * INER[seq(1, n, 9)],
+accelDF = data.frame("accelY" = accel_cal * INER[seq(1, n, 9)],
                   "accelX" = -accel_cal * INER[seq(2, n, 9)],
-                  "accelZ" = -accel_cal * INER[seq(3, n, 9)],
-                  "magY" = mag_cal * INER[seq(4, n, 9)],
-                  "magX" = -mag_cal * INER[seq(5, n, 9)],
-                  "magZ" = -mag_cal * INER[seq(6, n, 9)],
-                  "gyroY" = -gyro_cal * INER[seq(7, n, 9)],
+                  "accelZ" = -accel_cal * INER[seq(3, n, 9)])
+
+magDF= data.frame("magY" = mag_cal * INER[seq(4, n, 9)],
+                 "magX" = -mag_cal * INER[seq(5, n, 9)],
+                 "magZ" = -mag_cal * INER[seq(6, n, 9)])
+                  
+gyroDF = data.frame("gyroY" = -gyro_cal * INER[seq(7, n, 9)],
                   "gyroX" = gyro_cal * INER[seq(8, n, 9)],
-                  "gyroZ" = -gyro_cal * INER[seq(9, n, 9)]
-)
+                  "gyroZ" = -gyro_cal * INER[seq(9, n, 9)])
+
+
+
+
+aList = list(data = data.matrix(accelDF), 
+             sampling_rate=inerSrate, 
+             sampling_rate_unit="Hz", 
+             sampling="regular", 
+             full_name="Acceleration", 
+             unit="g", 
+             unit_name="g", 
+             unit_label="g", 
+             start_offset=0, 
+             start_offset_units="second", 
+             column_name = "x,y,z",
+             frame="tag",
+             axes="NED",
+             creation_date=datetime)
+
+mList = list(data = data.matrix(magDF), 
+             sampling_rate=inerSrate, 
+             sampling_rate_unit="Hz", 
+             sampling="regular", 
+             full_name="Magnetometer", 
+             unit="uT", 
+             unit_name="micro Tesla", 
+             unit_label="\\muT", 
+             start_offset=0, 
+             start_offset_units="second", 
+             column_name = "x,y,z",
+             frame="tag",
+             axes="NED",
+             creation_date=datetime)
+
+gList = list(data = data.matrix(gyroDF), 
+             sampling_rate=inerSrate, 
+             sampling_rate_unit="Hz", 
+             sampling="regular", 
+             full_name="Gyroscope", 
+             unit="deg/sec", 
+             unit_name="degrees per second", 
+             unit_label="deg/sec", 
+             start_offset=0, 
+             start_offset_units="second", 
+             column_name = "x,y,z",
+             frame="tag",
+             axes="NED",
+             creation_date=datetime)
 
 # Pressure/Temperature
 # get surface pressure from first 10 minutes
-surfacePressure = mean(P[1:600])
+surfacePressure = mean(pressure[1:600])
 mBarPerMeter = 111.377
-data = (surfacePressure - P) / mBarPerMeter
+depth = (surfacePressure - pressure) / mBarPerMeter
 
-sampling_rate_unit = "Hz"
-sampling = "regular"
-sampling_rate = ptSrate
-full_name = "Pressure"
-unit = "m H2O"
-unit_name = "meters H2O (salt)"
-unit_label = "meters"
-start_offset = 0;
-start_offset_units = "second"
-creation_date = datetime
-P = list(data, sampling_rate, sampling_rate_unit, sampling, full_name, unit, unit_name, unit_label, start_offset, start_offset_units, creation_date)
+pList = list(data = depth, 
+         sampling_rate=ptSrate, 
+         sampling_rate_unit="Hz", 
+         sampling="regular", 
+         full_name="Pressure", 
+         unit="m H2O", 
+         unit_name="meters H2O (salt)", 
+         unit_label="meters", 
+         start_offset=0, 
+         start_offset_units="second", 
+         creation_date=datetime)
 
+tList = list(data = temperature, 
+                sampling_rate=ptSrate, 
+                sampling_rate_unit="Hz", 
+                sampling="regular", 
+                full_name="Temperature", 
+                unit="C", 
+                unit_name="C", 
+                unit_label="C", 
+                start_offset=0, 
+                start_offset_units="second", 
+                creation_date=datetime)
+
+humpback = list(A = aList, M = mList, G = gList, P = pList, T = tList)
 
 # # Datetime
 # startDT = make_datetime(year = year + 2000, month=month, day=mday, hour=hour, min=minute, sec=second, tz="UTC")
