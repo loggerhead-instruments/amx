@@ -16,13 +16,35 @@ path = "C:/w/data/humpback/wav"
 files <- list.files(path=path, pattern="*.wav", full.names=T, recursive=FALSE)
 numfiles = length(files) / 4
 INER <- rep(NA,329850 * numfiles)  # Inertial vector
-P <- rep(NA, 100 * numfiles)   # Pressure vector
-T <- rep(NA, 100 * numfiles)   # Temperature vector
+pressure <- rep(NA, 100 * numfiles)   # Pressure vector
+temperature <- rep(NA, 100 * numfiles)   # Temperature vector
 
 startIMU = 1
 endIMU = 1
 startPTMP = 1
 endPTMP = 1
+
+# get datetime from first filename
+string = files[1]
+underscores = gregexpr("_", string)
+
+hour = substr(string, underscores[[1]][3] + 1, underscores[[1]][4] - 1)
+minute = substr(string, underscores[[1]][4] + 1, underscores[[1]][5] - 1)
+second = substr(string, underscores[[1]][5] + 1, underscores[[1]][6] - 1)
+
+day = substr(string, underscores[[1]][8] + 1, underscores[[1]][9] - 1)
+month = substr(string, underscores[[1]][9] + 1, underscores[[1]][10] - 1)
+year = substr(string, underscores[[1]][10] + 1, underscores[[1]][10] + 4)
+
+hour = gsub(" ", "0", hour)
+minute = gsub(" ", "0", minute)
+second = gsub(" ", "0", second)
+day = gsub(" ", "0", day)
+month = gsub(" ", "0", month)
+
+dateStr = paste(year, month, day, sep="-")
+time = paste(hour, minute, second, sep=":")
+datetime = paste(dateStr, time, sep="T")
 
 for (fileName in files){
   print(fileName)
@@ -37,8 +59,8 @@ for (fileName in files){
   }
   if(regexpr('PR', fileName) > 0){
     endPTMP = startPTMP + length(wavObj@left) - 1
-    P[startPTMP:endPTMP] <- wavObj@left
-    T[startPTMP:endPTMP] <- wavObj@right
+    pressure[startPTMP:endPTMP] <- wavObj@left
+    temperature[startPTMP:endPTMP] <- wavObj@right
     startPTMP = endPTMP + 1
     ptSrate = wavObj@samp.rate
   }
@@ -76,9 +98,22 @@ INER = data.frame("accelY" = accel_cal * INER[seq(1, n, 9)],
 
 # Pressure/Temperature
 # get surface pressure from first 10 minutes
-surfacePressure = min(P[1:600])
+surfacePressure = mean(P[1:600])
 mBarPerMeter = 111.377
-depth = (surfacePressure - P) / mBarPerMeter
+data = (surfacePressure - P) / mBarPerMeter
+
+sampling_rate_unit = "Hz"
+sampling = "regular"
+sampling_rate = ptSrate
+full_name = "Pressure"
+unit = "m H2O"
+unit_name = "meters H2O (salt)"
+unit_label = "meters"
+start_offset = 0;
+start_offset_units = "second"
+creation_date = datetime
+P = list(data, sampling_rate, sampling_rate_unit, sampling, full_name, unit, unit_name, unit_label, start_offset, start_offset_units, creation_date)
+
 
 # # Datetime
 # startDT = make_datetime(year = year + 2000, month=month, day=mday, hour=hour, min=minute, sec=second, tz="UTC")
