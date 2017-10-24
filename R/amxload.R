@@ -18,11 +18,14 @@ numfiles = length(files) / 4
 INER <- rep(NA,329850 * numfiles)  # Inertial vector
 pressure <- rep(NA, 100 * numfiles)   # Pressure vector
 temperature <- rep(NA, 100 * numfiles)   # Temperature vector
+rgb <- rep(NA, 300 * numfiles)   # rgb vector
 
 startIMU = 1
 endIMU = 1
 startPTMP = 1
 endPTMP = 1
+startRGB = 1
+endRGB = 1
 
 # get datetime from first filename
 string = files[1]
@@ -64,6 +67,12 @@ for (fileName in files){
     startPTMP = endPTMP + 1
     ptSrate = wavObj@samp.rate
   }
+  if(regexpr('LI', fileName) > 0){
+    endRGB = startRGB + length(wavObj@left) - 1
+    rgb[startRGB:endRGB] <- wavObj@left
+    startRGB = endRGB + 1
+    rgbSrate = wavObj@samp.rate
+  }
 }
 
 
@@ -74,6 +83,23 @@ redCal = 20.0 / 65536.0
 greenCal= 18.0 / 65536.0
 blueCal = 30.0 / 65536.0
 
+n = length(rgb)
+rgbDF = data.frame("red" = redCal * rgb[seq(1, n, 3)],
+                     "green" = greenCal * rgb[seq(2, n, 3)],
+                     "blue" = blueCal * rgb[seq(3, n, 3)])
+
+rgbList = list(data = data.matrix(rgbDF), 
+             sampling_rate=rgbSrate, 
+             sampling_rate_unit="uWpercm^2", 
+             sampling="regular", 
+             full_name="Light", 
+             unit="uWpercm^2", 
+             unit_name="microWatt per cm squared", 
+             unit_label="uWpercm^2", 
+             start_offset=0, 
+             start_offset_units="second", 
+             column_name = "red,green,blue",
+             creation_date=datetime)
 
 
 # IMU calibration values MPU9250
@@ -88,6 +114,7 @@ mag_cal = magFullRange/32768.0
 
 # Inertial headings calibration
 n = length(INER)
+
 
 # AMX data aren't stored in NED orientation
 # Sign to get NED orientation
@@ -198,7 +225,7 @@ tList = list(data = temperature,
                 start_offset_units="second", 
                 creation_date=datetime)
 
-humpback = list(A = aList, M = mList, G = gList, P = pList, T = tList)
+humpback = list(A = aList, M = mList, G = gList, P = pList, T = tList, L = rgbList)
 
 # # Datetime
 # startDT = make_datetime(year = year + 2000, month=month, day=mday, hour=hour, min=minute, sec=second, tz="UTC")
