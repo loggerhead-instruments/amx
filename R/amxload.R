@@ -66,35 +66,58 @@ for (fileName in files){
   }
 }
 
-# calibrate values
-accel_cal=16.0/4096.0;  #16 g/4096 (13 bit ADC)
-gyro_cal=500.0/32768.0;  # 500 degrees per second (16-bit ADC)
-mag_cal=1.0/1090.0;  #1090 LSB/Gauss
+
+# RGB calibration values "ISL29125"
+# "uWpercm2"
+
+redCal = 20.0 / 65536.0
+greenCal= 18.0 / 65536.0
+blueCal = 30.0 / 65536.0
+
+
+
+# IMU calibration values MPU9250
+
+accelFullRange = 16.0 #ACCEL_FS_SEL 2g(00), 4g(01), 8g(10), 16g(11)
+gyroFullRange = 1000.0  # FS_SEL 250deg/s (0), 500 (1), 1000(2), 2000 (3)
+magFullRange = 4800.0  # fixed
+
+accel_cal = accelFullRange/32768.0  
+gyro_cal = gyroFullRange/32768.0  
+mag_cal = magFullRange/32768.0 
 
 # Inertial headings calibration
 n = length(INER)
-# OpenTag data aren't stored in NED orientation
+
+# AMX data aren't stored in NED orientation
 # Sign to get NED orientation
-# Flip X and Y
-# cal_matrix = [M_ACCEL_CAL, -M_ACCEL_CAL, -M_ACCEL_CAL,
-#              M_MAG_CAL, -M_MAG_CAL, -M_MAG_CAL,
-#              -M_GYRO_CAL, M_GYRO_CAL, -M_GYRO_CAL]
+# // NED orientation
+# 
+# //  gyro_x = imu.gx;
+# //  gyro_y = imu.gy;
+# //  gyro_z = -imu.gz;
+# //  accel_x = imu.ax;
+# //  accel_y = imu.ay;
+# //  accel_z = -imu.az;
+# //  mag_x = imu.my - magYoffset;
+# //  mag_y = imu.mx - magXoffset;
+# //  mag_z = imu.mz - magZoffset;
 
 # truncate to divisible by 9 points using modulus
 if (n %% 9)  {
   INER = INER[-(n + 1 - (n %% 9)): -n]
 }
 n = length(INER)
-accelDF = data.frame("accelY" = accel_cal * INER[seq(1, n, 9)],
-                  "accelX" = -accel_cal * INER[seq(2, n, 9)],
+accelDF = data.frame("accelX" = accel_cal * INER[seq(1, n, 9)],
+                  "accelY" = accel_cal * INER[seq(2, n, 9)],
                   "accelZ" = -accel_cal * INER[seq(3, n, 9)])
 
 magDF= data.frame("magY" = mag_cal * INER[seq(4, n, 9)],
-                 "magX" = -mag_cal * INER[seq(5, n, 9)],
-                 "magZ" = -mag_cal * INER[seq(6, n, 9)])
+                 "magX" = mag_cal * INER[seq(5, n, 9)],
+                 "magZ" = mag_cal * INER[seq(6, n, 9)])
                   
-gyroDF = data.frame("gyroY" = -gyro_cal * INER[seq(7, n, 9)],
-                  "gyroX" = gyro_cal * INER[seq(8, n, 9)],
+gyroDF = data.frame("gyroX" = gyro_cal * INER[seq(7, n, 9)],
+                  "gyroY" = gyro_cal * INER[seq(8, n, 9)],
                   "gyroZ" = -gyro_cal * INER[seq(9, n, 9)])
 
 
