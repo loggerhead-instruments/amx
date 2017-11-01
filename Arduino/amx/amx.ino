@@ -48,10 +48,11 @@
 Adafruit_MCP23017 mcp;
 
 // set this to the hardware serial port you wish to use
-#define HWSERIAL Serial1
+#define HWSERIAL Serial1  // Rx: 0; Tx: 1
 
 #define SPYCAM 1
 #define FLYCAM 2
+#define UCAM 3
 
 // Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
 #define MS5803_01bar 32768.0
@@ -61,20 +62,21 @@ Adafruit_MCP23017 mcp;
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
-float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
+float MS5803_constant = MS5803_30bar; //set to pressure sensor
 static boolean skipGPS = 0; //skip GPS at startup
+int logGPS = 1; // if not logging, turn off GPS after get time
 
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
-int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-int camFlag = 1;
+int camType = UCAM; // when on continuously cameras make a new file every 10 minutes
+int camFlag = 0;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
 long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
-float depthThreshold = 2.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
+float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
 //
@@ -172,10 +174,9 @@ int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd c
 double latitude, longitude;
 char latHem, lonHem;
 int goodGPS = 0;
-
 long gpsTimeout; //increments every GPRMC line read; about 1 per second
-
 int gpsYear = 0, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
+int gpsStatus = 0; // 0 = standby; 1 = awake
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -309,7 +310,7 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
-  HWSERIAL.begin(9600); //GPS
+  HWSERIAL.begin(921600); // CAM
   delay(500);
  // Wire.begin();
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
@@ -374,7 +375,7 @@ void setup() {
     }
   }
   
- // wait here to get GPS timeca
+ // wait here to get GPS time
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
@@ -1652,9 +1653,17 @@ void cam_off() {
 void checkDepthVHF(){
   if(depth < depthThreshold) {
     digitalWrite(VHF, HIGH);
+    if(logGPS & (gpsStatus==0)){
+        gpsWake();
+        gpsStatus=1;
+      }
   }
   else{
     digitalWrite(VHF, LOW);
+    if(logGPS & (gpsStatus==1)){
+      gpsSleep();
+      gpsStatus = 0;
+    }
   }
   if(printDiags) {
     Serial.print("Depth ");
