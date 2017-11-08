@@ -376,7 +376,6 @@ void setup() {
 
   
  // wait here to get GPS time
-  
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
@@ -390,29 +389,29 @@ void setup() {
    gpsSpewOff();
    waitForGPS();
 
-   SerialUSB.println();
-   SerialUSB.println("GPS Status");
+   Serial.println();
+   Serial.println("GPS Status");
    gpsStatusLogger();
    
    // if any data in GPSlogger, download it to microSD
-   SerialUSB.println();
-   SerialUSB.println("Dump GPS");
+   Serial.println();
+   Serial.println("Dump GPS");
    if(gpsDumpLogger()==1){
      // erase data if download was good
-     SerialUSB.println();
-     SerialUSB.println("Erase GPS");
+     Serial.println();
+     Serial.println("Erase GPS");
      gpsEraseLogger();
    }
 
    // start GPS logger
-   SerialUSB.println();
-   SerialUSB.println("Start logging");
+   Serial.println();
+   Serial.println("Start logging");
    gpsStartLogger();
 
-   SerialUSB.println();
-   SerialUSB.println("GPS Status");
+   Serial.println();
+   Serial.println("GPS Status");
    gpsStatusLogger();
-   SerialUSB.println();
+   Serial.println();
 
    gpsSpewOn();
    
@@ -423,7 +422,7 @@ void setup() {
      while (HWSERIAL.available() > 0) {    
       digitalWrite(ledGreen, HIGH);
       incomingByte = HWSERIAL.read();
-      SerialUSB.write(incomingByte);
+      Serial.write(incomingByte);
       gps(incomingByte);  // parse incoming GPS data
       }
     }
@@ -652,17 +651,17 @@ void loop() {
       }
       
       if(printDiags==1){
-        SerialUSB.print("FFT: ");
+        Serial.print("FFT: ");
         for (int i=50; i<66; i++){ //bin 58 = 9991.4 Hz
           float n = fft256_1.read(i);
           if( n > 0.000001) {
-            SerialUSB.print(20*log10(n));
-            SerialUSB.print(" ");
+            Serial.print(20*log10(n));
+            Serial.print(" ");
           }
           else
-            SerialUSB.print(" - ");
+            Serial.print(" - ");
         }
-        SerialUSB.println();
+        Serial.println();
       }
     }
     */
