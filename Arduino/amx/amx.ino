@@ -1507,6 +1507,7 @@ void sensorInit(){
   if(rgbFlag){
     islInit(); 
     for(int i = 0; i<10; i++){
+      delay(100);
       islRead();
       Serial.print("RGB:"); 
       Serial.print(islRed); Serial.print("\t");
