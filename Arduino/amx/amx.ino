@@ -61,7 +61,7 @@ Adafruit_MCP23017 mcp;
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to pressure sensor
-static boolean skipGPS = 0; //skip GPS at startup
+static boolean skipGPS = 1; //skip GPS at startup
 int logGPS = 1; // if not logging, turn off GPS after get time
 
 long rec_dur = 300; // seconds; default = 300s
@@ -375,15 +375,16 @@ void setup() {
   }
 
   
- // wait here to get GPS time
-  Serial.print("Acquiring GPS: ");
-  Serial.println(digitalRead(gpsState));
+
 
  ULONG newtime;
  gpsTimeout = 0;
  
 // GPS configuration
   if(!skipGPS){
+     // wait here to get GPS time
+    Serial.print("Acquiring GPS: ");
+    Serial.println(digitalRead(gpsState));
    gpsOn();
    delay(1000);
    gpsSpewOff();
@@ -393,15 +394,15 @@ void setup() {
    Serial.println("GPS Status");
    gpsStatusLogger();
    
-   // if any data in GPSlogger, download it to microSD
-   Serial.println();
-   Serial.println("Dump GPS");
-   if(gpsDumpLogger()==1){
-     // erase data if download was good
-     Serial.println();
-     Serial.println("Erase GPS");
-     gpsEraseLogger();
-   }
+//   // if any data in GPSlogger, download it to microSD
+//   Serial.println();
+//   Serial.println("Dump GPS");
+//   if(gpsDumpLogger()==1){
+//     // erase data if download was good
+//     Serial.println();
+//     Serial.println("Erase GPS");
+//     gpsEraseLogger();
+//   }
 
    // start GPS logger
    Serial.println();
@@ -1505,11 +1506,13 @@ void sensorInit(){
   // RGB
   if(rgbFlag){
     islInit(); 
-    islRead();
-    islRead();
-    Serial.print("R:"); Serial.println(islRed);
-    Serial.print("G:"); Serial.println(islGreen);
-    Serial.print("B:"); Serial.println(islBlue);
+    for(int i = 0; i<10; i++){
+      islRead();
+      Serial.print("R:"); Serial.println(islRed);
+      Serial.print("G:"); Serial.println(islGreen);
+      Serial.print("B:"); Serial.println(islBlue);
+    }
+    
   }
   
 // Pressure--auto identify which if any is present
