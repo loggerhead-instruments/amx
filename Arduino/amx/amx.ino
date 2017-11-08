@@ -14,8 +14,6 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
- * burn wire 1 & 2
- * play sound
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -347,7 +345,8 @@ void setup() {
       delay(400);
     }
   }
-  
+  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
+  LoadScript();
   sensorInit(); // initialize and test sensors
 
   pinMode(usbSense, OUTPUT);
@@ -374,9 +373,10 @@ void setup() {
       delay(500);
     }
   }
+
   
  // wait here to get GPS time
-  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
+  
   Serial.print("Acquiring GPS: ");
   Serial.println(digitalRead(gpsState));
 
@@ -423,7 +423,7 @@ void setup() {
      while (HWSERIAL.available() > 0) {    
       digitalWrite(ledGreen, HIGH);
       incomingByte = HWSERIAL.read();
-      Serial.write(incomingByte);
+      SerialUSB.write(incomingByte);
       gps(incomingByte);  // parse incoming GPS data
       }
     }
@@ -470,7 +470,7 @@ void setup() {
  
   //SdFile::dateTimeCallback(file_date_time);
 
-  LoadScript();
+  
   mpuInit(1);; // update MPU with new settings
   setupDataStructures();
 
