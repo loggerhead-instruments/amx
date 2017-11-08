@@ -1508,9 +1508,10 @@ void sensorInit(){
     islInit(); 
     for(int i = 0; i<10; i++){
       islRead();
-      Serial.print("R:"); Serial.println(islRed);
-      Serial.print("G:"); Serial.println(islGreen);
-      Serial.print("B:"); Serial.println(islBlue);
+      Serial.print("RGB:"); 
+      Serial.print(islRed); Serial.print("\t");
+      Serial.print(islGreen); Serial.print("\t");
+      Serial.println(islBlue);
     }
     
   }
