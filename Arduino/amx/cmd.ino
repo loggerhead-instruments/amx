@@ -131,6 +131,15 @@ int ProcCmd(char *pCmd)
         systemGain = lv1;
         break;
       } 
+
+      // disable GPS (so can set time manually)
+      case ('D' + ('G'<<8)):
+      {
+        sscanf(&pCmd[3],"%d",&lv1);
+        skipGPS = 1;
+        logGPS = 0;
+        break;
+      } 
       
       case ('S' + ('R'<<8)):
       {
