@@ -116,7 +116,7 @@ const int BURN = 5;
 const int ledWhite = 2;
 const int usbSense = 6;
 const int vSense = A14;  // moved to Pin 21 for X1
-const int GPS_POW = 16;
+const int VHF_POW = 16;
 const int gpsState = 15;
 const int stopButton = A10;
 
@@ -385,7 +385,7 @@ void setup() {
      // wait here to get GPS time
     Serial.print("Acquiring GPS: ");
     Serial.println(digitalRead(gpsState));
-   gpsOn();
+
    delay(1000);
    gpsSpewOff();
    waitForGPS();
@@ -567,7 +567,7 @@ void loop() {
      }
      frec.close();
      audio_power_down();
-     gpsOff(); // power down GPS and camera
+     vhfOn(); // power up VHF
       
      while(1){
         alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
@@ -1439,7 +1439,7 @@ void sensorInit(){
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
-  pinMode(GPS_POW, OUTPUT);
+  pinMode(VHF_POW, OUTPUT);
   pinMode(gpsState, INPUT);
   pinMode(BURN, OUTPUT);
   pinMode(ledWhite, OUTPUT);
@@ -1454,7 +1454,7 @@ void sensorInit(){
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  gpsOff();
+  vhfOn();
 
   Serial.println("Sensor Init");
   digitalWrite(ledWhite, LOW);
@@ -1581,12 +1581,12 @@ void sensorInit(){
   
 }
 
-void gpsOn(){
-  digitalWrite(GPS_POW, HIGH);
+void vhfOn(){
+  digitalWrite(VHF_POW, HIGH);
 }
 
-void gpsOff(){
-  digitalWrite(GPS_POW, LOW);
+void vhfOff(){
+  digitalWrite(VHF_POW, LOW);
 }
 
 
@@ -1600,7 +1600,7 @@ time_t getTeensy3Time()
 void cam_wake() {
   if(camFlag==SPYCAM){
    digitalWrite(CAM_TRIG, HIGH);  
-   digitalWrite(GPS_POW, HIGH);
+   digitalWrite(VHF_POW, HIGH);
    delay(3000);
   } 
   if(camFlag==FLYCAM){
@@ -1643,7 +1643,7 @@ void cam_stop(){
 void cam_off() {
   if(camFlag==SPYCAM){
     delay(1000); //give last file chance to close
-    digitalWrite(GPS_POW, LOW);
+    digitalWrite(VHF_POW, LOW);
     digitalWrite(CAM_TRIG, LOW); //so doesn't draw power through trigger line
   }
   else{
@@ -1657,17 +1657,11 @@ void cam_off() {
 void checkDepthVHF(){
   if(depth < depthThreshold) {
     digitalWrite(VHF, HIGH);
-    if(logGPS & (gpsStatus==0)){
-        gpsWake();
-        gpsStatus=1;
-      }
+    vhfOn();
   }
   else{
     digitalWrite(VHF, LOW);
-    if(logGPS & (gpsStatus==1)){
-      gpsSleep();
-      gpsStatus = 0;
-    }
+    vhfOff();
   }
   if(printDiags) {
     Serial.print("Depth ");
