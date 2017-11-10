@@ -167,8 +167,8 @@ void calcPressTemp(){
   float OFF = ((float) POFF * 65536.0)  + (((float) TCOFF * dT) / 128.0);
   float SENS = ((float) PSENS * 32768.0) + ((dT * (float) TCSENS) / 256.0);
 
-  pressure_mbar = ((float) D1 * SENS / 2097152.0 - OFF) / MS5803_constant / 100.0;  // mbar
-  float mbar_per_m = 1113.77;
+  pressure_mbar = ((float) D1 * SENS / 2097152.0 - OFF) / MS5803_constant / 10.0;  // mbar
+  float mbar_per_m = 111.377;
   depth = -(1010.0 -  pressure_mbar) / mbar_per_m;
   temperature = T16 / 100.0;
 
