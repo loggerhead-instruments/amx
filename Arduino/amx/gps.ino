@@ -13,6 +13,12 @@
 // turn off output
 #define PMTK_SET_NMEA_OUTPUT_OFF "$PMTK314,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0*28"
 
+// send any byte to wake from Standby
+#define PMTK_STANDBY "$PMTK161,0*28"
+#define PMTK_NORMAL "$PMTK225,0*2B"
+#define PMTK_ALWAYSLOCATE_STANDBY "$PMTK225,8*23"
+#define PMTK_ALWAYSLOCATE_BACKUP "$PMTK225,9*22"
+
 #define maxChar 256
 char gpsStream[maxChar];
 int streamPos;
@@ -168,7 +174,7 @@ void gpsStatusLogger(){
 }
 
 void gpsSleep(){
-  HWSERIAL.println("$PMTK161,0*28");
+  HWSERIAL.println(PMTK_STANDBY);
   HWSERIAL.flush();
 }
 
@@ -231,3 +237,5 @@ int gpsDumpLogger(){
    }
    return 1;
 }
+
+
