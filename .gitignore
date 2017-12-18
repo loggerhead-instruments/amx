@@ -17,3 +17,7 @@ VisualStudio/_PT
 VisualStudio/_ligh_HMS_ 0_ 5_ 0__DMY_31_12_1999.wav
 VisualStudio/setup/AMXsetup.SED
 VisualStudio/setup/setup.bat
+*.SchDocPreview
+*.PcbDocPreview
+*.Zip
+*.LOG
