@@ -34,18 +34,18 @@
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
-//#include <Adafruit_GFX.h>
-//#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h> // modify so calls i2c_t3 not Wire.h
 #include <EEPROM.h>
 #include <TimerOne.h>
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
-//
-//#define OLED_RESET 4
-//Adafruit_SSD1306 display(OLED_RESET);
-//#define BOTTOM 25
+
+#define OLED_RESET 4
+Adafruit_SSD1306 display(OLED_RESET);
+#define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
@@ -328,6 +328,11 @@ void setup() {
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Wire.setDefaultTimeout(10000);
 
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+  cDisplay();
+  display.println("Loggerhead");
+  display.display();
+
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
@@ -336,10 +341,10 @@ void setup() {
     Serial.println("Unable to access the SD card");
     
     while (1) {
-   //   cDisplay();
-   //   display.println("SD error. Restart.");
-   //   displayClock(getTeensy3Time(), BOTTOM);
-   //   display.display();
+      cDisplay();
+      display.println("SD error. Restart.");
+      displayClock(getTeensy3Time(), BOTTOM);
+      display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
       digitalWrite(ledGreen, HIGH);
@@ -367,10 +372,7 @@ void setup() {
   pinMode(usbSense, INPUT);
   delay(500);    
 
-//  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
-//  delay(100);
-//  cDisplay();
-//  display.println("Loggerhead");
+
   Serial.println("Loggerhead");
   //display.println("USB <->");
   //display.display();
