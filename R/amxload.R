@@ -12,7 +12,8 @@ library(tuneR)
 # path = "/Volumes/Dropbox/Dropbox/AMX_test/"
 
 # Windows style path
-path = "C:/w/data/humpback/wav"
+#path = "C:/w/data/humpback/wav"
+path = "C:/w/temp"
 files <- list.files(path=path, pattern="*.wav", full.names=T, recursive=FALSE)
 numfiles = length(files) / 4
 INER <- rep(NA,329850 * numfiles)  # Inertial vector
