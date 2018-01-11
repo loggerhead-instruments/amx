@@ -8,7 +8,7 @@
 //  printZero(digits);
 //  display.print(digits);
 //}
-//
+
 //void printZero(int val){
 //  if(val<10) display.print('0');
 //}
@@ -26,14 +26,14 @@ void setTeensyTime(int hr, int mn, int sc, int dy, int mh, int yr){
   Teensy3Clock.set(newtime); 
 }
   
-
+//
 //void cDisplay(){
 //    display.clearDisplay();
 //    display.setTextColor(WHITE);
 //    display.setTextSize(2);
 //    display.setCursor(0,0);
 //}
-
+//
 //void displaySettings(){
 //  //t = Teensy3Clock.get();
 //  t = getTeensy3Time();

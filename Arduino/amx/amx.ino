@@ -42,7 +42,10 @@
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
-
+//
+//#define OLED_RESET 4
+//Adafruit_SSD1306 display(OLED_RESET);
+//#define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1
@@ -59,7 +62,6 @@
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
-static boolean skipGPS = 1; //skip GPS at startup
 
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
@@ -85,7 +87,7 @@ boolean camWave = 0; // one flag to swtich all settings to use camera control an
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
-long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
+
 float depthThreshold = 2.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
@@ -128,8 +130,8 @@ const int BURN = 5;
 const int AUDIO_AMP = 2;
 const int usbSense = 6;
 const int vSense = A14;  // moved to Pin 21 for X1
-const int GPS_POW = 16;
-const int gpsState = 15;
+const int PLAY_POW = 16;
+
 const int stopButton = A10;
 
 // Pins used by audio shield
@@ -187,15 +189,6 @@ int trackNumber = 0;
 int playBackDepthExceeded = 0;
 float maxDepth;  
 int nPlayed = 0;
-
-// GPS
-double latitude, longitude;
-char latHem, lonHem;
-int goodGPS = 0;
-
-long gpsTimeout; //increments every GPRMC line read; about 1 per second
-
-int gpsYear = 0, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -343,10 +336,10 @@ void setup() {
     Serial.println("Unable to access the SD card");
     
     while (1) {
-//      cDisplay();
-//      display.println("SD error. Restart.");
-//      displayClock(getTeensy3Time(), BOTTOM);
-//      display.display();
+   //   cDisplay();
+   //   display.println("SD error. Restart.");
+   //   displayClock(getTeensy3Time(), BOTTOM);
+   //   display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
       digitalWrite(ledGreen, HIGH);
@@ -374,10 +367,10 @@ void setup() {
   pinMode(usbSense, INPUT);
   delay(500);    
 
-  //display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
-  //delay(100);
-  //cDisplay();
-  //display.println("Loggerhead");
+//  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+//  delay(100);
+//  cDisplay();
+//  display.println("Loggerhead");
   Serial.println("Loggerhead");
   //display.println("USB <->");
   //display.display();
@@ -394,87 +387,11 @@ void setup() {
     }
   }
   
- // wait here to get GPS timeca
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
-  Serial.print("Acquiring GPS: ");
-  Serial.println(digitalRead(gpsState));
 
- ULONG newtime;
- gpsTimeout = 0;
+// ULONG newtime;
  
-// GPS configuration
-  if(!skipGPS){
-   gpsOn();
-   delay(1000);
-   gpsSpewOff();
-   waitForGPS();
 
-   SerialUSB.println();
-   SerialUSB.println("GPS Status");
-   gpsStatusLogger();
-   
-   // if any data in GPSlogger, download it to microSD
-   SerialUSB.println();
-   SerialUSB.println("Dump GPS");
-   if(gpsDumpLogger()==1){
-     // erase data if download was good
-     SerialUSB.println();
-     SerialUSB.println("Erase GPS");
-     gpsEraseLogger();
-   }
-
-   // start GPS logger
-   SerialUSB.println();
-   SerialUSB.println("Start logging");
-   gpsStartLogger();
-
-   SerialUSB.println();
-   SerialUSB.println("GPS Status");
-   gpsStatusLogger();
-   SerialUSB.println();
-
-   gpsSpewOn();
-   
-   while(!goodGPS){
-     byte incomingByte;
-     digitalWrite(ledGreen, LOW);
-     if(gpsTimeout >= gpsTimeOutThreshold) break;
-     while (HWSERIAL.available() > 0) {    
-      digitalWrite(ledGreen, HIGH);
-      incomingByte = HWSERIAL.read();
-      Serial.write(incomingByte);
-      gps(incomingByte);  // parse incoming GPS data
-      }
-    }
-    
-    if(gpsTimeout <  gpsTimeOutThreshold){
-      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear + 2000);
-    } 
-
-    gpsSpewOff();
-    waitForGPS();
-  } // skip GPS
-  
-   if(printDiags > 0){
-      Serial.println(getTeensy3Time());
-      Serial.print("lat: ");
-      Serial.println(latitude,4);
-      Serial.print("lon: ");
-      Serial.println(longitude, 4);
-      Serial.print("YY-MM-DD HH:MM:SS ");
-      printTime(getTeensy3Time());
-   }
-
-   digitalWrite(ledGreen, HIGH);
-
-
-   
-//while(digitalRead(gpsState)){
-//   //gpsSleep();
-//   gpsHibernate();
-//   delay(500);
-//}
-//  Serial.println("GPS off");
 
   // Power down USB if not using Serial monitor
   if (printDiags==0){
@@ -586,7 +503,7 @@ void loop() {
      }
      frec.close();
      audio_power_down();
-     gpsOff(); // power down GPS and camera
+     playOff(); // power down playback board
       
      while(1){
         alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
@@ -1090,18 +1007,6 @@ void FileInit()
       logFile.print(',');
       logFile.print(systemGain); 
 
-      if(skipGPS==0){
-        logFile.print(',');
-        logFile.print(latitude); 
-        logFile.print(',');
-        logFile.print(latHem); 
-  
-        logFile.print(',');
-        logFile.print(longitude); 
-        logFile.print(',');
-        logFile.print(lonHem);
-      }
-
       logFile.print(',');
       logFile.print(burnLog);
       
@@ -1465,8 +1370,8 @@ void sensorInit(){
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
-  pinMode(GPS_POW, OUTPUT);
-  pinMode(gpsState, INPUT);
+  pinMode(PLAY_POW, OUTPUT);
+
   pinMode(BURN, OUTPUT);
   pinMode(AUDIO_AMP, OUTPUT);
   //pinMode(SDSW, OUTPUT);
@@ -1591,12 +1496,12 @@ void sensorInit(){
   Serial.println("Playback Off");  
 }
 
-void gpsOn(){
-  digitalWrite(GPS_POW, HIGH);
+void playOn(){
+  digitalWrite(PLAY_POW, HIGH);
 }
 
-void gpsOff(){
-  digitalWrite(GPS_POW, LOW);
+void playOff(){
+  digitalWrite(PLAY_POW, LOW);
 }
 
 

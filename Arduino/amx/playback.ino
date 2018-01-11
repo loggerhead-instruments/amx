@@ -1,11 +1,11 @@
 // Playback with Adafruit sound board
 
 void playBackOn(){
-  gpsOn();
+  playOn();
 }
 
 void playBackOff(){
-  gpsOff();
+  playOff();
 }
 
 // use saltSig (SS) as reset pin
