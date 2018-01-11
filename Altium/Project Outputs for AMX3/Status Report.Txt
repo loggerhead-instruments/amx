@@ -1,0 +1,10 @@
+Output: Generates pick and place files
+Type  : Pick Place
+From  : Variant [[No Variations]] of Project [AMX3.PrjPCB]
+   Generated File[Pick Place for AMX_v30.csv]
+
+
+Files Generated   : 1
+Documents Printed : 0
+
+Finished Output Generation At 2:02:23 PM On 1/10/2018
