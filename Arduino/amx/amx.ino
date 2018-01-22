@@ -1452,7 +1452,7 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.26; //when using 3.3 V ref R9 100K
+   float vDivider = 2.19; //when using 3.3 V ref R9 100K
    //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
