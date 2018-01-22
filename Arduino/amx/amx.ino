@@ -72,7 +72,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 int dd = 1; //display on
-long rec_dur = 300; // seconds; default = 300s
+long rec_dur = 7200; // seconds; default = 300s
 long rec_int = 0;
 
 int nPlayBackFiles = 5; // number of playback files
@@ -507,27 +507,32 @@ void loop() {
      digitalWrite(VHF, HIGH);   // VHF on
      digitalWrite(ledGreen, LOW);
      burnLog = 1;
-     if (mode == 1) stopRecording();
-     if (camFlag) {
-      cam_stop();
-      delay(100);
-     }
-     frec.close();
-     audio_power_down();
-     playOff(); // power down playback board
-      
-     while(1){
-        alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
-        Snooze.sleep(config_teensy32);
 
-        // ... asleep ...
-        for(int n = 0; n<10; n++){
-          digitalWrite(ledGreen, HIGH);
-          delay(200);
-          digitalWrite(ledGreen, LOW);
-          delay(100);
-        }
+    // if burning and voltage is low; stop recording
+     if(readVoltage() < 3.6){  
+       if (mode == 1) stopRecording();
+       if (camFlag) {
+        cam_stop();
+        delay(100);
+       }
+       frec.close();
+       audio_power_down();
+       playOff(); // power down playback board
+        
+       while(1){
+          alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
+          Snooze.sleep(config_teensy32);
+  
+          // ... asleep ...
+          for(int n = 0; n<10; n++){
+            digitalWrite(ledGreen, HIGH);
+            delay(200);
+            digitalWrite(ledGreen, LOW);
+            delay(100);
+          }
+       }
      }
+
   }
   
   // Standby mode
@@ -1447,7 +1452,7 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.13; //when using 3.3 V ref R9 100K
+   float vDivider = 2.26; //when using 3.3 V ref R9 100K
    //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
@@ -1705,7 +1710,7 @@ void cam_off() {
 }
 
 void checkDepthVHF(){
-  if(depth < depthThreshold) {
+  if((depth < depthThreshold) | burnLog==1) {
     digitalWrite(VHF, HIGH);
   }
   else{
