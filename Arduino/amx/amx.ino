@@ -94,7 +94,7 @@ float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to sa
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
 
-float depthThreshold = 2.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
+float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
 //
@@ -1157,11 +1157,22 @@ void FileInit()
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen
-    addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
-    if (pressure_sensor>0) addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-    if (rgbFlag) addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
-    addSid(4, "END", 0, 0, sensor[4], 0, 0);
+    int sidCount=0;
+    addSid(sidCount, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
+    if (pressure_sensor>0) {
+      sidCount++;
+      addSid(sidCount, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);  
+    }
+    if (rgbFlag) {
+      sidCount++;
+      addSid(sidCount, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+    }
+    if (imuFlag) {
+      sidCount++;
+      addSid(sidCount, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
+    }
+    sidCount++;
+    addSid(sidCount, "END", 0, 0, sensor[4], 0, 0);
   }
   if(printDiags > 0){
     Serial.print("Buffers: ");
@@ -1515,7 +1526,6 @@ void sensorInit(){
   playTrackNumber(1);
   delay(4000);
 
-
   // IMU
   if(imuFlag){
     mpuInit(1);
@@ -1526,9 +1536,9 @@ void sensorInit(){
       euler();
 
       Serial.print("a/g/m/t:\t");
-      Serial.print( accel_x); Serial.print("\t");
-      Serial.print( accel_y); Serial.print("\t");
-      Serial.print( accel_z); Serial.print("\t");
+      Serial.print(accel_x); Serial.print("\t");
+      Serial.print(accel_y); Serial.print("\t");
+      Serial.print(accel_z); Serial.print("\t");
       Serial.print(gyro_x); Serial.print("\t");
       Serial.print(gyro_y); Serial.print("\t");
       Serial.print(gyro_z); Serial.print("\t");
@@ -1644,7 +1654,6 @@ void sensorInit(){
 
   delay(1000);
 }
-
 
 void calcImu(){
   accel_x = (int16_t) (((int16_t)imuTempBuffer[0] << 8) | imuTempBuffer[1]);    
