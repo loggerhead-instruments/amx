@@ -17,7 +17,7 @@
  * Display: sensor init
  * Display: settings (start time, burn time, playback on, battery)
  * Audio startup for zero offset like LS1
- * 
+ * audio gain to log file
  * Cleanup commented sections
  * 
  
@@ -354,7 +354,6 @@ void setup() {
     while (1) {
       cDisplay();
       display.println("SD error");
-      displayClock(BOTTOM);
       display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
@@ -538,7 +537,7 @@ void loop() {
       if(dd){
         cDisplay();
         displaySettings();
-        displayClock(BOTTOM);
+        displayClock(BOTTOM, t);
         display.display();
       }
       
@@ -547,6 +546,8 @@ void loop() {
       }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
+        cDisplay();
+        display.display();
         
         stopTime = startTime + rec_dur;
         startTime = stopTime + rec_int;

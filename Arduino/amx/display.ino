@@ -34,9 +34,8 @@ void displaySettings(){
   if(mode==1) display.print("Running");
   display.setCursor(0, displayLine2);
   if(burnFlag){
-    display.print("Burn ");
-    display.print(burnTime / 3600);
-    display.print("h");
+    displayClock(displayLine2, burnTime);
+    display.print("*B");
   }
 
   display.setCursor(0, displayLine3);
@@ -54,8 +53,7 @@ void displayBattery(){
   display.renderBattery();
 }
 
-void displayClock(int loc){
-  t = getTeensy3Time();
+void displayClock(int loc, time_t t){
   display.setTextSize(1);
   display.setCursor(0,loc);
   display.print(year(t));
