@@ -8,14 +8,13 @@
 // Modified from PJRC audio code
 // http://www.pjrc.com/store/teensy3_audio.html
 //
-// Loggerhead AMX board is required for accelerometer, magnetometer, gyroscope, RGB light, pressure, and temperature sensors
+// Loggerhead AMX board is required for accelerometer, mageter, gyroscope, RGB light, pressure, and temperature sensors
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
  * Display: pitch, roll, yaw
- * Audio startup for zero offset like LS1
  * Cleanup commented sections
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
@@ -266,13 +265,18 @@ volatile uint8_t imuTempBuffer[20];
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
-int16_t magnetom_x;
-int16_t magnetom_y;
-int16_t magnetom_z;
+int16_t mag_x;
+int16_t mag_y;
+int16_t mag_z;
 int16_t gyro_x;
 int16_t gyro_y;
 int16_t gyro_z;
 float gyro_temp;
+int magXoffset;
+int magYoffset;
+int magZoffset;
+float pitch, roll, yaw;
+
 // RGB
 int16_t islRed;
 int16_t islBlue;
@@ -1516,22 +1520,11 @@ void sensorInit(){
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<50; i++){
+    for(int i=0; i<100; i++){
       readImu();
-      accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
-      accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
-      accel_z = (int16_t) ((int16_t)imuTempBuffer[4] << 8 | imuTempBuffer[5]);    
-      
-      gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
-     
-      gyro_x = (int16_t)  (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);   
-      gyro_y = (int16_t)  (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]); 
-      gyro_z = (int16_t)  (((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);   
-      
-      magnetom_x = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
-      magnetom_y = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);   
-      magnetom_z = (int16_t)  (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]);  
-  
+      calcImu();
+      euler();
+
       Serial.print("a/g/m/t:\t");
       Serial.print( accel_x); Serial.print("\t");
       Serial.print( accel_y); Serial.print("\t");
@@ -1539,26 +1532,35 @@ void sensorInit(){
       Serial.print(gyro_x); Serial.print("\t");
       Serial.print(gyro_y); Serial.print("\t");
       Serial.print(gyro_z); Serial.print("\t");
-      Serial.print(magnetom_x); Serial.print("\t");
-      Serial.print(magnetom_y); Serial.print("\t");
-      Serial.print(magnetom_z); Serial.print("\t");
+      Serial.print(mag_x); Serial.print("\t");
+      Serial.print(mag_y); Serial.print("\t");
+      Serial.print(mag_z); Serial.print("\t");
       Serial.println(gyro_temp);
 
       cDisplay();
       display.println("IMU Init");
-      display.print("A:");
-      display.print( accel_x); display.print(" ");
-      display.print( accel_y); display.print(" ");
-      display.println( accel_z); 
-      display.print("G:");
-      display.print(gyro_x); display.print(" ");
-      display.print(gyro_y); display.print(" ");
-      display.println(gyro_z); 
-      display.print("M:");
-      display.print(magnetom_x); display.print(" ");
-      display.print(magnetom_y); display.print(" ");
-      display.print(magnetom_z); display.print(" ");
-      display.println(gyro_temp);
+      if(i<15){
+        display.print("A:");
+        display.print( accel_x); display.print(" ");
+        display.print( accel_y); display.print(" ");
+        display.println( accel_z); 
+        display.print("G:");
+        display.print(gyro_x); display.print(" ");
+        display.print(gyro_y); display.print(" ");
+        display.println(gyro_z); 
+        display.print("M:");
+        display.print(mag_x); display.print(" ");
+        display.print(mag_y); display.print(" ");
+        display.print(mag_z); display.print(" ");
+      }
+      else{
+        display.print("P: ");
+        display.println(pitch);
+        display.print("R: ");
+        display.println(roll);
+        display.print("Y: ");
+        display.print(yaw);
+      }
       display.display();
       delay(200);
     }
@@ -1641,6 +1643,36 @@ void sensorInit(){
   Serial.println("Playback Off");  
 
   delay(1000);
+}
+
+
+void calcImu(){
+  accel_x = (int16_t) (((int16_t)imuTempBuffer[0] << 8) | imuTempBuffer[1]);    
+  accel_y = (int16_t) (((int16_t)imuTempBuffer[2] << 8) | imuTempBuffer[3]);   
+  accel_z = (int16_t) -(((int16_t)imuTempBuffer[4] << 8) | imuTempBuffer[5]);    
+
+  gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
+ 
+  gyro_x = (int16_t) (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);  
+  gyro_y = (int16_t) (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]);   
+  gyro_z = (int16_t) -(((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);  
+  
+  mag_y = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
+  mag_x = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);     
+  mag_z = (int16_t) (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]); 
+
+// NED orientation
+
+//  gyro_x = imu.gx;
+//  gyro_y = imu.gy;
+//  gyro_z = -imu.gz;
+//  accel_x = imu.ax;
+//  accel_y = imu.ay;
+//  accel_z = -imu.az;
+//  mag_x = imu.my - magYoffset;
+//  mag_y = imu.mx - magXoffset;
+//  mag_z = imu.mz - magZoffset;
+  
 }
 
 void playOn(){

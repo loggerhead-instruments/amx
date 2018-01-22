@@ -117,6 +117,12 @@ int ProcCmd(char *pCmd)
          burnFlag = 2;
          break;
       }
+
+      case ('N' + ('D'<<8)):
+      {
+        noDC = 1;
+        break;
+      }
       
       case ('R' + ('D'<<8)):
       {
