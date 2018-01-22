@@ -17,6 +17,7 @@
  * Display: pitch, roll, yaw
  * Audio startup for zero offset like LS1
  * Cleanup commented sections
+ * Log file header
  * 
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
@@ -363,6 +364,7 @@ void setup() {
   }
 
   LoadScript();
+  logFileHeader();
   sensorInit(); // initialize and test sensors
   setGain();
 
@@ -379,7 +381,6 @@ void setup() {
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
   delay(500);    
-
 
   Serial.println("Loggerhead");
   //display.println("USB <->");
@@ -1015,6 +1016,13 @@ void sdInit(){
 }
 */
 
+void logFileHeader(){
+  if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+      logFile.println("filename,ID,gain (dB),Voltage,Burn");
+      logFile.close();
+  }
+}
+
 void FileInit()
 {
    t = getTeensy3Time();
@@ -1046,11 +1054,12 @@ void FileInit()
       for(int n=0; n<8; n++){
         logFile.print(myID[n]);
       }
-      logFile.print(',');
-      logFile.print(voltage); 
-
+      
       logFile.print(',');
       logFile.print(gainDb); 
+      
+      logFile.print(',');
+      logFile.print(voltage); 
 
       logFile.print(',');
       logFile.print(burnLog);
