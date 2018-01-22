@@ -2,6 +2,74 @@
 /* DISPLAY FUNCTIONS
  *  
  */
+
+void displayOn(){
+  //display.ssd1306_command(SSD1306_DISPLAYON);
+  display.init();
+  display.setBatteryVisible(true);
+}
+
+void displayOff(){
+  display.ssd1306_command(SSD1306_DISPLAYOFF);
+}
+
+void cDisplay(){
+  display.clearDisplay();
+  readVoltage();
+  displayBattery();
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0,0);
+}
+
+void displaySettings(){
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0, displayLine1);
+  if(mode==0) {
+    display.print("Standby ");
+    display.print(startTime - t);
+    display.println("s");
+  }
+  if(mode==1) display.print("Running");
+  display.setCursor(0, displayLine2);
+  if(burnFlag){
+    display.print("Burn ");
+    display.print(burnTime / 3600);
+    display.print("h");
+  }
+
+  display.setCursor(0, displayLine3);
+  display.print("Rec ");
+  display.print(rec_dur);
+  display.print("s");
+  display.print("  Sleep ");
+  display.print(rec_int);
+  display.println("s");
+}
+
+void displayBattery(){
+  float voltage = readVoltage();
+  display.setBattery(voltage);
+  display.renderBattery();
+}
+
+void displayClock(int loc){
+  t = getTeensy3Time();
+  display.setTextSize(1);
+  display.setCursor(0,loc);
+  display.print(year(t));
+  display.print('-');
+  display.print(month(t));
+  display.print('-');
+  display.print(day(t));
+  display.print("  ");
+  printZero(hour(t));
+  display.print(hour(t));
+  printDigits(minute(t));
+  printDigits(second(t));
+}
+
 void printDigits(int digits){
   // utility function for digital clock display: prints preceding colon and leading 0
   display.print(":");
@@ -10,8 +78,21 @@ void printDigits(int digits){
 }
 
 void printZero(int val){
-  if(val<10) display.print('0');
+  if(val<10) display.print("0");
 }
+
+
+// 
+//void printDigits(int digits){
+//  // utility function for digital clock display: prints preceding colon and leading 0
+//  display.print(":");
+//  printZero(digits);
+//  display.print(digits);
+//}
+//
+//void printZero(int val){
+//  if(val<10) display.print('0');
+//}
 
 void setTeensyTime(int hr, int mn, int sc, int dy, int mh, int yr){
   tmElements_t tm;
@@ -25,60 +106,7 @@ void setTeensyTime(int hr, int mn, int sc, int dy, int mh, int yr){
   newtime = makeTime(tm); 
   Teensy3Clock.set(newtime); 
 }
-  
-
-void cDisplay(){
-    display.clearDisplay();
-    display.setTextColor(WHITE);
-    display.setTextSize(2);
-    display.setCursor(0,0);
-}
-
-void displaySettings(){
-  //t = Teensy3Clock.get();
-  t = getTeensy3Time();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 18);
-  display.print("Mode:");
-  if (recMode==MODE_NORMAL) display.println("Normal");
-  if (recMode==MODE_DIEL) {
-    display.println("Diel");
-  }
-  display.print("Rec:");
-  display.print(rec_dur);
-  display.println("s");
-  display.print("Sleep:");
-  display.print(rec_int);
-  display.println("s");
-  if (recMode==MODE_DIEL) {
-    display.print("Active: ");
-    printZero(startHour);
-    display.print(startHour);
-    printDigits(startMinute);
-    display.print("-");
-    printZero(endHour);
-    display.print(endHour);
-    printDigits(endMinute);
-    display.println();
-  }
-}
-
-void displayClock(time_t t, int loc){
-  display.setTextSize(1);
-  display.setCursor(0,loc);
-  display.print(year(t));
-  display.print('-');
-  display.print(month(t));
-  display.print('-');
-  display.print(day(t));
-  display.print("  ");
-  printZero(hour());
-  display.print(hour(t));
-  printDigits(minute(t));
-  printDigits(second(t));
-}
-
+ 
 void printTime(time_t t){
   Serial.print(year(t));
   Serial.print('-');

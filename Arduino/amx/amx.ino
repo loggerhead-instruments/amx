@@ -14,6 +14,11 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
+ * Display: sensor init
+ * Display: settings (start time, burn time, playback on, battery)
+ * Cleanup commented sections
+ * 
+ 
  * burn wire 1 & 2
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
@@ -24,7 +29,6 @@
  * Disable USB in setup
 */
 
-//#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
 //#include <Wire.h>
@@ -36,6 +40,7 @@
 #include <TimeLib.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h> // modify so calls i2c_t3 not Wire.h
+#include <Adafruit_FeatherOLED.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
 
@@ -44,7 +49,12 @@
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
 #define OLED_RESET 4
-Adafruit_SSD1306 display(OLED_RESET);
+
+#define displayLine1 0
+#define displayLine2 8
+#define displayLine3 16
+#define displayLine4 25
+Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 #define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
@@ -62,7 +72,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
-
+int dd = 1; //display on
 long rec_dur = 300; // seconds; default = 300s
 long rec_int = 0;
 
@@ -119,20 +129,19 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 const int myInput = AUDIO_INPUT_LINEIN;
 
 // Pin Assignments
-const int CAM_TRIG = 4;
-const int hydroPowPin = 21;
-const int VHF = 8;
-const int displayPow = 20;
-const int SALT = A11;
-const int saltSIG = 3;
-const int ledGreen = 17;
-const int BURN = 5;
-const int AUDIO_AMP = 2;
-const int usbSense = 6;
-const int vSense = A14;  // moved to Pin 21 for X1
-const int PLAY_POW = 16;
-
-const int stopButton = A10;
+#define CAM_TRIG 4
+#define hydroPowPin 21
+#define VHF 8
+#define displayPow 20
+#define SALT A11
+#define saltSIG 3
+#define ledGreen 17
+#define BURN 5
+#define AUDIO_AMP 2
+#define usbSense 6
+#define vSense A14  // moved to Pin 21 for X1
+#define PLAY_POW 16
+#define STOP 20
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -328,7 +337,7 @@ void setup() {
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Wire.setDefaultTimeout(10000);
 
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
+  displayOn();
   cDisplay();
   display.println("Loggerhead");
   display.display();
@@ -342,8 +351,8 @@ void setup() {
     
     while (1) {
       cDisplay();
-      display.println("SD error. Restart.");
-      displayClock(getTeensy3Time(), BOTTOM);
+      display.println("SD error");
+      displayClock(BOTTOM);
       display.display();
       for (int flashMe=0; flashMe<3; flashMe++){
       delay(100);
@@ -524,6 +533,13 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
+      if(dd){
+        cDisplay();
+        displaySettings();
+        displayClock(BOTTOM);
+        display.display();
+      }
+      
       if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
@@ -543,23 +559,46 @@ void loop() {
 
         //convert pressure and temperature for first reading
         updateTemp();
-        
-//        cDisplay();
-//        display.println("Rec");
-//        display.setTextSize(1);
-//        display.print("Stop Time: ");
-//        displayClock(stopTime, 30);
-//        display.display();
+        displayOff();
 
         mode = 1;
         startRecording();
       }
+      delay(100);
   }
 
 
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
+
+    // Check if stop button pressed
+    if(digitalRead(STOP)==0){
+      delay(10); // simple deBounce
+      if(digitalRead(STOP)==0){
+        stopRecording();
+        digitalWrite(ledGreen, HIGH);
+        if(dd){
+          displayOn();
+          delay(1000);
+          cDisplay();
+          display.println("Stopped");
+          display.println();
+          display.print("Safe to turn off");
+          display.display();
+        }
+        delay(58000); // if don't power off in 60s, restart
+        if(dd){
+          cDisplay();
+          display.print("Restarting");
+          display.display();
+          delay(2000);
+          displayOff();
+        }
+        FileInit();
+        digitalWrite(ledGreen, LOW);
+      }
+    }
 
     // check for acoustic release signal
     // must be 10 reads of 9991.4 Hz 12 dB greater than bin 50
@@ -668,7 +707,9 @@ void loop() {
     } 
 
     checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
-      
+
+    
+    
     if(buf_count >= nbufs_per_file){       // time to stop?
       
       total_hour_recorded += (float) rec_dur / 3600.0;
@@ -743,6 +784,7 @@ void loop() {
             if (imuFlag) mpuInit(1);  //start gyro
             //sdInit();  //reinit SD because voltage can drop in hibernate
          }
+        if(dd) displayOn();
         mode = 0;
       }
     }
