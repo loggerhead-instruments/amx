@@ -14,14 +14,10 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
- * Display: sensor init
- * Display: settings (start time, burn time, playback on, battery)
+ * Display: pitch, roll, yaw
  * Audio startup for zero offset like LS1
- * audio gain to log file
  * Cleanup commented sections
  * 
- 
- * burn wire 1 & 2
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -129,6 +125,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
 const int myInput = AUDIO_INPUT_LINEIN;
+float gainDb;
 
 // Pin Assignments
 #define CAM_TRIG 4
@@ -367,6 +364,7 @@ void setup() {
 
   LoadScript();
   sensorInit(); // initialize and test sensors
+  setGain();
 
   if(printDiags > 0){
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -1052,7 +1050,7 @@ void FileInit()
       logFile.print(voltage); 
 
       logFile.print(',');
-      logFile.print(systemGain); 
+      logFile.print(gainDb); 
 
       logFile.print(',');
       logFile.print(burnLog);
@@ -1188,6 +1186,48 @@ void AudioInit(){
 // 15: 0.24 Volts p-p
   sgtl5000_1.autoVolumeDisable();
   sgtl5000_1.audioProcessorDisable();
+}
+
+void setGain(){
+    sgtl5000_1.lineInLevel(systemGain);  //default = 4
+  // CHIP_ANA_ADC_CTRL
+  // Actual measured full-scale peak-to-peak sine wave input for max signal
+  //  0: 3.12 Volts p-p
+  //  1: 2.63 Volts p-p
+  //  2: 2.22 Volts p-p
+  //  3: 1.87 Volts p-p
+  //  4: 1.58 Volts p-p (0.79 Vpeak)
+  //  5: 1.33 Volts p-p
+  //  6: 1.11 Volts p-p
+  //  7: 0.94 Volts p-p
+  //  8: 0.79 Volts p-p (+8.06 dB)
+  //  9: 0.67 Volts p-p
+  // 10: 0.56 Volts p-p
+  // 11: 0.48 Volts p-p
+  // 12: 0.40 Volts p-p
+  // 13: 0.34 Volts p-p
+  // 14: 0.29 Volts p-p
+  // 15: 0.24 Volts p-p
+  //sgtl5000_1.autoVolumeDisable();
+ // sgtl5000_1.audioProcessorDisable();
+  switch(systemGain){
+    case 0: gainDb = -20 * log10(3.12 / 2.0); break;
+    case 1: gainDb = -20 * log10(2.63 / 2.0); break;
+    case 2: gainDb = -20 * log10(2.22 / 2.0); break;
+    case 3: gainDb = -20 * log10(1.87 / 2.0); break;
+    case 4: gainDb = -20 * log10(1.58 / 2.0); break;
+    case 5: gainDb = -20 * log10(1.33 / 2.0); break;
+    case 6: gainDb = -20 * log10(1.11 / 2.0); break;
+    case 7: gainDb = -20 * log10(0.94 / 2.0); break;
+    case 8: gainDb = -20 * log10(0.79 / 2.0); break;
+    case 9: gainDb = -20 * log10(0.67 / 2.0); break;
+    case 10: gainDb = -20 * log10(0.56 / 2.0); break;
+    case 11: gainDb = -20 * log10(0.48 / 2.0); break;
+    case 12: gainDb = -20 * log10(0.40 / 2.0); break;
+    case 13: gainDb = -20 * log10(0.34 / 2.0); break;
+    case 14: gainDb = -20 * log10(0.29 / 2.0); break;
+    case 15: gainDb = -20 * log10(0.24 / 2.0); break;
+  }
 }
 
 void checkDielTime(){
