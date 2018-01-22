@@ -16,6 +16,8 @@
 /* To Do: 
  * Display: sensor init
  * Display: settings (start time, burn time, playback on, battery)
+ * Audio startup for zero offset like LS1
+ * 
  * Cleanup commented sections
  * 
  
@@ -1415,6 +1417,7 @@ void sensorInit(){
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
   pinMode(PLAY_POW, OUTPUT);
+  pinMode(STOP, INPUT);
 
   pinMode(BURN, OUTPUT);
   pinMode(AUDIO_AMP, OUTPUT);
@@ -1454,7 +1457,7 @@ void sensorInit(){
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<10; i++){
+    for(int i=0; i<50; i++){
       readImu();
       accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
       accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
@@ -1481,6 +1484,23 @@ void sensorInit(){
       Serial.print(magnetom_y); Serial.print("\t");
       Serial.print(magnetom_z); Serial.print("\t");
       Serial.println(gyro_temp);
+
+      cDisplay();
+      display.println("IMU Init");
+      display.print("A:");
+      display.print( accel_x); display.print(" ");
+      display.print( accel_y); display.print(" ");
+      display.println( accel_z); 
+      display.print("G:");
+      display.print(gyro_x); display.print(" ");
+      display.print(gyro_y); display.print(" ");
+      display.println(gyro_z); 
+      display.print("M:");
+      display.print(magnetom_x); display.print(" ");
+      display.print(magnetom_y); display.print(" ");
+      display.print(magnetom_z); display.print(" ");
+      display.println(gyro_temp);
+      display.display();
       delay(200);
     }
   }
@@ -1488,14 +1508,25 @@ void sensorInit(){
   // RGB
   if(rgbFlag){
     islInit(); 
-    islRead();
-    islRead();
-    Serial.print("R:"); Serial.println(islRed);
-    Serial.print("G:"); Serial.println(islGreen);
-    Serial.print("B:"); Serial.println(islBlue);
+    for(int x=0; x<40; x++){
+      islRead();
+      Serial.print("R:"); Serial.println(islRed);
+      Serial.print("G:"); Serial.println(islGreen);
+      Serial.print("B:"); Serial.println(islBlue);
+      cDisplay();
+      display.println("Light Init");
+      display.print("R:"); display.println(islRed);
+      display.print("G:"); display.println(islGreen);
+      display.print("B:"); display.println(islBlue);
+      display.display();
+      delay(200);
+    }
   }
   
+  
 // Pressure--auto identify which if any is present
+  cDisplay();
+  
   pressure_sensor = 0;
   // Keller
   if(kellerInit()) {
@@ -1504,14 +1535,14 @@ void sensorInit(){
     kellerConvert();
     delay(5);
     kellerRead();
-    Serial.print("Depth: "); Serial.println(depth);
-    Serial.print("Temperature: "); Serial.println(temperature);
+    display.println("Keller Pressure");
   }
 
   // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
+    display.println("MS Pressure");
     updatePress();
     delay(50);
     readPress();
@@ -1525,19 +1556,32 @@ void sensorInit(){
     delay(50);
     readTemp();
     calcPressTemp();
-    Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
-    Serial.print("Depth: "); Serial.println(depth);
-    Serial.print("Temperature: "); Serial.println(temperature);
-  }
-  if(simulateDepth) depth = 0;
 
-// battery voltage measurement
-  Serial.print("Battery: ");
-  Serial.println(readVoltage());
+  }
+  
+  Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
+  Serial.print("Depth: "); Serial.println(depth);
+  Serial.print("Temperature: "); Serial.println(temperature);
+
+  if(pressure_sensor==0) {
+    display.println("Pressure");
+    display.println("None Detected");
+  }
+  else{
+      display.print("Press:"); display.println(pressure_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+  }
+ 
+  display.display();
+  
+  if(simulateDepth) depth = 0;
 
   // playback
   playBackOff();
   Serial.println("Playback Off");  
+
+  delay(1000);
 }
 
 void playOn(){
