@@ -59,15 +59,25 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 #define SPYCAM 1
 #define FLYCAM 2
 
-// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
-#define MS5803_01bar 32768.0
-#define MS5803_30bar 819.2
+// Select which MS58xx sensor is used on board to correctly calculate pressure in mBar
+//#define MS5803_01bar 32768.0
+//#define MS5803_30bar 819.2
+
+#define MS5837_30bar
+
+#ifdef MS5837_02bar
+  #define MS58xx_constant 327680.0
+  #define pressAddress 0x76
+#endif
+#ifdef MS5837_30bar
+  #define MS58xx_constant 8192.0
+  #define pressAddress 0x76
+#endif
 
 // 
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
-float MS5803_constant = MS5803_30bar; //set to 1 bar sensor
 int dd = 1; //display on
 long rec_dur = 7200; // seconds; default = 300s
 long rec_int = 0;
