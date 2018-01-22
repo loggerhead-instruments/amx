@@ -17,8 +17,6 @@
  * Display: pitch, roll, yaw
  * Audio startup for zero offset like LS1
  * Cleanup commented sections
- * Log file header
- * 
  * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
@@ -127,6 +125,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 
 const int myInput = AUDIO_INPUT_LINEIN;
 float gainDb;
+int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 
 // Pin Assignments
 #define CAM_TRIG 4
@@ -552,6 +551,11 @@ void loop() {
         Serial.println("Record Start.");
         cDisplay();
         display.display();
+
+        if(noDC==0) {
+          audio_freeze_adc_hp(); // this will lower the DC offset voltage, and reduce noise
+          noDC = -1;
+        }
         
         stopTime = startTime + rec_dur;
         startTime = stopTime + rec_int;
@@ -1457,7 +1461,7 @@ float readVoltage(){
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
    if (vRef==1.2) analogReference(INTERNAL); //1.2V ref more stable than 3.3 according to PJRC
-   int navg = 16;
+   int navg = 32;
    for(int n = 0; n<navg; n++){
     voltage += (float) analogRead(vSense);
    }
