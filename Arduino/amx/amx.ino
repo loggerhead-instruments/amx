@@ -14,9 +14,6 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
 /* To Do: 
- * Display: pitch, roll, yaw
- * Cleanup commented sections
- * 
  * hydrophone sensitivity + gain to set sensor.cal for audio
  * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
  * 
@@ -77,7 +74,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 7200; // seconds; default = 300s
 long rec_int = 0;
@@ -134,6 +131,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 
 const int myInput = AUDIO_INPUT_LINEIN;
 float gainDb;
+float hydroCal = -180;
 int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 
 // Pin Assignments
@@ -252,7 +250,6 @@ typedef struct {
 
 HdrStruct wav_hdr;
 unsigned int rms;
-float hydroCal = -164;
 
 // Header for amx files
 DF_HEAD dfh;
@@ -442,15 +439,10 @@ void setup() {
     burnTime = t + (burnMinutes * 60);
   }
 
-  startTime = t;
-  if (printDiags > 0){
-    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
-    startTime += moduloSeconds; //move forward
-  }
-  else{
-    startTime -= startTime % 300;  //modulo to nearest 5 minutes
-    startTime += 300; //move forward
-  }
+  startTime = t + 60; // make sure have at least 1 minute
+  startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+  startTime += moduloSeconds; //move forward
+ 
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -530,6 +522,7 @@ void loop() {
        }
        frec.close();
        audio_power_down();
+       digitalWrite(hydroPowPin, LOW); //hydrophone off
        playOff(); // power down playback board
         
        while(1){
@@ -545,7 +538,6 @@ void loop() {
           }
        }
      }
-
   }
   
   // Standby mode
@@ -763,7 +755,7 @@ void loop() {
         snooze_minute = floor(ss/60);
         ss -= snooze_minute * 60;
         snooze_second = ss;
-        if( snooze_hour + snooze_minute + snooze_second >=10){
+        if((snooze_hour * 3600) + (snooze_minute * 60) + snooze_second >=10){
             digitalWrite(hydroPowPin, LOW); //hydrophone off
             if (imuFlag) mpuInit(0);  //gyro to sleep
             if (rgbFlag) islSleep(); // RGB light sensor
@@ -899,10 +891,10 @@ void setupDataStructures(void){
   strncpy(sensor[0].units[1], "Pa", STR_MAX);
   strncpy(sensor[0].units[2], "Pa", STR_MAX);
   strncpy(sensor[0].units[3], "Pa", STR_MAX);
-  sensor[0].cal[0] = -180.0; // this needs to be set based on hydrophone sensitivity + chip gain
-  sensor[0].cal[1] = -180.0;
-  sensor[0].cal[2] = -180.0;
-  sensor[0].cal[3] = -180.0;
+  sensor[0].cal[0] = gainDb + hydroCal; // this needs to be set based on hydrophone sensitivity + chip gain
+  sensor[0].cal[1] = gainDb + hydroCal;
+  sensor[0].cal[2] = gainDb + hydroCal;
+  sensor[0].cal[3] = gainDb + hydroCal;
 
   // Pressure/Temperature
   if(pressure_sensor == 1) {

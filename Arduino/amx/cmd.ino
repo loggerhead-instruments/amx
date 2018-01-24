@@ -41,6 +41,14 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+  // Hydrophone sensitivity if not default -180
+    case ('H' + ('C'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      hydroCal = lv1;
+      break;
+    }
+
     // Keller Pressure and Temperature
     case ('K' + ('P'<<8)):
     {
