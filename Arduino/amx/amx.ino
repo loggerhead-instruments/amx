@@ -79,7 +79,7 @@ int dd = 1; //display on
 long rec_dur = 7200; // seconds; default = 300s
 long rec_int = 0;
 
-int nPlayBackFiles = 5; // number of playback files
+int nPlayBackFiles = 0; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
 int longestPlayback = 30; // longest file for playback, used to power down playback board
 float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
@@ -723,7 +723,7 @@ void loop() {
       time2writeRGB = 0;
     } 
 
-    checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
+    if(nPlayBackFiles>0) checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
 
     
     
@@ -1524,15 +1524,15 @@ void sensorInit(){
   // playback
   playBackOn();
   Serial.println("Playback On");
-  delay(1000);
+  delay(100);
   playTrackNumber(1);
-  delay(4000);
+  delay(2000);
 
   // IMU
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<100; i++){
+    for(int i=0; i<50; i++){
       readImu();
       calcImu();
       euler();
@@ -1581,7 +1581,7 @@ void sensorInit(){
   // RGB
   if(rgbFlag){
     islInit(); 
-    for(int x=0; x<40; x++){
+    for(int x=0; x<30; x++){
       islRead();
       Serial.print("R:"); Serial.println(islRed);
       Serial.print("G:"); Serial.println(islGreen);
@@ -1654,7 +1654,7 @@ void sensorInit(){
   playBackOff();
   Serial.println("Playback Off");  
 
-  delay(1000);
+  delay(3000);
 }
 
 void calcImu(){

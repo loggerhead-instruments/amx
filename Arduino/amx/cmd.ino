@@ -171,7 +171,7 @@ int ProcCmd(char *pCmd)
       } 
 
 
-    //default nPlayBackFiles = 5; // number of playback files
+    //default nPlayBackFiles = 0; // number of playback files
     case ('P' + ('F'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
