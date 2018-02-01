@@ -131,6 +131,12 @@ int ProcCmd(char *pCmd)
         noDC = 1;
         break;
       }
+
+    case ('D' + ('I'<<8)):
+      {
+        printDiags = 1;
+        break;
+      }
       
       case ('R' + ('D'<<8)):
       {

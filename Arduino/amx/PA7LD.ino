@@ -42,9 +42,14 @@ void kellerRead(){
   } 
   float pressure = (float) ((uint16_t) temp[1] << 8 | (uint16_t) temp[2]);
   float milliBar = ((pressure - 16384.0) * (pAt49152 - pAt16384) / 32768.0 + pAt16384) * 1000.0;
-  depth = -(1010.0 - milliBar) / 1000.0;
+  depth = -(milliBar) / 1000.0;
   
   uint16_t tU16 = ((uint16_t) temp[3] << 8 | (uint16_t) temp[4]);
   temperature = (float) ((tU16 >> 4) - 24) * 0.05 - 50.0;
+  pressure_mbar = milliBar;
+  if(printDiags){
+    Serial.print("Keller Raw Press:");
+    Serial.println(pressure);
+  }
 }
 

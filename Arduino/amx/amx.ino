@@ -76,10 +76,10 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 //
 static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 7200; // seconds; default = 300s
+long rec_dur = 3600; // seconds; default = 3600s
 long rec_int = 0;
 
-int nPlayBackFiles = 0; // number of playback files
+int nPlayBackFiles = 5; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
 int longestPlayback = 30; // longest file for playback, used to power down playback board
 float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
@@ -1473,7 +1473,7 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.19; //when using 3.3 V ref R9 100K
+   float vDivider = 2.1; //when using 3.3 V ref R9 100K
    //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
@@ -1515,18 +1515,18 @@ void sensorInit(){
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-  delay(2000);
+  // playback
+  playBackOn();
+  Serial.println("Playback On");
+  
+  delay(3000);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
 
-  // playback
-  playBackOn();
-  Serial.println("Playback On");
-  delay(100);
   playTrackNumber(1);
-  delay(2000);
+  
 
   // IMU
   if(imuFlag){
@@ -1606,9 +1606,13 @@ void sensorInit(){
     pressure_sensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
     kellerConvert();
-    delay(5);
+    delay(20);
     kellerRead();
-    display.println("Keller Pressure");
+    delay(10);
+    kellerConvert();
+    delay(20);
+    kellerRead();
+    display.println("Press Deep");
   }
 
   // Measurement Specialties
