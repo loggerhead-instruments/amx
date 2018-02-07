@@ -6,23 +6,20 @@
 % depth calculation assumes 1 bar = 10 m
 surfacepress=1010;
 
-% %% Comment to turn off batch loading
-% PathName=uigetdir();
-% cd(PathName);
-% files=dir('*.AMX');
-% nfiles=length(files);
-%%
+%% Comment to turn off batch loading
+PathName=uigetdir();
+cd(PathName);
+files=dir('*.AMX');
+nfiles=length(files);
 
 %% Uncomment to load one file at a time using dialog box
-[FileName,PathName,FilterIndex] = uigetfile({'*.amx','AMX files (*.amx)'},'Select an AMX file');
-if isequal(FileName,0)|isequal(PathName,0)
-   return
-end
-nfiles = 1;
-files(1).name = FileName
-
-%%
-
+% [FileName,PathName,FilterIndex] = uigetfile({'*.amx','AMX files (*.amx)'},'Select an AMX file');
+% if isequal(FileName,0)|isequal(PathName,0)
+%    return
+% end
+% nfiles = 1;
+% files(1).name = FileName
+    
 cd(PathName);
 
 AUDIO=[];
@@ -43,6 +40,10 @@ for n=1:nfiles
     files(n).name % print filename
     %% Load file
     [DF_HEAD, SID_SPEC, SID_REC]=oAMX(files(n).name);
+
+    if(ans==0)
+
+    end
 
     for x=1:length(SID_REC)
         cur_sid=(SID_REC(x).nSID) + 1;
@@ -66,7 +67,6 @@ for n=1:nfiles
     end
 end
 
-% Split IMU and RGB into structure
 INER.accel.x = [IMU(1:9:end) * SID_SPEC(IMU_SID).sensor.cal(1)];
 INER.accel.y = [IMU(2:9:end) * SID_SPEC(IMU_SID).sensor.cal(2)];
 INER.accel.z = [IMU(3:9:end) * SID_SPEC(IMU_SID).sensor.cal(3)];
