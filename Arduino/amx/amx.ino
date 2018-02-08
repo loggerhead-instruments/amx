@@ -1525,7 +1525,7 @@ void sensorInit(){
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
 
-  playTrackNumber(1);
+  playTrackNumber(0);
   
 
   // IMU
