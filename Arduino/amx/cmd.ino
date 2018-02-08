@@ -4,10 +4,10 @@
 
 int ProcCmd(char *pCmd)
 {
-	short *pCV;
-	short n;
-	long lv1;
-	char s[22];
+  short *pCV;
+  short n;
+  long lv1;
+  char s[22];
         unsigned int tday;
         unsigned int tmonth;
         unsigned int tyear;
@@ -15,16 +15,16 @@ int ProcCmd(char *pCmd)
         unsigned int tmin;
         unsigned int tsec;
 
-	pCV = (short*)pCmd;
+  pCV = (short*)pCmd;
 
-	n = strlen(pCmd);
-	if(n<2) 
+  n = strlen(pCmd);
+  if(n<2) 
           return TRUE;
 
-	switch(*pCV)
-	{                     
+  switch(*pCV)
+  {                     
     // IMU
-		case ('I' + ('M'<<8)):
+    case ('I' + ('M'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
       imu_srate = lv1;
@@ -86,9 +86,9 @@ int ProcCmd(char *pCmd)
       briteFlag = 1;
     }
 
-		// Set of Real Time Clock
-		case ('T' + ('M'<<8)):
-		{
+    // Set of Real Time Clock
+    case ('T' + ('M'<<8)):
+    {
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
          setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear + 2000);
@@ -156,15 +156,6 @@ int ProcCmd(char *pCmd)
       {
         sscanf(&pCmd[3],"%d",&lv1);
         systemGain = lv1;
-        break;
-      } 
-
-      // disable GPS (so can set time manually)
-      case ('D' + ('G'<<8)):
-      {
-        sscanf(&pCmd[3],"%d",&lv1);
-        skipGPS = 1;
-        logGPS = 0;
         break;
       } 
       
@@ -242,8 +233,8 @@ int ProcCmd(char *pCmd)
       break;
     }
     
-	}	
-	return TRUE;
+  } 
+  return TRUE;
 }
 
 boolean LoadScript()
@@ -262,23 +253,23 @@ boolean LoadScript()
  if(file)
  {
    do{
-      	i = 0;
-      	s[i] = 0;
+        i = 0;
+        s[i] = 0;
         do{
             c = file.read();
-	          if(c!='\r') s[i++] = c;
+            if(c!='\r') s[i++] = c;
             if((c=='T') & (i==1)) 
             {
               TM_byte = file.position() - 1;
               comment_TM = 1;
             }
             if(i>29) break;
-	        }while(c!='\n');
-      	  s[--i] = 0;
+          }while(c!='\n');
+          s[--i] = 0;
           if(s[0] != '/' && i>1)
           {
             ProcCmd(s);
-      	  }
+          }
       }while(file.available());
       file.close();  
       
@@ -324,8 +315,5 @@ boolean LoadScript()
     file.close();
   }
   
- return 1;	
+ return 1;  
 }
-
-
-

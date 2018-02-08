@@ -1760,19 +1760,12 @@ void cam_off() {
 void checkDepthVHF(){
   if((depth < depthThreshold) | burnLog==1) {
     digitalWrite(VHF, HIGH);
-    if(logGPS & (gpsStatus==0)){
-        gpsWake();
-        gpsStatus=1;
-      }
   }
   else{
     digitalWrite(VHF, LOW);
-    if(logGPS & (gpsStatus==1)){
-      gpsSleep();
-      gpsStatus = 0;
-    }
   }
 }
+
 
 int checkSalt(){
   return analogRead(SALT);
