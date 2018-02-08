@@ -21,3 +21,4 @@ VisualStudio/setup/setup.bat
 *.PcbDocPreview
 *.Zip
 *.LOG
+*.tmp
