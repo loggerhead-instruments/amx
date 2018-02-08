@@ -21,4 +21,7 @@ VisualStudio/setup/setup.bat
 *.PcbDocPreview
 *.Zip
 *.LOG
+<<<<<<< HEAD
 *.tmp
+=======
+>>>>>>> playback

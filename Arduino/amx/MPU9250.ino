@@ -80,7 +80,7 @@ int mpuInit(boolean mode)
     // setup compass
     setup_compass();
 
-    // using FIFO mode to automatically move magnetometer readings
+    // using FIFO mode to automatically move mageter readings
     I2Cwrite(GyroAddress, 0x6A, 0x07); // reset FIFO
     I2Cwrite(GyroAddress, 0x6A, 0x60); // FIFO enabled, Master Mode enabled
 

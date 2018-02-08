@@ -41,6 +41,14 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+  // Hydrophone sensitivity if not default -180
+    case ('H' + ('C'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      hydroCal = lv1;
+      break;
+    }
+
     // Keller Pressure and Temperature
     case ('K' + ('P'<<8)):
     {
@@ -65,6 +73,13 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+    // Disable LEDs
+    case ('L' + ('D'<<8)):
+    {
+      LEDSON = 0;
+      break;
+    }
+    
     // Enable bright LED
     case ('B' + ('L'<<8)):
     {
@@ -109,6 +124,18 @@ int ProcCmd(char *pCmd)
          burnMinutes = lv1;
          burnFlag = 2;
          break;
+      }
+
+      case ('N' + ('D'<<8)):
+      {
+        noDC = 1;
+        break;
+      }
+
+    case ('D' + ('I'<<8)):
+      {
+        printDiags = 1;
+        break;
       }
       
       case ('R' + ('D'<<8)):
@@ -157,6 +184,64 @@ int ProcCmd(char *pCmd)
          Serial.println(startTime);
          break;
       } 
+
+
+    //default nPlayBackFiles = 0; // number of playback files
+    case ('P' + ('F'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      nPlayBackFiles = lv1;
+      break;
+    }
+    //default minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
+    case ('P' + ('I'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      minPlayBackInterval = lv1;
+      break;
+    }
+    //default longestPlayback = 30; // longest file for playback, used to power down playback board
+    case ('P' + ('D'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      longestPlayback = lv1;
+      break;
+    }
+    //default playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
+    case ('P' + ('T'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      playBackDepthThreshold = lv1;
+      break;
+    }
+    //default ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+    case ('P' + ('A'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      ascentDepthTrigger = lv1;
+      break;
+    }
+    //default playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
+    case ('P' + ('R'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      playBackResetDepth = lv1;
+      break;
+    }
+    //default maxPlayBacks = 20; // tag needs to come back above this depth before next playback can happen
+    case ('P' + ('M'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      maxPlayBacks = lv1;
+      break;
+    }
+    // default simulateDepth = 0
+    case ('S' + ('D'<<8)):
+    {
+      simulateDepth = 1;
+      break;
+    }
+    
 	}	
 	return TRUE;
 }
@@ -166,6 +251,7 @@ boolean LoadScript()
   char s[30];
   char c;
   short i;
+  int j = 0;
 
   File file;
   unsigned long TM_byte;
@@ -181,7 +267,7 @@ boolean LoadScript()
         do{
             c = file.read();
 	          if(c!='\r') s[i++] = c;
-            if(c=='T') 
+            if((c=='T') & (i==1)) 
             {
               TM_byte = file.position() - 1;
               comment_TM = 1;
@@ -215,6 +301,29 @@ boolean LoadScript()
    // display.println("no setup file");
     return 0;
   }
+
+  // Read simulated depth file
+  file = SD.open("depth.txt");
+  Serial.println("Depth file");
+  if(file){
+    do{
+      j = 0;
+      do{ // scan next line
+        c = file.read();
+        if(c!='\r') s[j] = c;
+        j++;
+        if(j>29) break;
+      }while(c!='\n');
+      Serial.print(c);
+      sscanf(s,"%f",&depthProfile[i]);
+      Serial.print(i); Serial.print(" ");
+      Serial.print(depthProfile[i]);
+      i++;
+      if(i==60) break;
+    }while(file.available());
+    file.close();
+  }
+  
  return 1;	
 }
 

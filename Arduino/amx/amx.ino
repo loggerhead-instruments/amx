@@ -8,22 +8,12 @@
 // Modified from PJRC audio code
 // http://www.pjrc.com/store/teensy3_audio.html
 //
-// Loggerhead AMX board is required for accelerometer, magnetometer, gyroscope, RGB light, pressure, and temperature sensors
+// Loggerhead AMX board is required for accelerometer, mageter, gyroscope, RGB light, pressure, and temperature sensors
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 
-/* To Do: 
- * 
- * hydrophone sensitivity + gain to set sensor.cal for audio
- * allow setting of gyro and accelerometer range and updatfie sidSpec calibrations
- * 
- * Power Savings:
- * All unused pins to output mode
- * Disable USB in setup
-*/
 
-//#include <SerialFlash.h>
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
 //#include <Wire.h>
@@ -33,17 +23,24 @@
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
-//#include <Adafruit_GFX.h>
-//#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h> // modify so calls i2c_t3 not Wire.h
+#include <Adafruit_FeatherOLED.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
-#include "Adafruit_MCP23017.h"
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-Adafruit_MCP23017 mcp;
+#define OLED_RESET 4
+
+#define displayLine1 0
+#define displayLine2 8
+#define displayLine3 16
+#define displayLine4 25
+Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
+#define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1  // Rx: 0; Tx: 1
@@ -52,28 +49,52 @@ Adafruit_MCP23017 mcp;
 #define FLYCAM 2
 #define UCAM 3
 
-// Select which MS5803 sensor is used on board to correctly calculate pressure in mBar
-#define MS5803_01bar 32768.0
-#define MS5803_30bar 819.2
+// Select which MS58xx sensor is used on board to correctly calculate pressure in mBar
+//#define MS5803_01bar 32768.0
+//#define MS5803_30bar 819.2
+
+#define MS5837_30bar
+
+#ifdef MS5837_02bar
+  #define MS58xx_constant 327680.0
+  #define pressAddress 0x76
+#endif
+#ifdef MS5837_30bar
+  #define MS58xx_constant 8192.0
+  #define pressAddress 0x76
+#endif
 
 // 
 // Dev settings
 //
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
-float MS5803_constant = MS5803_30bar; //set to pressure sensor
-static boolean skipGPS = 1; //skip GPS at startup
-int logGPS = 1; // if not logging, turn off GPS after get time
-
-long rec_dur = 300; // seconds; default = 300s
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+int dd = 1; //display on
+long rec_dur = 3600; // seconds; default = 3600s
 long rec_int = 0;
-int camType = UCAM; // when on continuously cameras make a new file every 10 minutes
+
+int nPlayBackFiles = 5; // number of playback files
+int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
+int longestPlayback = 30; // longest file for playback, used to power down playback board
+float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
+float ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
+float playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
+int maxPlayBacks = 20; // maximum number of times to play
+
+int simulateDepth = 0;
+float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 40.0, 11.0, 5.0, 2.0, 0.0, 50.0, 2.0, 4.0,
+                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 60.0, 2.0, 4.0,
+                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 70.0, 2.0, 4.0}; //simulated depth profile; one value per minute
+
+
+int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
+
 int camFlag = 0;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
 
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
-long gpsTimeOutThreshold = 60 * 15; //if longer then 15 minutes at start without GPS time, just start
+
 float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
 //
@@ -103,22 +124,24 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
 const int myInput = AUDIO_INPUT_LINEIN;
+float gainDb;
+float hydroCal = -180;
+int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 
 // Pin Assignments
-const int CAM_TRIG = 4;
-const int hydroPowPin = 21;
-const int VHF = 8;
-const int displayPow = 20;
-const int SALT = A11;
-const int saltSIG = 3;
-const int ledGreen = 17;
-const int BURN = 5;
-const int ledWhite = 2;
-const int usbSense = 6;
-const int vSense = A14;  // moved to Pin 21 for X1
-const int GPS_POW = 16;
-const int gpsState = 15;
-const int stopButton = A10;
+#define CAM_TRIG 4
+#define hydroPowPin 21
+#define VHF 8
+#define displayPow 20
+#define SALT A11
+#define saltSIG 3
+#define ledGreen 17
+#define BURN 5
+#define AUDIO_AMP 2
+#define usbSense 6
+#define vSense A14  // moved to Pin 21 for X1
+#define PLAY_POW 16
+#define STOP 20
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -142,6 +165,7 @@ time_t startTime;
 time_t stopTime;
 time_t t;
 time_t burnTime;
+time_t playTime;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
@@ -168,13 +192,13 @@ int toneBin = 58; // tone signal bin
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
-// GPS
-double latitude, longitude;
-char latHem, lonHem;
-int goodGPS = 0;
-long gpsTimeout; //increments every GPRMC line read; about 1 per second
-int gpsYear = 0, gpsMonth = 1, gpsDay = 1, gpsHour = 0, gpsMinute = 0, gpsSecond = 0;
-int gpsStatus = 0; // 0 = standby; 1 = awake
+
+// Playback
+int playNow = 0;
+int trackNumber = 0;
+int playBackDepthExceeded = 0;
+float maxDepth;  
+int nPlayed = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -221,7 +245,6 @@ typedef struct {
 
 HdrStruct wav_hdr;
 unsigned int rms;
-float hydroCal = -164;
 
 // Header for amx files
 DF_HEAD dfh;
@@ -244,13 +267,18 @@ volatile uint8_t imuTempBuffer[20];
 int16_t accel_x;
 int16_t accel_y;
 int16_t accel_z;
-int16_t magnetom_x;
-int16_t magnetom_y;
-int16_t magnetom_z;
+int16_t mag_x;
+int16_t mag_y;
+int16_t mag_z;
 int16_t gyro_x;
 int16_t gyro_y;
 int16_t gyro_z;
 float gyro_temp;
+int magXoffset;
+int magYoffset;
+int magZoffset;
+float pitch, roll, yaw;
+
 // RGB
 int16_t islRed;
 int16_t islBlue;
@@ -308,11 +336,44 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
-  HWSERIAL.begin(921600); // CAM
+  HWSERIAL.begin(9600); //playback
+
   delay(500);
  // Wire.begin();
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
   Wire.setDefaultTimeout(10000);
+
+  displayOn();
+  cDisplay();
+  display.println("Loggerhead");
+  display.display();
+
+  // Initialize the SD card
+  SPI.setMOSI(7);
+  SPI.setSCK(14);
+  if (!(SD.begin(10))) {
+    // stop here if no SD card, but print a message
+    Serial.println("Unable to access the SD card");
+    
+    while (1) {
+      cDisplay();
+      display.println("SD error");
+      display.display();
+      for (int flashMe=0; flashMe<3; flashMe++){
+      delay(100);
+      digitalWrite(ledGreen, HIGH);
+      delay(100);
+      digitalWrite(ledGreen, LOW);
+      }
+      delay(400);
+    }
+  }
+
+  LoadScript();
+  logFileHeader();
+
+  sensorInit(); // initialize and test sensors
+  setGain();
 
   if(printDiags > 0){
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -323,41 +384,11 @@ void setup() {
       }
    }
 
-   delay(1000);
-  // Initialize the SD card
-  SPI.setMOSI(7);
-  SPI.setSCK(14);
-  if (!(SD.begin(10))) {
-    // stop here if no SD card, but print a message
-    Serial.println("Unable to access the SD card");
-    
-    while (1) {
-//      cDisplay();
-//      display.println("SD error. Restart.");
-//      displayClock(getTeensy3Time(), BOTTOM);
-//      display.display();
-      for (int flashMe=0; flashMe<3; flashMe++){
-      delay(100);
-      digitalWrite(ledGreen, HIGH);
-      delay(100);
-      digitalWrite(ledGreen, LOW);
-      }
-      delay(400);
-    }
-  }
-  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
-  LoadScript();
-  sensorInit(); // initialize and test sensors
-
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
   delay(500);    
 
-  //display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  //initialize display
-  //delay(100);
-  //cDisplay();
-  //display.println("Loggerhead");
   Serial.println("Loggerhead");
   //display.println("USB <->");
   //display.display();
@@ -375,88 +406,11 @@ void setup() {
   }
 
   
+  setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
 
 
- ULONG newtime;
- gpsTimeout = 0;
+// ULONG newtime;
  
-// GPS configuration
-  if(!skipGPS){
-     // wait here to get GPS time
-    Serial.print("Acquiring GPS: ");
-    Serial.println(digitalRead(gpsState));
-   gpsOn();
-   delay(1000);
-   gpsSpewOff();
-   waitForGPS();
-
-   Serial.println();
-   Serial.println("GPS Status");
-   gpsStatusLogger();
-   
-//   // if any data in GPSlogger, download it to microSD
-//   Serial.println();
-//   Serial.println("Dump GPS");
-//   if(gpsDumpLogger()==1){
-//     // erase data if download was good
-//     Serial.println();
-//     Serial.println("Erase GPS");
-//     gpsEraseLogger();
-//   }
-
-   // start GPS logger
-   Serial.println();
-   Serial.println("Start logging");
-   gpsStartLogger();
-
-   Serial.println();
-   Serial.println("GPS Status");
-   gpsStatusLogger();
-   Serial.println();
-
-   gpsSpewOn();
-   
-   while(!goodGPS){
-     byte incomingByte;
-     digitalWrite(ledGreen, LOW);
-     if(gpsTimeout >= gpsTimeOutThreshold) break;
-     while (HWSERIAL.available() > 0) {    
-      digitalWrite(ledGreen, HIGH);
-      incomingByte = HWSERIAL.read();
-      Serial.write(incomingByte);
-      gps(incomingByte);  // parse incoming GPS data
-      }
-    }
-    
-    if(gpsTimeout <  gpsTimeOutThreshold){
-      setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear + 2000);
-    } 
-
-    gpsSpewOff();
-    waitForGPS();
-  } // skip GPS
-  
-   if(printDiags > 0){
-      Serial.println(getTeensy3Time());
-      Serial.print("lat: ");
-      Serial.println(latitude,4);
-      Serial.print("lon: ");
-      Serial.println(longitude, 4);
-      Serial.print("YY-MM-DD HH:MM:SS ");
-      printTime(getTeensy3Time());
-   }
-
-   digitalWrite(ledGreen, HIGH);
-
-
-   
-//while(digitalRead(gpsState)){
-//   //gpsSleep();
-//   gpsHibernate();
-//   delay(500);
-//}
-//  Serial.println("GPS off");
-
   // Power down USB if not using Serial monitor
   if (printDiags==0){
     //  usbDisable();
@@ -482,15 +436,10 @@ void setup() {
     burnTime = t + (burnMinutes * 60);
   }
 
-  startTime = t;
-  if (printDiags > 0){
-    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
-    startTime += moduloSeconds; //move forward
-  }
-  else{
-    startTime -= startTime % 300;  //modulo to nearest 5 minutes
-    startTime += 300; //move forward
-  }
+  startTime = t + 60; // make sure have at least 1 minute
+  startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+  startTime += moduloSeconds; //move forward
+ 
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -560,37 +509,56 @@ void loop() {
      digitalWrite(VHF, HIGH);   // VHF on
      digitalWrite(ledGreen, LOW);
      burnLog = 1;
-     if (mode == 1) stopRecording();
-     if (camFlag) {
-      cam_stop();
-      delay(100);
-     }
-     frec.close();
-     audio_power_down();
-     gpsOff(); // power down GPS and camera
-      
-     while(1){
-        alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
-        Snooze.sleep(config_teensy32);
 
-        // ... asleep ...
-        for(int n = 0; n<10; n++){
-          digitalWrite(ledGreen, HIGH);
-          delay(200);
-          digitalWrite(ledGreen, LOW);
-          delay(100);
-        }
+    // if burning and voltage is low; stop recording
+     if(readVoltage() < 3.6){  
+       if (mode == 1) stopRecording();
+       if (camFlag) {
+        cam_stop();
+        delay(100);
+       }
+       frec.close();
+       audio_power_down();
+       digitalWrite(hydroPowPin, LOW); //hydrophone off
+       playOff(); // power down playback board
+        
+       while(1){
+          alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
+          Snooze.sleep(config_teensy32);
+  
+          // ... asleep ...
+          for(int n = 0; n<10; n++){
+            digitalWrite(ledGreen, HIGH);
+            delay(200);
+            digitalWrite(ledGreen, LOW);
+            delay(100);
+          }
+       }
      }
   }
   
   // Standby mode
   if(mode == 0)
   {
+      if(dd){
+        cDisplay();
+        displaySettings();
+        displayClock(BOTTOM, t);
+        display.display();
+      }
+      
       if((t >= startTime - 4) & CAMON==1 & (camType==SPYCAM)){ //start camera 4 seconds before to give a chance to get going
         if (camFlag)  cam_start();
       }
       if(t >= startTime){      // time to start?
         Serial.println("Record Start.");
+        cDisplay();
+        display.display();
+
+        if(noDC==0) {
+          audio_freeze_adc_hp(); // this will lower the DC offset voltage, and reduce noise
+          noDC = -1;
+        }
         
         stopTime = startTime + rec_dur;
         startTime = stopTime + rec_int;
@@ -605,24 +573,46 @@ void loop() {
 
         //convert pressure and temperature for first reading
         updateTemp();
-        
-//        cDisplay();
-//        display.println("Rec");
-//        display.setTextSize(1);
-//        display.print("Stop Time: ");
-//        displayClock(stopTime, 30);
-//        display.display();
+        displayOff();
 
         mode = 1;
-        if (briteFlag & camFlag) digitalWrite(ledWhite, HIGH);  
         startRecording();
       }
+      delay(100);
   }
 
 
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
+
+    // Check if stop button pressed
+    if(digitalRead(STOP)==0){
+      delay(10); // simple deBounce
+      if(digitalRead(STOP)==0){
+        stopRecording();
+        digitalWrite(ledGreen, HIGH);
+        if(dd){
+          displayOn();
+          delay(1000);
+          cDisplay();
+          display.println("Stopped");
+          display.println();
+          display.print("Safe to turn off");
+          display.display();
+        }
+        delay(58000); // if don't power off in 60s, restart
+        if(dd){
+          cDisplay();
+          display.print("Restarting");
+          display.display();
+          delay(2000);
+          displayOff();
+        }
+        FileInit();
+        digitalWrite(ledGreen, LOW);
+      }
+    }
 
     // check for acoustic release signal
     // must be 10 reads of 9991.4 Hz 12 dB greater than bin 50
@@ -729,7 +719,11 @@ void loop() {
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
     } 
-      
+
+    if(nPlayBackFiles>0) checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
+
+    
+    
     if(buf_count >= nbufs_per_file){       // time to stop?
       
       total_hour_recorded += (float) rec_dur / 3600.0;
@@ -758,7 +752,7 @@ void loop() {
         snooze_minute = floor(ss/60);
         ss -= snooze_minute * 60;
         snooze_second = ss;
-        if( snooze_hour + snooze_minute + snooze_second >=10){
+        if((snooze_hour * 3600) + (snooze_minute * 60) + snooze_second >=10){
             digitalWrite(hydroPowPin, LOW); //hydrophone off
             if (imuFlag) mpuInit(0);  //gyro to sleep
             if (rgbFlag) islSleep(); // RGB light sensor
@@ -804,11 +798,13 @@ void loop() {
             if (imuFlag) mpuInit(1);  //start gyro
             //sdInit();  //reinit SD because voltage can drop in hibernate
          }
+        if(dd) displayOn();
         mode = 0;
       }
     }
   }
 }
+
 
 void startRecording() {
   Serial.println("startRecording");
@@ -892,10 +888,10 @@ void setupDataStructures(void){
   strncpy(sensor[0].units[1], "Pa", STR_MAX);
   strncpy(sensor[0].units[2], "Pa", STR_MAX);
   strncpy(sensor[0].units[3], "Pa", STR_MAX);
-  sensor[0].cal[0] = -180.0; // this needs to be set based on hydrophone sensitivity + chip gain
-  sensor[0].cal[1] = -180.0;
-  sensor[0].cal[2] = -180.0;
-  sensor[0].cal[3] = -180.0;
+  sensor[0].cal[0] = gainDb + hydroCal; // this needs to be set based on hydrophone sensitivity + chip gain
+  sensor[0].cal[1] = gainDb + hydroCal;
+  sensor[0].cal[2] = gainDb + hydroCal;
+  sensor[0].cal[3] = gainDb + hydroCal;
 
   // Pressure/Temperature
   if(pressure_sensor == 1) {
@@ -1032,6 +1028,13 @@ void sdInit(){
 }
 */
 
+void logFileHeader(){
+  if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+      logFile.println("filename,ID,gain (dB),Voltage,Burn");
+      logFile.close();
+  }
+}
+
 void FileInit()
 {
    t = getTeensy3Time();
@@ -1063,23 +1066,12 @@ void FileInit()
       for(int n=0; n<8; n++){
         logFile.print(myID[n]);
       }
+      
+      logFile.print(',');
+      logFile.print(gainDb); 
+      
       logFile.print(',');
       logFile.print(voltage); 
-
-      logFile.print(',');
-      logFile.print(systemGain); 
-
-      if(skipGPS==0){
-        logFile.print(',');
-        logFile.print(latitude); 
-        logFile.print(',');
-        logFile.print(latHem); 
-  
-        logFile.print(',');
-        logFile.print(longitude); 
-        logFile.print(',');
-        logFile.print(lonHem);
-      }
 
       logFile.print(',');
       logFile.print(burnLog);
@@ -1164,11 +1156,22 @@ void FileInit()
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen
-    addSid(0, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
-    if (pressure_sensor>0) addSid(1, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);    
-    if (rgbFlag) addSid(2, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
-    if (imuFlag) addSid(3, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
-    addSid(4, "END", 0, 0, sensor[4], 0, 0);
+    int sidCount=0;
+    addSid(sidCount, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
+    if (pressure_sensor>0) {
+      sidCount++;
+      addSid(sidCount, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);  
+    }
+    if (rgbFlag) {
+      sidCount++;
+      addSid(sidCount, "LIGHT", RAW_SID, halfbufRGB / 2, sensor[2], DFORM_SHORT, sensor_srate);
+    }
+    if (imuFlag) {
+      sidCount++;
+      addSid(sidCount, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
+    }
+    sidCount++;
+    addSid(sidCount, "END", 0, 0, sensor[4], 0, 0);
   }
   if(printDiags > 0){
     Serial.print("Buffers: ");
@@ -1215,6 +1218,48 @@ void AudioInit(){
 // 15: 0.24 Volts p-p
   sgtl5000_1.autoVolumeDisable();
   sgtl5000_1.audioProcessorDisable();
+}
+
+void setGain(){
+    sgtl5000_1.lineInLevel(systemGain);  //default = 4
+  // CHIP_ANA_ADC_CTRL
+  // Actual measured full-scale peak-to-peak sine wave input for max signal
+  //  0: 3.12 Volts p-p
+  //  1: 2.63 Volts p-p
+  //  2: 2.22 Volts p-p
+  //  3: 1.87 Volts p-p
+  //  4: 1.58 Volts p-p (0.79 Vpeak)
+  //  5: 1.33 Volts p-p
+  //  6: 1.11 Volts p-p
+  //  7: 0.94 Volts p-p
+  //  8: 0.79 Volts p-p (+8.06 dB)
+  //  9: 0.67 Volts p-p
+  // 10: 0.56 Volts p-p
+  // 11: 0.48 Volts p-p
+  // 12: 0.40 Volts p-p
+  // 13: 0.34 Volts p-p
+  // 14: 0.29 Volts p-p
+  // 15: 0.24 Volts p-p
+  //sgtl5000_1.autoVolumeDisable();
+ // sgtl5000_1.audioProcessorDisable();
+  switch(systemGain){
+    case 0: gainDb = -20 * log10(3.12 / 2.0); break;
+    case 1: gainDb = -20 * log10(2.63 / 2.0); break;
+    case 2: gainDb = -20 * log10(2.22 / 2.0); break;
+    case 3: gainDb = -20 * log10(1.87 / 2.0); break;
+    case 4: gainDb = -20 * log10(1.58 / 2.0); break;
+    case 5: gainDb = -20 * log10(1.33 / 2.0); break;
+    case 6: gainDb = -20 * log10(1.11 / 2.0); break;
+    case 7: gainDb = -20 * log10(0.94 / 2.0); break;
+    case 8: gainDb = -20 * log10(0.79 / 2.0); break;
+    case 9: gainDb = -20 * log10(0.67 / 2.0); break;
+    case 10: gainDb = -20 * log10(0.56 / 2.0); break;
+    case 11: gainDb = -20 * log10(0.48 / 2.0); break;
+    case 12: gainDb = -20 * log10(0.40 / 2.0); break;
+    case 13: gainDb = -20 * log10(0.34 / 2.0); break;
+    case 14: gainDb = -20 * log10(0.29 / 2.0); break;
+    case 15: gainDb = -20 * log10(0.24 / 2.0); break;
+  }
 }
 
 void checkDielTime(){
@@ -1304,7 +1349,12 @@ void sampleSensors(void){  //interrupt at update_rate
         kellerRead();
         kellerConvert();  // start conversion for next reading
       }
-      
+
+      if(simulateDepth) depth = depthProfile[minute(t)];
+      if(printDiags){
+        Serial.print("D:");
+        Serial.println(depth);
+      }
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
@@ -1420,12 +1470,12 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.13; //when using 3.3 V ref R9 100K
+   float vDivider = 2.1; //when using 3.3 V ref R9 100K
    //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
    if (vRef==1.2) analogReference(INTERNAL); //1.2V ref more stable than 3.3 according to PJRC
-   int navg = 16;
+   int navg = 32;
    for(int n = 0; n<navg; n++){
     voltage += (float) analogRead(vSense);
    }
@@ -1439,66 +1489,88 @@ void sensorInit(){
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
-  pinMode(GPS_POW, OUTPUT);
-  pinMode(gpsState, INPUT);
+  pinMode(PLAY_POW, OUTPUT);
+  pinMode(STOP, INPUT);
+
   pinMode(BURN, OUTPUT);
-  pinMode(ledWhite, OUTPUT);
+  pinMode(AUDIO_AMP, OUTPUT);
   //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(SALT, INPUT);
-  pinMode(saltSIG, OUTPUT);
+  pinMode(saltSIG, INPUT);
   analogReference(DEFAULT);
 
   digitalWrite(CAM_TRIG, HIGH);
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
-  gpsOff();
 
   Serial.println("Sensor Init");
-  digitalWrite(ledWhite, LOW);
+
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-  delay(2000);
+  // playback
+  playBackOn();
+  Serial.println("Playback On");
+  
+  delay(3000);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
 
+  playTrackNumber(0);
+  
+
   // IMU
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<10; i++){
+    for(int i=0; i<50; i++){
       readImu();
-      accel_x = (int16_t) ((int16_t)imuTempBuffer[0] << 8 | imuTempBuffer[1]);    
-      accel_y = (int16_t) ((int16_t)imuTempBuffer[2] << 8 | imuTempBuffer[3]);   
-      accel_z = (int16_t) ((int16_t)imuTempBuffer[4] << 8 | imuTempBuffer[5]);    
-      
-      gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
-     
-      gyro_x = (int16_t)  (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);   
-      gyro_y = (int16_t)  (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]); 
-      gyro_z = (int16_t)  (((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);   
-      
-      magnetom_x = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
-      magnetom_y = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);   
-      magnetom_z = (int16_t)  (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]);  
-  
+      calcImu();
+      euler();
+
       Serial.print("a/g/m/t:\t");
-      Serial.print( accel_x); Serial.print("\t");
-      Serial.print( accel_y); Serial.print("\t");
-      Serial.print( accel_z); Serial.print("\t");
+      Serial.print(accel_x); Serial.print("\t");
+      Serial.print(accel_y); Serial.print("\t");
+      Serial.print(accel_z); Serial.print("\t");
       Serial.print(gyro_x); Serial.print("\t");
       Serial.print(gyro_y); Serial.print("\t");
       Serial.print(gyro_z); Serial.print("\t");
-      Serial.print(magnetom_x); Serial.print("\t");
-      Serial.print(magnetom_y); Serial.print("\t");
-      Serial.print(magnetom_z); Serial.print("\t");
+      Serial.print(mag_x); Serial.print("\t");
+      Serial.print(mag_y); Serial.print("\t");
+      Serial.print(mag_z); Serial.print("\t");
       Serial.println(gyro_temp);
+
+      cDisplay();
+      display.println("IMU Init");
+      if(i<15){
+        display.print("A:");
+        display.print( accel_x); display.print(" ");
+        display.print( accel_y); display.print(" ");
+        display.println( accel_z); 
+        display.print("G:");
+        display.print(gyro_x); display.print(" ");
+        display.print(gyro_y); display.print(" ");
+        display.println(gyro_z); 
+        display.print("M:");
+        display.print(mag_x); display.print(" ");
+        display.print(mag_y); display.print(" ");
+        display.print(mag_z); display.print(" ");
+      }
+      else{
+        display.print("P: ");
+        display.println(pitch);
+        display.print("R: ");
+        display.println(roll);
+        display.print("Y: ");
+        display.print(yaw);
+      }
+      display.display();
       delay(200);
     }
   }
@@ -1506,34 +1578,45 @@ void sensorInit(){
   // RGB
   if(rgbFlag){
     islInit(); 
-    for(int i = 0; i<10; i++){
-      delay(100);
+    for(int x=0; x<30; x++){
       islRead();
-      Serial.print("RGB:"); 
-      Serial.print(islRed); Serial.print("\t");
-      Serial.print(islGreen); Serial.print("\t");
-      Serial.println(islBlue);
+      Serial.print("R:"); Serial.println(islRed);
+      Serial.print("G:"); Serial.println(islGreen);
+      Serial.print("B:"); Serial.println(islBlue);
+      cDisplay();
+      display.println("Light Init");
+      display.print("R:"); display.println(islRed);
+      display.print("G:"); display.println(islGreen);
+      display.print("B:"); display.println(islBlue);
+      display.display();
+      delay(200);
     }
-    
   }
   
+  
 // Pressure--auto identify which if any is present
+  cDisplay();
+  
   pressure_sensor = 0;
   // Keller
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
     kellerConvert();
-    delay(5);
+    delay(20);
     kellerRead();
-    Serial.print("Depth: "); Serial.println(depth);
-    Serial.print("Temperature: "); Serial.println(temperature);
+    delay(10);
+    kellerConvert();
+    delay(20);
+    kellerRead();
+    display.println("Press Deep");
   }
 
   // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
+    display.println("MS Pressure");
     updatePress();
     delay(50);
     readPress();
@@ -1547,46 +1630,69 @@ void sensorInit(){
     delay(50);
     readTemp();
     calcPressTemp();
-    Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
-    Serial.print("Depth: "); Serial.println(depth);
-    Serial.print("Temperature: "); Serial.println(temperature);
+
   }
-
-// salt switch
-  digitalWrite(saltSIG, HIGH);
-  Serial.print("Salt: ");
-  Serial.println(analogRead(SALT));
-  digitalWrite(saltSIG, LOW);
-
-// battery voltage measurement
-  Serial.print("Battery: ");
-  Serial.println(readVoltage());
-
-// playback
-  mcp.begin();
-  for(int i=0; i<14; i++){
-    mcp.pinMode(i, OUTPUT);
-    mcp.digitalWrite(i, HIGH);
-  }
-  mcp.pinMode(11, INPUT); // activity pin (low when playing)
   
-  // test playback of file 0
-  mcp.digitalWrite(0, LOW);
-  delay(200);
-  mcp.digitalWrite(0, HIGH);
+  Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
+  Serial.print("Depth: "); Serial.println(depth);
+  Serial.print("Temperature: "); Serial.println(temperature);
 
-  // GPS
-  Serial.print("GPS:");
-  Serial.println(digitalRead(gpsState));
+  if(pressure_sensor==0) {
+    display.println("Pressure");
+    display.println("None Detected");
+  }
+  else{
+      display.print("Press:"); display.println(pressure_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+  }
+ 
+  display.display();
+  
+  if(simulateDepth) depth = 0;
+
+  // playback
+  playBackOff();
+  Serial.println("Playback Off");  
+
+  delay(3000);
+}
+
+void calcImu(){
+  accel_x = (int16_t) (((int16_t)imuTempBuffer[0] << 8) | imuTempBuffer[1]);    
+  accel_y = (int16_t) (((int16_t)imuTempBuffer[2] << 8) | imuTempBuffer[3]);   
+  accel_z = (int16_t) -(((int16_t)imuTempBuffer[4] << 8) | imuTempBuffer[5]);    
+
+  gyro_temp = (int16_t) (((int16_t)imuTempBuffer[6]) << 8 | imuTempBuffer[7]);   
+ 
+  gyro_x = (int16_t) (((int16_t)imuTempBuffer[8] << 8) | imuTempBuffer[9]);  
+  gyro_y = (int16_t) (((int16_t)imuTempBuffer[10] << 8) | imuTempBuffer[11]);   
+  gyro_z = (int16_t) -(((int16_t)imuTempBuffer[12] << 8) | imuTempBuffer[13]);  
+  
+  mag_y = (int16_t)  (((int16_t)imuTempBuffer[14] << 8) | imuTempBuffer[15]);   
+  mag_x = (int16_t)  (((int16_t)imuTempBuffer[16] << 8) | imuTempBuffer[17]);     
+  mag_z = (int16_t) (((int16_t)imuTempBuffer[18] << 8) | imuTempBuffer[19]); 
+
+// NED orientation
+
+//  gyro_x = imu.gx;
+//  gyro_y = imu.gy;
+//  gyro_z = -imu.gz;
+//  accel_x = imu.ax;
+//  accel_y = imu.ay;
+//  accel_z = -imu.az;
+//  mag_x = imu.my - magYoffset;
+//  mag_y = imu.mx - magXoffset;
+//  mag_z = imu.mz - magZoffset;
   
 }
 
-void gpsOn(){
-  digitalWrite(GPS_POW, HIGH);
+void playOn(){
+  digitalWrite(PLAY_POW, HIGH);
 }
 
-void gpsOff(){
-  digitalWrite(GPS_POW, LOW);
+void playOff(){
+  digitalWrite(PLAY_POW, LOW);
 }
 
 
@@ -1600,7 +1706,6 @@ time_t getTeensy3Time()
 void cam_wake() {
   if(camFlag==SPYCAM){
    digitalWrite(CAM_TRIG, HIGH);  
-   digitalWrite(GPS_POW, HIGH);
    delay(3000);
   } 
   if(camFlag==FLYCAM){
@@ -1626,7 +1731,6 @@ void cam_start() {
 }
 
 void cam_stop(){
-  if (briteFlag) digitalWrite(ledWhite, LOW);
   if(camFlag==SPYCAM){
     digitalWrite(CAM_TRIG, LOW);
     delay(400);  // simulate  button press
@@ -1643,7 +1747,6 @@ void cam_stop(){
 void cam_off() {
   if(camFlag==SPYCAM){
     delay(1000); //give last file chance to close
-    digitalWrite(GPS_POW, LOW);
     digitalWrite(CAM_TRIG, LOW); //so doesn't draw power through trigger line
   }
   else{
@@ -1655,7 +1758,7 @@ void cam_off() {
 }
 
 void checkDepthVHF(){
-  if(depth < depthThreshold) {
+  if((depth < depthThreshold) | burnLog==1) {
     digitalWrite(VHF, HIGH);
     if(logGPS & (gpsStatus==0)){
         gpsWake();
@@ -1669,11 +1772,6 @@ void checkDepthVHF(){
       gpsStatus = 0;
     }
   }
-  if(printDiags) {
-    Serial.print("Depth ");
-    Serial.println(depth);
-  }
-  
 }
 
 int checkSalt(){
