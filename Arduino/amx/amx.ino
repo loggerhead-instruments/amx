@@ -67,9 +67,9 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 3600; // seconds; default = 3600s
+long rec_dur = 300; // seconds; default = 3600s
 long rec_int = 0;
 
 int nPlayBackFiles = 5; // number of playback files
@@ -186,9 +186,6 @@ int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sens
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
-int toneDetect = 0; // counter for detecting burn tone
-int refBin = 50; //reference signal bin
-int toneBin = 58; // tone signal bin
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
@@ -321,7 +318,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 1000;
+  dfh.Version = 2142018;
   dfh.UserID = 5555;
 
   if (camWave){
@@ -445,6 +442,7 @@ void setup() {
   if (recMode==MODE_DIEL) checkDielTime();  
   
   nbufs_per_file = (long) (rec_dur * audio_srate / 256.0);
+  
   long ss = rec_int - wakeahead;
   if (ss<0) ss=0;
   snooze_hour = floor(ss/3600);
@@ -614,48 +612,6 @@ void loop() {
       }
     }
 
-    // check for acoustic release signal
-    // must be 10 reads of 9991.4 Hz 12 dB greater than bin 50
-    // binsize = 44100/256 = 172.265625 Hz
-    // bin 50 = 8613.28
-    // bin 58 = 9991.4 Hz
-    // center of bin 58 = 10077.5
-
-    /*
-    if(fft256_1.available()){
-      float n1, n2, n3;
-      n1 = fft256_1.read(refBin);
-      n2 = fft256_1.read(toneBin);
-      if(n2 > 0.000001){
-          if(n1> 0.000001){
-            if((n2/n1) > 4) toneDetect += 1;
-          }
-          else
-          toneDetect += 1;
-      }
-      else
-      toneDetect = 0;
-      
-      if(toneDetect > 10) {
-        digitalWrite(BURN, HIGH); // burn on
-        burnLog = 2;
-      }
-      
-      if(printDiags==1){
-        Serial.print("FFT: ");
-        for (int i=50; i<66; i++){ //bin 58 = 9991.4 Hz
-          float n = fft256_1.read(i);
-          if( n > 0.000001) {
-            Serial.print(20*log10(n));
-            Serial.print(" ");
-          }
-          else
-            Serial.print(" - ");
-        }
-        Serial.println();
-      }
-    }
-    */
 //    if(printDiags){  //this is to see if code still running when queue fails change to printDiags to hide
 //      recLoopCount++;
 //      if(recLoopCount>50){
@@ -732,6 +688,8 @@ void loop() {
         if(printDiags > 0){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
+          Serial.print("Current Time: ");
+          printTime(t);
         }
         frec.close();
 
@@ -812,7 +770,7 @@ void startRecording() {
  // if (fileType) Timer1.attachInterrupt(sampleSensors);
   if (fileType) {
     slaveTimer.begin(sampleSensors, 1000000 / update_rate); 
-    //slaveTimer.priority(200);
+    slaveTimer.priority(255);
   }
   buf_count = 0;
   queue1.begin();
@@ -825,6 +783,7 @@ void continueRecording() {
     // into a 512 byte buffer.  The Arduino SD library
     // is most efficient when full 512 byte sector size
     // writes are used.
+    // one buffer is 512 bytes = 256 samples
    // if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
     if(queue1.available() >= 2) {
       buf_count += 1;
@@ -1146,18 +1105,18 @@ void FileInit()
 
    if(fileType==1){
     // write DF_HEAD
-    dfh.RecStartTime.sec = second();  
-    dfh.RecStartTime.minute = minute();  
-    dfh.RecStartTime.hour = hour();  
-    dfh.RecStartTime.day = day();  
-    dfh.RecStartTime.month = month();  
-    dfh.RecStartTime.year = (int16_t) year();  
+    dfh.RecStartTime.sec = second(t);  
+    dfh.RecStartTime.minute = minute(t);  
+    dfh.RecStartTime.hour = hour(t);  
+    dfh.RecStartTime.day = day(t);  
+    dfh.RecStartTime.month = month(t);  
+    dfh.RecStartTime.year = (int16_t) year(t);  
     dfh.RecStartTime.tzOffset = 0; //offset from GMT
     frec.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen
     int sidCount=0;
-    addSid(sidCount, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate);
+    addSid(sidCount, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate); // SID_SPEC is in samples per buffer
     if (pressure_sensor>0) {
       sidCount++;
       addSid(sidCount, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);  

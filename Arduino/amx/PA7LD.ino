@@ -47,9 +47,9 @@ void kellerRead(){
   uint16_t tU16 = ((uint16_t) temp[3] << 8 | (uint16_t) temp[4]);
   temperature = (float) ((tU16 >> 4) - 24) * 0.05 - 50.0;
   pressure_mbar = milliBar;
-  if(printDiags){
-    Serial.print("Keller Depth:");
-    Serial.println(depth);
-  }
+//  if(printDiags){
+//    Serial.print("Keller Depth:");
+//    Serial.println(depth);
+//  }
 }
 
