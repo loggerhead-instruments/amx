@@ -47,12 +47,8 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 
 #define SPYCAM 1
 #define FLYCAM 2
-#define UCAM 3
 
 // Select which MS58xx sensor is used on board to correctly calculate pressure in mBar
-//#define MS5803_01bar 32768.0
-//#define MS5803_30bar 819.2
-
 #define MS5837_30bar
 
 #ifdef MS5837_02bar
@@ -67,12 +63,12 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 300; // seconds; default = 3600s
+long rec_dur = 3600; // seconds;
 long rec_int = 0;
 
-int nPlayBackFiles = 5; // number of playback files
+int nPlayBackFiles = 0; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
 int longestPlayback = 30; // longest file for playback, used to power down playback board
 float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
