@@ -63,10 +63,12 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
+unsigned int delayStartMinutes = 0;
+unsigned int delayStartHours = 0;
 
 int nPlayBackFiles = 0; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
@@ -314,7 +316,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 2142018;
+  dfh.Version = 20180313; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -429,10 +431,13 @@ void setup() {
     burnTime = t + (burnMinutes * 60);
   }
 
-  startTime = t + 60; // make sure have at least 1 minute
-  startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
-  startTime += moduloSeconds; //move forward
- 
+  startTime = t + (60 * delayStartMinutes) + (3600 * delayStartHours);
+  if(delayStartMinutes == 0){
+    startTime = t + 60; // make sure have at least 1 minute
+    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+    startTime += moduloSeconds; //move forward
+  }
+
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
   if (recMode==MODE_DIEL) checkDielTime();  
@@ -464,6 +469,33 @@ void setup() {
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
+  for(int x = 0; x<10; x++){
+    cDisplay();
+    t = getTeensy3Time();
+    display.println("Sleep until:");
+    displayClock(14, startTime);
+    displayClock(BOTTOM, t);
+    display.display();
+    delay(1000);
+  }
+
+
+  while(time_to_first_rec > 60){
+    displayOff();
+    digitalWrite(hydroPowPin, LOW);
+    digitalWrite(ledGreen, HIGH);
+    alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+    delay(10);
+    digitalWrite(ledGreen, LOW);
+    
+    Snooze.sleep(config_teensy32);
+    /// .... sleeping ...
+    
+    t = getTeensy3Time();
+    time_to_first_rec = startTime - t;
+  }
+
+  displayOn();
 
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.

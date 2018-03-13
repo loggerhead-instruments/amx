@@ -6,7 +6,7 @@ int ProcCmd(char *pCmd)
 {
   short *pCV;
   short n;
-  long lv1;
+  long lv1, lv2;
   char s[22];
         unsigned int tday;
         unsigned int tmonth;
@@ -158,23 +158,14 @@ int ProcCmd(char *pCmd)
         systemGain = lv1;
         break;
       } 
-      
-      case ('S' + ('R'<<8)):
-      {
-        //start time
-         sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         tmElements_t NewTime;
-         NewTime.Second = tsec;
-         NewTime.Minute = tmin;
-         NewTime.Hour = thour;
-         NewTime.Day = tday;
-         NewTime.Month = tmonth;
-         NewTime.Year = tyear-2000;
-         startTime = makeTime(NewTime);
-         Serial.print("Start Record Set: ");
-         Serial.println(startTime);
-         break;
-      } 
+
+    case ('D' + ('S'<<8)):
+    {
+      sscanf(&pCmd[3],"%d:%d",&lv1, &lv2);
+      delayStartHours = lv1;
+      delayStartMinutes = lv2;
+      break;
+    }  
 
 
     //default nPlayBackFiles = 0; // number of playback files
