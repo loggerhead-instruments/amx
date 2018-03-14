@@ -487,20 +487,34 @@ void setup() {
   }
 
 
-  while(time_to_first_rec > 60){
-    displayOff();
+  if(time_to_first_rec>60){
+    // power things off
     digitalWrite(hydroPowPin, LOW);
-    digitalWrite(ledGreen, HIGH);
-    alarm.setAlarm(0, 0, 20); // sleep 20 seconds
-    delay(10);
-    digitalWrite(ledGreen, LOW);
+    audio_power_down();
+    playOff(); // power down playback board
+    mpuInit(0); // sleep MPU
+    islSleep(); // RGB light sensor
     
-    Snooze.sleep(config_teensy32);
-    /// .... sleeping ...
-    
-    t = getTeensy3Time();
-    time_to_first_rec = startTime - t;
+    while(time_to_first_rec > 60){
+      displayOff();
+      
+      digitalWrite(ledGreen, HIGH);
+      alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+      delay(10);
+      digitalWrite(ledGreen, LOW);
+      
+      Snooze.sleep(config_teensy32);
+      /// .... sleeping ...
+      
+      t = getTeensy3Time();
+      time_to_first_rec = startTime - t;
+    }
+
+    mpuInit(1); // start MPU
+    islInit();
+    audio_power_up(); // audio chip on
   }
+
 
   displayOn();
 
