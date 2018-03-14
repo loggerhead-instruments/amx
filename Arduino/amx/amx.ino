@@ -316,7 +316,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20180313; //unsigned long
+  dfh.Version = 20180314; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -431,8 +431,9 @@ void setup() {
     burnTime = t + (burnMinutes * 60);
   }
 
-  startTime = t + (60 * delayStartMinutes) + (3600 * delayStartHours);
-  if(delayStartMinutes == 0){
+  long delayStartSeconds = (60 * delayStartMinutes) + (3600 * delayStartHours);
+  startTime = t + delayStartSeconds;
+  if(delayStartSeconds == 0){
     startTime = t + 60; // make sure have at least 1 minute
     startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
     startTime += moduloSeconds; //move forward
