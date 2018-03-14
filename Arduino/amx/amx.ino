@@ -1018,7 +1018,7 @@ void sdInit(){
 
 void logFileHeader(){
   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
-      logFile.println("filename,ID,gain (dB),Voltage,Burn");
+      logFile.println("filename,ID,gain (dB),Voltage,Burn,Version");
       logFile.close();
   }
 }
@@ -1063,6 +1063,9 @@ void FileInit()
 
       logFile.print(',');
       logFile.print(burnLog);
+
+      logFile.print(',');
+      logFile.print(dfh.Version);
       
       logFile.println();
 
