@@ -282,7 +282,7 @@ int16_t islGreen;
 // Pressure/Temp
 byte Tbuff[3];
 byte Pbuff[3];
-volatile float pressure_mbar, temperature, depth;
+volatile float pressure_mbar, temperature, depth, pressureOffset_mbar;
 volatile boolean togglePress; //flag to toggle conversion of pressure and temperature
 
 //Pressure and temp calibration coefficients
@@ -316,7 +316,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20180314; //unsigned long
+  dfh.Version = 20180322; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -365,9 +365,9 @@ void setup() {
   }
 
   LoadScript();
-  logFileHeader();
-
+ 
   sensorInit(); // initialize and test sensors
+  logFileHeader();
   setGain();
 
   if(printDiags > 0){
@@ -1038,7 +1038,7 @@ void sdInit(){
 
 void logFileHeader(){
   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
-      logFile.println("filename,ID,gain (dB),Voltage,Burn,Version");
+      logFile.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
       logFile.close();
   }
 }
@@ -1083,6 +1083,9 @@ void FileInit()
 
       logFile.print(',');
       logFile.print(burnLog);
+
+      logFile.print(',');
+      logFile.print(pressureOffset_mbar);
 
       logFile.print(',');
       logFile.print(dfh.Version);
@@ -1610,56 +1613,77 @@ void sensorInit(){
   
   pressure_sensor = 0;
   // Keller
+  int nAvg = 50;
+  float pressureSum;
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
     kellerConvert();
     delay(20);
     kellerRead();
-    delay(10);
-    kellerConvert();
-    delay(20);
-    kellerRead();
-    display.println("Press Deep");
+    for(int n=0; n<nAvg; n++){
+      kellerConvert();
+      delay(20);
+      kellerRead();
+      delay(100);
+      
+      pressureSum+= pressure_mbar;
+      pressureOffset_mbar = pressureSum / n;
+
+      cDisplay();
+      display.println("Press Deep");
+      display.print("Offset mBar:"); display.println(pressureOffset_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+      display.display();
+    }
   }
 
   // Measurement Specialties
   if(pressInit()){
     pressure_sensor = 1;
     Serial.println("MS Pressure Detected");
-    display.println("MS Pressure");
     updatePress();
     delay(50);
     readPress();
     updateTemp();
     delay(50);
     readTemp();
-    updatePress();
-    delay(50);
-    readPress();
-    updateTemp();
-    delay(50);
-    readTemp();
-    calcPressTemp();
+    for(int n=0; n<nAvg; n++){
+      updatePress();
+      delay(50);
+      readPress();
+      updateTemp();
+      delay(50);
+      readTemp();
+      calcPressTemp();
+      pressureSum+= pressure_mbar;
+      pressureOffset_mbar = pressureSum / n;
+      delay(100);
 
+      cDisplay();
+      display.println("MS Pressure");
+      display.print("Offset mBar:"); display.println(pressureOffset_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+      display.display(); 
+    }
+    calcPressTemp();
+    pressureOffset_mbar = pressureOffset_mbar / nAvg;
   }
   
   Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
   Serial.print("Depth: "); Serial.println(depth);
   Serial.print("Temperature: "); Serial.println(temperature);
 
+
   if(pressure_sensor==0) {
+    cDisplay();
     display.println("Pressure");
     display.println("None Detected");
-  }
-  else{
-      display.print("Press:"); display.println(pressure_mbar);
-      display.print("Depth:"); display.println(depth);
-      display.print("Temp:"); display.println(temperature);
+    display.display();
   }
  
-  display.display();
-  
   if(simulateDepth) depth = 0;
 
   // playback

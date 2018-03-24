@@ -9,6 +9,7 @@
 #define POW2_21 2097152
 #define POW2_23 8388608
 
+#define mbar_per_m 111.377
 
 int pressInit()
 {
@@ -173,7 +174,7 @@ void calcPressTemp(){
   #endif
     
   pressure_mbar = (((float) D1 * SENS / POW2_21 ) - OFF) / MS58xx_constant / 10.0;  // mbar
-  float mbar_per_m = 111.377;
-  depth = -(1010.0 -  pressure_mbar) / mbar_per_m;
+
+  depth = (pressure_mbar - pressureOffset_mbar) / mbar_per_m;
   temperature = T16 / 100.0;
 }
