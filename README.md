@@ -3,7 +3,7 @@ AMX is an arduino-compatible audio and motion datalogger board (designed for Tee
 
 More information is at http://loggerhead.com
 
-Files:
+### Files:
 - amx: Main control and sensor recording
 - cmd.pde: Reads recording settings from a script file
 - ISL29125: RGB light sensor interface
@@ -12,19 +12,19 @@ Files:
 - rms: rms calculation
 
 
-Sensors:
+### Sensors:
 - Accelerometer, Gyroscope, Magnetometer (MPU9250)
 - Pressure/Temperature (MS5803)
 - RGB light (ISL29125)
 - Burn wire release: controls a FET switch to ground which can be used to corrode a stainless steel wire in seawater
 
-Software supports:
+### Software supports:
 - duty cycle recording
 - display
 - button input for recording setup
 - writing to microSD
 
-##Updating Firmware
+## Updating Firmware
 
 1.	Install Teensyduino from https://www.pjrc.com/teensy/td_download.html
 2.	Get latest hex file from appropriate repository
