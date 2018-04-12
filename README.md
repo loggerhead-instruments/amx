@@ -26,9 +26,10 @@ More information is at http://loggerhead.com
 
 ## Updating Firmware
 
-1.	Install Teensyduino from https://www.pjrc.com/teensy/td_download.html
+1.	Install Teensyduino from https://www.pjrc.com/teensy/loader.html
 2.	Get latest hex file from appropriate repository
 	https://github.com/loggerhead-instruments/amx/tree/master/hex
+	To save file, right click on the filename and choose 'Save link as'
 3.	Connect microUSB cable to small board on device
 4.	Run the Teensy Loader program.
 5.	From File Menu, select Open HEX File
