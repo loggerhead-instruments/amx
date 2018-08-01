@@ -63,7 +63,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
