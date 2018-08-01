@@ -455,8 +455,6 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 	AMX_TIME RecStartTime;
 	float voltage;
 	*/
-
-	//TCHAR buf[100] = _T("Test");
 	CString buf;
 	buf.Format(_T("Version: %d\n"), amx_df.Version);
 	debugFile.WriteString(buf);
@@ -479,7 +477,42 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 	{
 		bytesread = amxFile.Read(&amx_sid_spec[n], sizeof(amx_sid_spec[0]));
 
+		/*
+			char	SID[STR_MAX];
+			INT16 sidType; // 0 = raw, 1 = summary  histogram
+			INT16 NU;
+			ULONG 	nSamples;	  // Size in samples of this record (excluding header)
+			AMX_SENSOR  sensor;	  // used to encode what data are saved: bitmask bit (accel3, mag3, gyro3, press, temperature, mic)
+			ULONG	dForm;	  // short, long, or I24
+			float	srate;	  // Sample rate (Hz)
+		*/
+		/*
+			{
+				char chipName[STR_MAX]; // name of sensor e.g. MPU9250
+				INT16 nChan;            //number of channels used (e.g. MPU9250 might have 9 for accel, mag, and gyro)
+				INT16 NU;
+				char name[12][STR_MAX]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
+				char units[12][STR_MAX];// units of each channel (e.g. g, mGauss, degPerSec)
+				float cal[12];          //calibration coefficient for each channel when multiplied by this value get data in specified units
+			}AMX_SENSOR;
+		*/
 		// write SID_SPEC to file
+		buf.Format(_T("\nSID: %s\n"), CString(amx_sid_spec[n].SID));
+		debugFile.WriteString(buf);
+		buf.Format(_T("samples: %d\n"), amx_sid_spec[n].nSamples);
+		debugFile.WriteString(buf);
+		buf.Format(_T("sample rate: %f\n"), amx_sid_spec[n].srate);
+		debugFile.WriteString(buf);
+		buf.Format(_T("chip name: %s\n"), CString(amx_sid_spec[n].sensor.chipName));
+		debugFile.WriteString(buf);
+		buf.Format(_T("channels: %d\n"), amx_sid_spec[n].sensor.nChan);
+		debugFile.WriteString(buf);
+		for (int i = 0; i < amx_sid_spec[n].sensor.nChan; i++) {
+			buf.Format(_T("%s calibration: %f\n"), CString(amx_sid_spec[n].sensor.name[i]), amx_sid_spec[n].sensor.cal[i]);
+			debugFile.WriteString(buf);
+		}
+
+
 
 		speriod[n] = 1.0 / (double)amx_sid_spec[n].srate;  //for open tag SP256 is in us
 		srate[n] = amx_sid_spec[n].srate;
@@ -488,15 +521,39 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 	} while (amx_sid_spec[n - 1].nSamples != 0);
 	int numsids = n - 1;
 
+	debugFile.Close();
+	
+	if (!debugFile.Open(debugfilename + _T(".csv"), CStdioFile::modeCreate | CStdioFile::modeWrite, &e)) {
+		AfxMessageBox(TEXT("Unable to open debug output csv file."));
+		return(0);
+	}
+	buf.Format(_T("sensor,bufCount\n"));
+	debugFile.WriteString(buf);
+
 	//loop through file reading and writing in chunks
 	UINT nbytes, nsamples;
+	int previousSid = -1;
+	int sidCounter = 0;
 	do
 	{
 		bytesread = amxFile.Read(&amx_sid_rec.nSID, 4);  // Read SID_REC Header
 		bytesread = amxFile.Read(&amx_sid_rec.NU, 12);
 		n = amx_sid_rec.nSID; //easier to read
 
-		// write SID_REC Header and indicate which SID_SPEC was recorded
+		// keep track of count of sequential sid buffers to help track down dropped samples
+		if (n != previousSid) {
+			// write out previous sidCount
+			// write SID_REC Header and indicate which SID_SPEC was recorded
+			if (previousSid > -1) {
+				buf.Format(_T("%s, %d\n"), CString(amx_sid_spec[previousSid].SID), sidCounter);
+				debugFile.WriteString(buf);
+			}
+			sidCounter = 1;
+			previousSid = n;
+		}
+		else {
+			sidCounter++;
+		}
 
 		int bytesPerSample;
 		// int16
