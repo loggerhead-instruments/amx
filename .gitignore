@@ -27,3 +27,7 @@ VisualStudio/setup/setup.bat
 >>>>>>> playback
 Manual/~$UpdatingFirmware.pptx
 .DS_Store
+VisualStudio/AMX2WAV/.vs/AMX2WAV/v15/.suo
+*.db
+*.opendb
+*.ipch
