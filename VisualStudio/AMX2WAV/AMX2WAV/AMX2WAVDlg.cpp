@@ -467,7 +467,7 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 		amx_df.RecStartTime.sec);
 	debugFile.WriteString(buf);
 
-	buf.Format(_T("voltage: %d\n"), amx_df.voltage);
+	buf.Format(_T("voltage: %f\n"), amx_df.voltage);
 	debugFile.WriteString(buf);
 
 
