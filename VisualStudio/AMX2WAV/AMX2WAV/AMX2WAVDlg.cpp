@@ -527,7 +527,7 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 		AfxMessageBox(TEXT("Unable to open debug output csv file."));
 		return(0);
 	}
-	buf.Format(_T("sensor,bufCount\n"));
+	buf.Format(_T("sensor,bufCount,duration(s)\n"));
 	debugFile.WriteString(buf);
 
 	//loop through file reading and writing in chunks
@@ -545,7 +545,7 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 			// write out previous sidCount
 			// write SID_REC Header and indicate which SID_SPEC was recorded
 			if (previousSid > -1) {
-				buf.Format(_T("%s, %d\n"), CString(amx_sid_spec[previousSid].SID), sidCounter);
+				buf.Format(_T("%s,%d,%f\n"), CString(amx_sid_spec[previousSid].SID), sidCounter, sidCounter * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan/ amx_sid_spec[previousSid].srate);
 				debugFile.WriteString(buf);
 			}
 			sidCounter = 1;
