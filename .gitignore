@@ -31,3 +31,11 @@ VisualStudio/AMX2WAV/.vs/AMX2WAV/v15/.suo
 *.db
 *.opendb
 *.ipch
+*.obj
+*.pch
+*.res
+*.lastbuildstate
+*.tlog
+*.pdb
+*.iobj
+*.ipdb
