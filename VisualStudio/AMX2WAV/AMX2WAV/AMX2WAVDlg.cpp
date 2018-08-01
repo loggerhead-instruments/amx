@@ -69,6 +69,7 @@ BEGIN_MESSAGE_MAP(CAMX2WAVDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BATCH_CONVERT, &CAMX2WAVDlg::OnBnClickedBatchConvert)
+	ON_BN_CLICKED(IDC_EXPORT_DEBUG, &CAMX2WAVDlg::OnBnClickedExportDebug)
 END_MESSAGE_MAP()
 
 
@@ -355,5 +356,174 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	{
 		wavFile[n].Close();
 	}
+	return(1);
+}
+
+void CAMX2WAVDlg::OnBnClickedExportDebug()
+{
+	UpdateData(TRUE);
+	m_filename = CString("Processing Debug Info");
+	UpdateData(FALSE);
+
+	CString amxfilename, debugfilename, temppath, root, pathamx;
+	int success;
+	//launch file open dialog to get folder to read
+	CFileDialog fileDlg(TRUE, NULL, TEXT("*.amx"), NULL);
+
+	if (fileDlg.DoModal() == IDOK)
+	{
+		amxfilename = fileDlg.GetPathName();  //returns path + filename
+		int sst;
+		sst = amxfilename.ReverseFind('\\');
+		root = amxfilename.Left(sst);
+		//CString foldername("%s\\Script");	 
+	}
+
+
+	CString  wavfilenamesel("\\debug\\");
+	temppath = root + wavfilenamesel;
+	pathamx = root + _T("\\*.amx");
+	CreateDirectory(temppath, NULL);
+
+	AfxGetApp()->DoWaitCursor(1);
+	WIN32_FIND_DATA FindFileData;
+	HANDLE hFind;
+
+	hFind = FindFirstFile(pathamx.GetBuffer(), &FindFileData);
+	if (hFind == INVALID_HANDLE_VALUE)
+	{
+		m_filename = CString("Done");
+		UpdateData(FALSE);
+		AfxMessageBox(_T("Unable to find AMX files."), MB_OK, NULL);
+		return;
+	}
+
+	int fsuccess = 1;
+	while (fsuccess)
+	{
+		//m_prefix is file prefix
+		m_filename = FindFileData.cFileName;
+		UpdateData(FALSE);
+		amxfilename = root + _T("\\") + m_filename;
+		debugfilename = root + wavfilenamesel + FindFileData.cFileName + _T(".txt");
+		SaveDebugInfo(amxfilename, debugfilename);
+
+		fsuccess = FindNextFile(hFind, &FindFileData);
+	}
+	FindClose(hFind);
+	AfxGetApp()->DoWaitCursor(0);
+	m_filename = CString("Done");
+	UpdateData(FALSE);
+}
+
+int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
+{
+	// There will be a text file containing order in which records were written
+	CFile amxFile;
+	CStdioFile debugFile;
+	AMX_DF amx_df;
+	AMX_SID_REC amx_sid_rec;
+	AMX_SID_SPEC amx_sid_spec[8];
+	short data[4096];
+	float data32[4096];
+	UINT bytesread;
+
+	float speriod[7];
+	float srate[7];
+	long ptsrecorded[7];
+	CFileException e;
+
+	if (!debugFile.Open(debugfilename, CStdioFile::modeCreate | CStdioFile::modeWrite, &e)) {
+		AfxMessageBox(TEXT("Unable to open debug output file."));
+		return(0);
+	}
+	if (!amxFile.Open(amxfilename, CFile::modeRead, &e))
+	{
+		//unable to open amx file to read
+		AfxMessageBox(TEXT("Unable to open amx file."));
+		debugFile.Close();
+		return(0);
+	}
+
+	// AMX version
+	bytesread = amxFile.Read(&amx_df, sizeof(amx_df));
+
+	// write DF_HEAD to file
+	/*
+	ULONG Version; // firmware version
+	ULONG UserID;  //tag type
+	AMX_TIME RecStartTime;
+	float voltage;
+	*/
+
+	//TCHAR buf[100] = _T("Test");
+	CString buf;
+	buf.Format(_T("Version: %d\n"), amx_df.Version);
+	debugFile.WriteString(buf);
+
+	buf.Format(_T("Start Time: %04d-%02d-%02dT%02d:%02d:%02d\n"), amx_df.RecStartTime.year,
+		amx_df.RecStartTime.month, 
+		amx_df.RecStartTime.day, 
+		amx_df.RecStartTime.hour, 
+		amx_df.RecStartTime.minute, 
+		amx_df.RecStartTime.sec);
+	debugFile.WriteString(buf);
+
+	buf.Format(_T("voltage: %d\n"), amx_df.voltage);
+	debugFile.WriteString(buf);
+
+
+	//Read in SID_SPECs until get all 0's
+	int n = 0;
+	do
+	{
+		bytesread = amxFile.Read(&amx_sid_spec[n], sizeof(amx_sid_spec[0]));
+
+		// write SID_SPEC to file
+
+		speriod[n] = 1.0 / (double)amx_sid_spec[n].srate;  //for open tag SP256 is in us
+		srate[n] = amx_sid_spec[n].srate;
+		n++;
+
+	} while (amx_sid_spec[n - 1].nSamples != 0);
+	int numsids = n - 1;
+
+	//loop through file reading and writing in chunks
+	UINT nbytes, nsamples;
+	do
+	{
+		bytesread = amxFile.Read(&amx_sid_rec.nSID, 4);  // Read SID_REC Header
+		bytesread = amxFile.Read(&amx_sid_rec.NU, 12);
+		n = amx_sid_rec.nSID; //easier to read
+
+		// write SID_REC Header and indicate which SID_SPEC was recorded
+
+		int bytesPerSample;
+		// int16
+		if (amx_sid_spec[n].dForm == 2) {
+			bytesread = amxFile.Read(data, amx_sid_spec[n].nSamples * 2);
+			//byte swap IMU reads
+			if (amx_sid_spec[n].SID[0] == '3' | amx_sid_spec[n].SID[0] == 'I') {
+				for (int n = 0; n < bytesread; n++) {
+					byte hibyte = (data[n] & 0xFF00) >> 8;
+					byte lobyte = (data[n] & 0xFF);
+					data[n] = lobyte << 8 | hibyte;
+				}
+			}
+			nsamples = bytesread / 2;
+			bytesPerSample = 2;
+		}
+
+		// float32
+		if (amx_sid_spec[n].dForm == 5) {
+			bytesread = amxFile.Read(data32, amx_sid_spec[n].nSamples * 4);
+			nsamples = bytesread / 4;
+			bytesPerSample = 4;
+		}
+
+	} while (bytesread > 0);
+
+	amxFile.Close();
+	debugFile.Close();
 	return(1);
 }

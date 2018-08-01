@@ -34,6 +34,8 @@ protected:
 public:
 	afx_msg void OnBnClickedBatchConvert();
 	int SaveWave(CString amxfilename, CString wavfilename);
+	int SaveDebugInfo(CString amxfilename, CString debugfilename);
 	// dialog status text
 	CString m_filename;
+	afx_msg void OnBnClickedExportDebug();
 };
