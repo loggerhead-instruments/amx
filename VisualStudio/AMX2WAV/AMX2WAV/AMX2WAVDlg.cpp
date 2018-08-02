@@ -527,13 +527,17 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 		AfxMessageBox(TEXT("Unable to open debug output csv file."));
 		return(0);
 	}
-	buf.Format(_T("sensor,bufCount,duration(s)\n"));
+	buf.Format(_T("sensor,bufCount,duration(s),cumulative (s)\n"));
 	debugFile.WriteString(buf);
 
 	//loop through file reading and writing in chunks
 	UINT nbytes, nsamples;
 	int previousSid = -1;
 	int sidCounter = 0;
+	int cumulativeSamples[9];
+	for (int n = 0; n < 9; n++) {
+		cumulativeSamples[n] = 0;
+	}
 	do
 	{
 		bytesread = amxFile.Read(&amx_sid_rec.nSID, 4);  // Read SID_REC Header
@@ -545,7 +549,10 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 			// write out previous sidCount
 			// write SID_REC Header and indicate which SID_SPEC was recorded
 			if (previousSid > -1) {
-				buf.Format(_T("%s,%d,%f\n"), CString(amx_sid_spec[previousSid].SID), sidCounter, sidCounter * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan/ amx_sid_spec[previousSid].srate);
+				cumulativeSamples[previousSid] += sidCounter;
+				float duration = sidCounter * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan / amx_sid_spec[previousSid].srate;
+				float cumulativeDuration = cumulativeSamples[previousSid] * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan / amx_sid_spec[previousSid].srate;
+				buf.Format(_T("%s,%d,%f,%f\n"), CString(amx_sid_spec[previousSid].SID), sidCounter, duration, cumulativeDuration);
 				debugFile.WriteString(buf);
 			}
 			sidCounter = 1;
