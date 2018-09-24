@@ -223,13 +223,14 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	// There will be a wav file for each sensor with the number of channels 
 	// corresponding to the number of channels in that sensor
 	CFile amxFile, wavFile[7];
+	CStdioFile csvFile[7];
 	AMX_DF amx_df;
 	AMX_SID_REC amx_sid_rec;
 	AMX_SID_SPEC amx_sid_spec[8];
 	short data[4096];
 	float data32[4096];
 	UINT bytesread;
-	CString wavfname[7];
+	CString wavfname[7], csvfname[7];
 
 	HdrStruct wav_hdr[7];  //wav header
 	float speriod[7];
@@ -263,6 +264,18 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 		wavfname[n] = wavfilename;
 		wavfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.wav"), wavfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
 			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
+
+		csvfname[n] = wavfilename;
+		csvfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.csv"), csvfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
+			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
+
+		//open csv file for writing
+		if (!csvFile[n].Open(csvfname[n], CStdioFile::modeCreate | CStdioFile::modeWrite, &e))
+		{
+			//unable to open wav file to write
+			AfxMessageBox(TEXT("Unable to open csv file for writing"));
+			return(0);
+		}
 
 		//open wav file for writing
 		if (!wavFile[n].Open(wavfname[n], CFile::modeCreate | CFile::modeWrite, &e))
@@ -343,9 +356,31 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 			wavFile[n].SeekToEnd();
 			if (bytesPerSample == 2) {
 				wavFile[n].Write(data, bytesread);
+				CString buf;
+				for (int i = 0; i < nsamples; i+= amx_sid_spec[n].sensor.nChan) {
+					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
+						float calData;
+						if (amx_sid_spec[n].SID[0] == 'A') calData = (float) data[i + k];
+						else
+							calData = (float)data[i + k] * amx_sid_spec[n].sensor.cal[k];
+						buf.Format(_T("%f,"), calData);
+						csvFile[n].WriteString(buf);
+					}
+					buf.Format(_T("\n"));
+					csvFile[n].WriteString(buf);
+				}
 			}
 			else {
 				wavFile[n].Write(data32, bytesread);
+				CString buf;
+				for (int i = 0; i < nsamples; i += amx_sid_spec[n].sensor.nChan) {
+					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
+						buf.Format(_T("%f,"), data32[i+k]);
+						csvFile[n].WriteString(buf);
+					}
+					buf.Format(_T("\n"));
+					csvFile[n].WriteString(buf);
+				}
 			}
 
 		}
@@ -355,6 +390,7 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	for (n = 0; n < numsids; n++)
 	{
 		wavFile[n].Close();
+		csvFile[n].Close();
 	}
 	return(1);
 }
