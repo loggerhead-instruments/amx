@@ -19,10 +19,12 @@ VisualStudio/setup/AMXsetup.SED
 VisualStudio/setup/setup.bat
 *.SchDocPreview
 *.PcbDocPreview
-*.Zip
 *.LOG
 <<<<<<< HEAD
 *.tmp
+*PrjPCB.Zip
+*SchDoc.Zip
+*PcbDoc.Zip
 =======
 >>>>>>> playback
 Manual/~$UpdatingFirmware.pptx
