@@ -316,7 +316,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20180322; //unsigned long
+  dfh.Version = 20190129; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -810,6 +810,7 @@ void loop() {
       }
     }
   }
+  asm("wfi"); // reduce power between interrupts
 }
 
 
