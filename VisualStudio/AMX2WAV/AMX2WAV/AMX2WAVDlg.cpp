@@ -69,6 +69,7 @@ BEGIN_MESSAGE_MAP(CAMX2WAVDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BATCH_CONVERT, &CAMX2WAVDlg::OnBnClickedBatchConvert)
+	ON_BN_CLICKED(IDC_EXPORT_DEBUG, &CAMX2WAVDlg::OnBnClickedExportDebug)
 END_MESSAGE_MAP()
 
 
@@ -222,13 +223,14 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	// There will be a wav file for each sensor with the number of channels 
 	// corresponding to the number of channels in that sensor
 	CFile amxFile, wavFile[7];
+	CStdioFile csvFile[7];
 	AMX_DF amx_df;
 	AMX_SID_REC amx_sid_rec;
 	AMX_SID_SPEC amx_sid_spec[8];
 	short data[4096];
 	float data32[4096];
 	UINT bytesread;
-	CString wavfname[7];
+	CString wavfname[7], csvfname[7];
 
 	HdrStruct wav_hdr[7];  //wav header
 	float speriod[7];
@@ -262,6 +264,18 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 		wavfname[n] = wavfilename;
 		wavfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.wav"), wavfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
 			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
+
+		csvfname[n] = wavfilename;
+		csvfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.csv"), csvfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
+			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
+
+		//open csv file for writing
+		if (!csvFile[n].Open(csvfname[n], CStdioFile::modeCreate | CStdioFile::modeWrite, &e))
+		{
+			//unable to open wav file to write
+			AfxMessageBox(TEXT("Unable to open csv file for writing"));
+			return(0);
+		}
 
 		//open wav file for writing
 		if (!wavFile[n].Open(wavfname[n], CFile::modeCreate | CFile::modeWrite, &e))
@@ -342,9 +356,31 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 			wavFile[n].SeekToEnd();
 			if (bytesPerSample == 2) {
 				wavFile[n].Write(data, bytesread);
+				CString buf;
+				for (int i = 0; i < nsamples; i+= amx_sid_spec[n].sensor.nChan) {
+					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
+						float calData;
+						if (amx_sid_spec[n].SID[0] == 'A') calData = (float) data[i + k];
+						else
+							calData = (float)data[i + k] * amx_sid_spec[n].sensor.cal[k];
+						buf.Format(_T("%f,"), calData);
+						csvFile[n].WriteString(buf);
+					}
+					buf.Format(_T("\n"));
+					csvFile[n].WriteString(buf);
+				}
 			}
 			else {
 				wavFile[n].Write(data32, bytesread);
+				CString buf;
+				for (int i = 0; i < nsamples; i += amx_sid_spec[n].sensor.nChan) {
+					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
+						buf.Format(_T("%f,"), data32[i+k]);
+						csvFile[n].WriteString(buf);
+					}
+					buf.Format(_T("\n"));
+					csvFile[n].WriteString(buf);
+				}
 			}
 
 		}
@@ -354,6 +390,240 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	for (n = 0; n < numsids; n++)
 	{
 		wavFile[n].Close();
+		csvFile[n].Close();
 	}
+	return(1);
+}
+
+void CAMX2WAVDlg::OnBnClickedExportDebug()
+{
+	UpdateData(TRUE);
+	m_filename = CString("Processing Debug Info");
+	UpdateData(FALSE);
+
+	CString amxfilename, debugfilename, temppath, root, pathamx;
+	int success;
+	//launch file open dialog to get folder to read
+	CFileDialog fileDlg(TRUE, NULL, TEXT("*.amx"), NULL);
+
+	if (fileDlg.DoModal() == IDOK)
+	{
+		amxfilename = fileDlg.GetPathName();  //returns path + filename
+		int sst;
+		sst = amxfilename.ReverseFind('\\');
+		root = amxfilename.Left(sst);
+		//CString foldername("%s\\Script");	 
+	}
+
+
+	CString  wavfilenamesel("\\debug\\");
+	temppath = root + wavfilenamesel;
+	pathamx = root + _T("\\*.amx");
+	CreateDirectory(temppath, NULL);
+
+	AfxGetApp()->DoWaitCursor(1);
+	WIN32_FIND_DATA FindFileData;
+	HANDLE hFind;
+
+	hFind = FindFirstFile(pathamx.GetBuffer(), &FindFileData);
+	if (hFind == INVALID_HANDLE_VALUE)
+	{
+		m_filename = CString("Done");
+		UpdateData(FALSE);
+		AfxMessageBox(_T("Unable to find AMX files."), MB_OK, NULL);
+		return;
+	}
+
+	int fsuccess = 1;
+	while (fsuccess)
+	{
+		//m_prefix is file prefix
+		m_filename = FindFileData.cFileName;
+		UpdateData(FALSE);
+		amxfilename = root + _T("\\") + m_filename;
+		debugfilename = root + wavfilenamesel + FindFileData.cFileName + _T(".txt");
+		SaveDebugInfo(amxfilename, debugfilename);
+
+		fsuccess = FindNextFile(hFind, &FindFileData);
+	}
+	FindClose(hFind);
+	AfxGetApp()->DoWaitCursor(0);
+	m_filename = CString("Done");
+	UpdateData(FALSE);
+}
+
+int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
+{
+	// There will be a text file containing order in which records were written
+	CFile amxFile;
+	CStdioFile debugFile;
+	AMX_DF amx_df;
+	AMX_SID_REC amx_sid_rec;
+	AMX_SID_SPEC amx_sid_spec[8];
+	short data[4096];
+	float data32[4096];
+	UINT bytesread;
+
+	float speriod[7];
+	float srate[7];
+	long ptsrecorded[7];
+	CFileException e;
+
+	if (!debugFile.Open(debugfilename, CStdioFile::modeCreate | CStdioFile::modeWrite, &e)) {
+		AfxMessageBox(TEXT("Unable to open debug output file."));
+		return(0);
+	}
+	if (!amxFile.Open(amxfilename, CFile::modeRead, &e))
+	{
+		//unable to open amx file to read
+		AfxMessageBox(TEXT("Unable to open amx file."));
+		debugFile.Close();
+		return(0);
+	}
+
+	// AMX version
+	bytesread = amxFile.Read(&amx_df, sizeof(amx_df));
+
+	// write DF_HEAD to file
+	/*
+	ULONG Version; // firmware version
+	ULONG UserID;  //tag type
+	AMX_TIME RecStartTime;
+	float voltage;
+	*/
+	CString buf;
+	buf.Format(_T("Version: %d\n"), amx_df.Version);
+	debugFile.WriteString(buf);
+
+	buf.Format(_T("Start Time: %04d-%02d-%02dT%02d:%02d:%02d\n"), amx_df.RecStartTime.year,
+		amx_df.RecStartTime.month, 
+		amx_df.RecStartTime.day, 
+		amx_df.RecStartTime.hour, 
+		amx_df.RecStartTime.minute, 
+		amx_df.RecStartTime.sec);
+	debugFile.WriteString(buf);
+
+	buf.Format(_T("voltage: %f\n"), amx_df.voltage);
+	debugFile.WriteString(buf);
+
+
+	//Read in SID_SPECs until get all 0's
+	int n = 0;
+	do
+	{
+		bytesread = amxFile.Read(&amx_sid_spec[n], sizeof(amx_sid_spec[0]));
+
+		/*
+			char	SID[STR_MAX];
+			INT16 sidType; // 0 = raw, 1 = summary  histogram
+			INT16 NU;
+			ULONG 	nSamples;	  // Size in samples of this record (excluding header)
+			AMX_SENSOR  sensor;	  // used to encode what data are saved: bitmask bit (accel3, mag3, gyro3, press, temperature, mic)
+			ULONG	dForm;	  // short, long, or I24
+			float	srate;	  // Sample rate (Hz)
+		*/
+		/*
+			{
+				char chipName[STR_MAX]; // name of sensor e.g. MPU9250
+				INT16 nChan;            //number of channels used (e.g. MPU9250 might have 9 for accel, mag, and gyro)
+				INT16 NU;
+				char name[12][STR_MAX]; //name of each channel (e.g. accelX, gyroZ). Max of 12 channels per chip.
+				char units[12][STR_MAX];// units of each channel (e.g. g, mGauss, degPerSec)
+				float cal[12];          //calibration coefficient for each channel when multiplied by this value get data in specified units
+			}AMX_SENSOR;
+		*/
+		// write SID_SPEC to file
+		buf.Format(_T("\nSID: %s\n"), CString(amx_sid_spec[n].SID));
+		debugFile.WriteString(buf);
+		buf.Format(_T("samples: %d\n"), amx_sid_spec[n].nSamples);
+		debugFile.WriteString(buf);
+		buf.Format(_T("sample rate: %f\n"), amx_sid_spec[n].srate);
+		debugFile.WriteString(buf);
+		buf.Format(_T("chip name: %s\n"), CString(amx_sid_spec[n].sensor.chipName));
+		debugFile.WriteString(buf);
+		buf.Format(_T("channels: %d\n"), amx_sid_spec[n].sensor.nChan);
+		debugFile.WriteString(buf);
+		for (int i = 0; i < amx_sid_spec[n].sensor.nChan; i++) {
+			buf.Format(_T("%s calibration: %f\n"), CString(amx_sid_spec[n].sensor.name[i]), amx_sid_spec[n].sensor.cal[i]);
+			debugFile.WriteString(buf);
+		}
+
+
+
+		speriod[n] = 1.0 / (double)amx_sid_spec[n].srate;  //for open tag SP256 is in us
+		srate[n] = amx_sid_spec[n].srate;
+		n++;
+
+	} while (amx_sid_spec[n - 1].nSamples != 0);
+	int numsids = n - 1;
+
+	debugFile.Close();
+	
+	if (!debugFile.Open(debugfilename + _T(".csv"), CStdioFile::modeCreate | CStdioFile::modeWrite, &e)) {
+		AfxMessageBox(TEXT("Unable to open debug output csv file."));
+		return(0);
+	}
+	buf.Format(_T("sensor,bufCount,duration(s),cumulative (s)\n"));
+	debugFile.WriteString(buf);
+
+	//loop through file reading and writing in chunks
+	UINT nbytes, nsamples;
+	int previousSid = -1;
+	int sidCounter = 0;
+	int cumulativeSamples[9];
+	for (int n = 0; n < 9; n++) {
+		cumulativeSamples[n] = 0;
+	}
+	do
+	{
+		bytesread = amxFile.Read(&amx_sid_rec.nSID, 4);  // Read SID_REC Header
+		bytesread = amxFile.Read(&amx_sid_rec.NU, 12);
+		n = amx_sid_rec.nSID; //easier to read
+
+		// keep track of count of sequential sid buffers to help track down dropped samples
+		if (n != previousSid) {
+			// write out previous sidCount
+			// write SID_REC Header and indicate which SID_SPEC was recorded
+			if (previousSid > -1) {
+				cumulativeSamples[previousSid] += sidCounter;
+				float duration = sidCounter * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan / amx_sid_spec[previousSid].srate;
+				float cumulativeDuration = cumulativeSamples[previousSid] * amx_sid_spec[previousSid].nSamples / amx_sid_spec[previousSid].sensor.nChan / amx_sid_spec[previousSid].srate;
+				buf.Format(_T("%s,%d,%f,%f\n"), CString(amx_sid_spec[previousSid].SID), sidCounter, duration, cumulativeDuration);
+				debugFile.WriteString(buf);
+			}
+			sidCounter = 1;
+			previousSid = n;
+		}
+		else {
+			sidCounter++;
+		}
+
+		int bytesPerSample;
+		// int16
+		if (amx_sid_spec[n].dForm == 2) {
+			bytesread = amxFile.Read(data, amx_sid_spec[n].nSamples * 2);
+			//byte swap IMU reads
+			if (amx_sid_spec[n].SID[0] == '3' | amx_sid_spec[n].SID[0] == 'I') {
+				for (int n = 0; n < bytesread; n++) {
+					byte hibyte = (data[n] & 0xFF00) >> 8;
+					byte lobyte = (data[n] & 0xFF);
+					data[n] = lobyte << 8 | hibyte;
+				}
+			}
+			nsamples = bytesread / 2;
+			bytesPerSample = 2;
+		}
+
+		// float32
+		if (amx_sid_spec[n].dForm == 5) {
+			bytesread = amxFile.Read(data32, amx_sid_spec[n].nSamples * 4);
+			nsamples = bytesread / 4;
+			bytesPerSample = 4;
+		}
+
+	} while (bytesread > 0);
+
+	amxFile.Close();
+	debugFile.Close();
 	return(1);
 }
