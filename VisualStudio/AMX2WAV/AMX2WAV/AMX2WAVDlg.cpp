@@ -286,6 +286,14 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 						csvFile[n].WriteString(header);
 					}
 				}
+				header.Format(_T(" "));
+				csvFile[n].WriteString(header);
+				for (int j = 0; j < 8; j++) {
+					if (amx_sid_spec[n].sensor.units[i][j] != NULL) {
+						header.Format(_T("%c"), amx_sid_spec[n].sensor.units[i][j]);
+						csvFile[n].WriteString(header);
+					}
+				}
 				
 				csvFile[n].WriteString(_T(","));
 			}
