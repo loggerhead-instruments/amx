@@ -14,8 +14,7 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 // 
 // To do:
-// 1. Look at pressure offset...make faster
-// 2. Look at Hall sensor input
+// 1. Look at Hall sensor input
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -67,12 +66,13 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
+boolean hallFlag = 0;
 
 int nPlayBackFiles = 0; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
@@ -139,11 +139,11 @@ int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 #define saltSIG 3
 #define ledGreen 17
 #define BURN 5
-#define AUDIO_AMP 2
 #define usbSense 6
 #define vSense A14  // moved to Pin 21 for X1
 #define PLAY_POW 16
 #define STOP 20
+#define HALL 2
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -181,7 +181,7 @@ boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
 int burnLog = 0; //burn status for log file
 
-volatile boolean LEDSON = 1;
+volatile boolean LEDSON = 0;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 
 int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
@@ -315,6 +315,9 @@ volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
 volatile boolean firstwrittenRGB;
 
+// impeller spin counter
+volatile int spin;
+
 #define HWSERIAL Serial1
 
 IntervalTimer slaveTimer;
@@ -336,6 +339,15 @@ void setup() {
   
   Serial.begin(baud);
   HWSERIAL.begin(9600); //playback
+
+  RTC_CR = 0; // disable RTC
+  delay(100);
+  Serial.println(RTC_CR,HEX);
+  // change capacitance to 26 pF (12.5 pF load capacitance)
+  RTC_CR = RTC_CR_SC16P | RTC_CR_SC8P | RTC_CR_SC2P; 
+  delay(100);
+  RTC_CR = RTC_CR_SC16P | RTC_CR_SC8P | RTC_CR_SC2P | RTC_CR_OSCE;
+  delay(100);
 
   delay(500);
  // Wire.begin();
@@ -444,7 +456,7 @@ void setup() {
   long delayStartSeconds = (60 * delayStartMinutes) + (3600 * delayStartHours);
   startTime = t + delayStartSeconds;
   if(delayStartSeconds == 0){
-    startTime = t + 60; // make sure have at least 1 minute
+    startTime = t + 10; // make sure have at least 10 seconds
     startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
     startTime += moduloSeconds; //move forward
   }
@@ -536,7 +548,7 @@ void setup() {
   folderMonth = -1;  //set to -1 so when first file made will create directory
   
   //if (fileType) Timer1.initialize(1000000 / update_rate); // initialize with 100 ms period when update_rate = 10 Hz
-
+  
 }
 
 //
@@ -626,7 +638,8 @@ void loop() {
         updateTemp();
         displayOff();
 
-        mode = 1;
+        mode = 1;      
+        if(hallFlag) attachInterrupt(HALL, spinCount, RISING);      
         startRecording();
       }
       delay(100);
@@ -1510,9 +1523,11 @@ void sensorInit(){
   pinMode(ledGreen, OUTPUT);
   pinMode(PLAY_POW, OUTPUT);
   pinMode(STOP, INPUT);
+  pinMode(HALL, INPUT);
+
 
   pinMode(BURN, OUTPUT);
-  pinMode(AUDIO_AMP, OUTPUT);
+
   //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
@@ -1548,7 +1563,7 @@ void sensorInit(){
   if(imuFlag){
     mpuInit(1);
 
-    for(int i=0; i<50; i++){
+    for(int i=0; i<25; i++){
       readImu();
       calcImu();
       euler();
@@ -1597,7 +1612,7 @@ void sensorInit(){
   // RGB
   if(rgbFlag){
     islInit(); 
-    for(int x=0; x<30; x++){
+    for(int x=0; x<20; x++){
       islRead();
       Serial.print("R:"); Serial.println(islRed);
       Serial.print("G:"); Serial.println(islGreen);
@@ -1806,9 +1821,11 @@ void checkDepthVHF(){
   }
 }
 
-
 int checkSalt(){
   return analogRead(SALT);
 }
 
+void spinCount(){
+  spin++;
+}
 
