@@ -3,6 +3,9 @@ AMX is an arduino-compatible audio and motion datalogger board (designed for Tee
 
 More information is at http://loggerhead.com
 
+### Converting AMX to wav and csv files:
+- Use AMX2WAV https://github.com/loggerhead-instruments/amx/tree/master/VisualStudio/AMX2WAV/x64/Release
+
 ### Files:
 - amx: Main control and sensor recording
 - cmd.pde: Reads recording settings from a script file
