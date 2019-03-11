@@ -12,6 +12,10 @@
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
+// 
+// To do:
+// 1. Look at pressure offset...make faster
+// 2. Look at Hall sensor input
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -316,7 +320,7 @@ volatile boolean firstwrittenRGB;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190129; //unsigned long
+  dfh.Version = 20190311; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -1614,7 +1618,7 @@ void sensorInit(){
   
   pressure_sensor = 0;
   // Keller
-  int nAvg = 50;
+  int nAvg = 11;
   float pressureSum;
   if(kellerInit()) {
     pressure_sensor = 2;   // 2 if present
@@ -1622,7 +1626,7 @@ void sensorInit(){
     kellerConvert();
     delay(20);
     kellerRead();
-    for(int n=0; n<nAvg; n++){
+    for(int n=1; n<nAvg; n++){
       kellerConvert();
       delay(20);
       kellerRead();
@@ -1650,7 +1654,7 @@ void sensorInit(){
     updateTemp();
     delay(50);
     readTemp();
-    for(int n=0; n<nAvg; n++){
+    for(int n=1; n<nAvg; n++){
       updatePress();
       delay(50);
       readPress();
