@@ -323,7 +323,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190311; //unsigned long
+  dfh.Version = 20190325; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){

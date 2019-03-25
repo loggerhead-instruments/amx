@@ -2,7 +2,7 @@
 
 int kellerAddress = 0x40;
 float pAt16384 = 0.0; //minimum pressure (bar)
-float pAt49152 = 200.0; // maximum pressure (bar)
+float pAt49152 = 100.0; // maximum pressure (bar)
 
 // read values of pressure sensor
 int kellerInit(){
