@@ -181,7 +181,7 @@ boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
 int burnLog = 0; //burn status for log file
 
-volatile boolean LEDSON = 0;
+volatile boolean LEDSON = 1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 
 int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
@@ -323,7 +323,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190325; //unsigned long
+  dfh.Version = 20190326; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
