@@ -129,15 +129,17 @@ int gps(byte incomingByte){
         sprintf(rmcChecksum, "%s", token);
         //Serial.println(rmcChecksum);         
 
+
+        float tempLatitude, tempLongitude;
         if(rmcValid[0]=='A'){
-           latitude = rmcLat;
-           longitude = rmcLon;
+           tempLatitude = rmcLat;
+           tempLongitude = rmcLon;
            latHem = rmcLatHem[0];
            lonHem = rmcLonHem[0];
-           if(latHem=='S') latitude = -latitude;
-           if(lonHem=='W') longitude = -longitude;
-           latitude = convertDegMinToDecDeg(latitude);
-           longitude = convertDegMinToDecDeg(longitude);
+           if(latHem=='S') tempLatitude = -tempLatitude;
+           if(lonHem=='W') tempLongitude = -tempLongitude;
+           latitude = convertDegMinToDecDeg(tempLatitude);
+           longitude = convertDegMinToDecDeg(tempLongitude);
            goodGPS = 1;
            Serial.println("valid GPS recvd");
         }

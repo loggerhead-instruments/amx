@@ -17,8 +17,7 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 // 
 // To do:
-// 1. store lat/lon
-// 2. GPS in auto-update mode
+// 2. GPS only output RMC
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -531,6 +530,7 @@ void loop() {
 //      }
 //  }
 
+
   t = getTeensy3Time();
   if((t >= burnTime) & (burnFlag>0)){
      digitalWrite(BURN, HIGH);  // burn on
@@ -613,6 +613,10 @@ void loop() {
   // Record mode
   if (mode == 1) {
     continueRecording();  // download data  
+
+    // parse GPS
+    byte incomingByte = gpsSerial.read();
+    gps(incomingByte);  // parse incoming GPS data
 
     // Check if stop button pressed
     if(digitalRead(STOP)==0){
