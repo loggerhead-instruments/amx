@@ -73,7 +73,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 //
 static boolean printDiags = 2;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 3600; // seconds;
+long rec_dur = 30; // seconds;
 long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
@@ -1173,7 +1173,7 @@ void FileInit()
     }
     if (gpsFlag) {
       sidCount++;
-      addSid(sidCount, "GPS", RAW_SID, halfbufIMU / 2, sensor[4], DFORM_FLOAT32, sensor_srate);
+      addSid(sidCount, "GPS", RAW_SID, halfbufPT / 2, sensor[4], DFORM_FLOAT32, sensor_srate);
     }
     sidCount++;
     addSid(sidCount, "END", 0, 0, sensor[5], 0, 0);
