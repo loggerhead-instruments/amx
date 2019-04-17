@@ -317,7 +317,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190326; //unsigned long
+  dfh.Version = 20190417; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -567,6 +567,7 @@ void loop() {
   // Standby mode
   if(mode == 0)
   {
+    delay(100);
       if(dd){
         cDisplay();
         displaySettings();
@@ -603,10 +604,10 @@ void loop() {
         displayOff();
 
         mode = 1;      
-        if(hallFlag) attachInterrupt(HALL, spinCount, RISING);      
+        if(hallFlag) attachInterrupt(HALL, spinCount, RISING);    
+        gpsSerial.clear();  
         startRecording();
       }
-      delay(100);
   }
 
 
@@ -615,8 +616,9 @@ void loop() {
     continueRecording();  // download data  
 
     // parse GPS
-    byte incomingByte = gpsSerial.read();
-    gps(incomingByte);  // parse incoming GPS data
+    while (gpsSerial.available() > 0) { 
+      gps(gpsSerial.read());  // parse incoming GPS data
+    }
 
     // Check if stop button pressed
     if(digitalRead(STOP)==0){

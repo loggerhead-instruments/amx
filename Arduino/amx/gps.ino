@@ -141,7 +141,12 @@ int gps(byte incomingByte){
            latitude = convertDegMinToDecDeg(tempLatitude);
            longitude = convertDegMinToDecDeg(tempLongitude);
            goodGPS = 1;
-           Serial.println("valid GPS recvd");
+           if(printDiags) {
+            Serial.print("Lt:");
+            Serial.print(latitude);
+            Serial.print(" Ln:");
+            Serial.println(longitude);
+           }
         }
       }
     }
