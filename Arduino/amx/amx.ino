@@ -11,6 +11,9 @@
 // Loggerhead AMX board is required for accelerometer, mageter, gyroscope, RGB light, pressure, and temperature sensors
 //
 
+
+// Compile 72 MHz Fastest
+
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 // 
 // To do:
@@ -19,10 +22,10 @@
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
-//#include <Wire.h>
-#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
+#include <Wire.h>
+//#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
-//#include <SdFat.h>
+#include <SdFat.h>
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
@@ -31,6 +34,8 @@
 #include <Adafruit_FeatherOLED.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
+#include "SparkFun_Ublox_Arduino_Library.h" //http://librarymanager/All#SparkFun_Ublox_GPS
+
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
 #define CPU_RESTART_VAL 0x5FA0004
@@ -73,20 +78,6 @@ long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
 boolean hallFlag = 0;
-
-int nPlayBackFiles = 0; // number of playback files
-int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
-int longestPlayback = 30; // longest file for playback, used to power down playback board
-float playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
-float ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
-float playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
-int maxPlayBacks = 20; // maximum number of times to play
-
-int simulateDepth = 0;
-float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 40.0, 11.0, 5.0, 2.0, 0.0, 50.0, 2.0, 4.0,
-                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 60.0, 2.0, 4.0,
-                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 70.0, 2.0, 4.0}; //simulated depth profile; one value per minute
-
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
 
@@ -141,7 +132,7 @@ int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 #define BURN 5
 #define usbSense 6
 #define vSense A14  // moved to Pin 21 for X1
-#define PLAY_POW 16
+#define GPS_POW 16
 #define STOP 20
 #define HALL 2
 
@@ -184,7 +175,7 @@ int burnLog = 0; //burn status for log file
 volatile boolean LEDSON = 1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 
-int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
+int update_rate = 50;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
 float imu_srate = 100.0;
 float audio_srate = 44100.0;
@@ -192,12 +183,10 @@ float audio_srate = 44100.0;
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
 
-// Playback
-int playNow = 0;
-int trackNumber = 0;
-int playBackDepthExceeded = 0;
-float maxDepth;  
-int nPlayed = 0;
+// GPS
+SFE_UBLOX_GPS myGPS;
+long latitude, longitude;
+int SIV;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -225,6 +214,7 @@ SnoozeBlock config_teensy32(snooze_audio, alarm);
 
 // The file where data is recorded
 File frec;
+SdFat sd;
 
 typedef struct {
     char    rId[4];
@@ -338,7 +328,6 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
-  HWSERIAL.begin(9600); //playback
 
   RTC_CR = 0; // disable RTC
   delay(100);
@@ -350,9 +339,10 @@ void setup() {
   delay(100);
 
   delay(500);
- // Wire.begin();
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
-  Wire.setDefaultTimeout(10000);
+  Wire.begin();
+ // Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+ //Wire.setDefaultTimeout(10000);
+ 
 
   displayOn();
   cDisplay();
@@ -362,7 +352,7 @@ void setup() {
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
-  if (!(SD.begin(10))) {
+  if (!(sd.begin(10))) {
     // stop here if no SD card, but print a message
     Serial.println("Unable to access the SD card");
     
@@ -507,7 +497,7 @@ void setup() {
     // power things off
     digitalWrite(hydroPowPin, LOW);
     audio_power_down();
-    playOff(); // power down playback board
+
     mpuInit(0); // sleep MPU
     islSleep(); // RGB light sensor
     
@@ -515,7 +505,8 @@ void setup() {
       displayOff();
       
       digitalWrite(ledGreen, HIGH);
-      alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+      //alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+      alarm.setRtcTimer(0, 0, 20);
       delay(10);
       digitalWrite(ledGreen, LOW);
       
@@ -583,10 +574,9 @@ void loop() {
        frec.close();
        audio_power_down();
        digitalWrite(hydroPowPin, LOW); //hydrophone off
-       playOff(); // power down playback board
         
        while(1){
-          alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
+          alarm.setRtcTimer(0, 2, 0);  // sleep for 2 minutes
           Snooze.sleep(config_teensy32);
   
           // ... asleep ...
@@ -741,10 +731,6 @@ void loop() {
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
     } 
-
-    if(nPlayBackFiles>0) checkPlay(); // checks if depth profile matches trigger for playback, sets flag and file number, plays
-
-    
     
     if(buf_count >= nbufs_per_file){       // time to stop?
       
@@ -803,7 +789,8 @@ void loop() {
             //Snooze.deepSleep(snooze_config);
             //Snooze.hibernate( snooze_config);
   
-            alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+            //alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+            alarm.setRtcTimer(snooze_hour, snooze_minute, snooze_second);
             Snooze.sleep(config_teensy32);
        
             /// ... Sleeping ....
@@ -1055,7 +1042,7 @@ void sdInit(){
 */
 
 void logFileHeader(){
-  if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+  if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
       logFile.close();
   }
@@ -1070,7 +1057,7 @@ void FileInit()
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     SdFile::dateTimeCallback(file_date_time);
-    SD.mkdir(dirname);
+    sd.mkdir(dirname);
    }
 
    // only audio save as wav file, otherwise save as AMX file
@@ -1086,7 +1073,7 @@ void FileInit()
 
    float voltage = readVoltage();
    
-   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+   if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
       for(int n=0; n<8; n++){
@@ -1134,7 +1121,7 @@ void FileInit()
     resetFunc();
    }
     
-   frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
+   frec = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
 
    if(printDiags > 0){
      Serial.println(filename);
@@ -1149,7 +1136,7 @@ void FileInit()
       sprintf(filename,"F%06d.wav",file_count); //if can't open just use count
       else
       sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
-    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
+    frec = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
     Serial.println(filename);
    }
 
@@ -1382,11 +1369,6 @@ void sampleSensors(void){  //interrupt at update_rate
         kellerConvert();  // start conversion for next reading
       }
 
-      if(simulateDepth) depth = depthProfile[minute(t)];
-      if(printDiags){
-        Serial.print("D:");
-        Serial.println(depth);
-      }
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
@@ -1517,17 +1499,16 @@ float readVoltage(){
 }
 
 void sensorInit(){
+  Serial.println("Sensor Init");
+    
   pinMode(CAM_TRIG, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(displayPow, OUTPUT);
   pinMode(ledGreen, OUTPUT);
-  pinMode(PLAY_POW, OUTPUT);
+  pinMode(GPS_POW, OUTPUT);
   pinMode(STOP, INPUT);
   pinMode(HALL, INPUT);
-
-
   pinMode(BURN, OUTPUT);
-
   //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
@@ -1539,25 +1520,61 @@ void sensorInit(){
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
+  digitalWrite(GPS_POW, HIGH);
 
-  Serial.println("Sensor Init");
 
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-  // playback
-  playBackOn();
-  Serial.println("Playback On");
+
+
+  // GPS
+  int nCount = 0;
+  while(myGPS.begin() == false) //Connect to the Ublox module using Wire port
+  {
+    Serial.println(F("Ublox GPS not detected at default I2C address. Please check wiring. Freezing."));
+    cDisplay();
+    display.println();
+    display.println("GPS not detected");
+    delay(1000);
+    nCount++;
+    if(nCount>60) break; // give a way out
+  }
+  myGPS.setI2COutput(COM_TYPE_UBX); //Set the I2C port to output UBX only (turn off NMEA noise)
+  myGPS.saveConfiguration(); //Save the current settings to flash and BBR
+
+  // set time on AMX
   
-  delay(3000);
+  unsigned int tday = 0;
+  unsigned int tmonth = 0;
+  unsigned int tyear = 0;
+  unsigned int thour = 0;
+  unsigned int tmin = 0;
+  unsigned int tsec = 0;
+  while(tyear < 2019){
+    cDisplay();
+    display.print("GPS:");
+    display.println(SIV);
+    display.println(latitude);
+    display.println(longitude);
+    display.display();
+    delay(1000);
+    latitude = myGPS.getLatitude();
+    longitude = myGPS.getLongitude();
+    SIV = myGPS.getSIV();
+    tyear = myGPS.getYear();
+    tmonth = myGPS.getMonth();
+    tday = myGPS.getDay();
+    thour = myGPS.getHour();
+    tmin = myGPS.getMinute();
+    tsec = myGPS.getSecond();
+  }
+  setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear);
   
   digitalWrite(ledGreen, LOW);
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
-
-  playTrackNumber(0);
-  
 
   // IMU
   if(imuFlag){
@@ -1703,14 +1720,6 @@ void sensorInit(){
     display.println("None Detected");
     display.display();
   }
- 
-  if(simulateDepth) depth = 0;
-
-  // playback
-  playBackOff();
-  Serial.println("Playback Off");  
-
-  delay(3000);
 }
 
 void calcImu(){
@@ -1740,14 +1749,6 @@ void calcImu(){
 //  mag_y = imu.mx - magXoffset;
 //  mag_z = imu.mz - magZoffset;
   
-}
-
-void playOn(){
-  digitalWrite(PLAY_POW, HIGH);
-}
-
-void playOff(){
-  digitalWrite(PLAY_POW, LOW);
 }
 
 

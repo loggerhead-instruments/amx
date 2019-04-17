@@ -3,7 +3,7 @@ void calcRMS(){
   float rms_float;
   int wavbuffer[256];
   unsigned long sumsquares = 0;
-  frec = SD.open(filename);
+  frec = sd.open(filename);
   if(frec){
     Serial.println(filename);
     frec.seek(sizeof(wav_hdr));  // skip wav header
