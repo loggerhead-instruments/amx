@@ -17,7 +17,8 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 // 
 // To do:
-// 1. Look at Hall sensor input
+// 1. store lat/lon
+// 2. GPS in auto-update mode
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -41,7 +42,7 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-#define OLED_RESET 4
+#define OLED_RESET -1
 
 #define displayLine1 0
 #define displayLine2 8
@@ -71,7 +72,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
@@ -163,6 +164,7 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
+boolean gpsFlag = 1;
 int burnFlag = 0; // set by setup.txt file if use BW or BM
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
@@ -296,6 +298,12 @@ volatile byte bufferposPT=0;
 byte halfbufPT = PTBUFFERSIZE/2;
 volatile boolean firstwrittenPT;
 
+// GPS buffer 
+// uses same loop and timing as Pressure/Temp
+// so don't need to keep track of buffer location
+#define GPSBUFFERSIZE 40
+volatile float gpsBuffer[GPSBUFFERSIZE];
+
 // RGB buffer
 #define RGBBUFFERSIZE 120
 volatile byte RGBbuffer[RGBBUFFERSIZE];
@@ -304,6 +312,8 @@ volatile int RGBCounter = 0;
 volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
 volatile boolean firstwrittenRGB;
+
+
 
 // impeller spin counter
 volatile int spin;
@@ -376,15 +386,6 @@ void setup() {
   logFileHeader();
   setGain();
 
-  if(printDiags > 0){
-      Serial.print("YY-MM-DD HH:MM:SS ");
-      // show 3 ticks to know crystal is working
-      for (int n=0; n<3; n++){
-        printTime(getTeensy3Time());
-        delay(1000);
-      }
-   }
-
   pinMode(usbSense, OUTPUT);
   digitalWrite(usbSense, LOW); // make sure no pull-up
   pinMode(usbSense, INPUT);
@@ -396,22 +397,6 @@ void setup() {
   // Check for external USB connection to microSD
   digitalWrite(ledGreen, HIGH);
   digitalWrite(hydroPowPin, HIGH);
-
-  if(!printDiags){ 
-   while(digitalRead(usbSense)){
-      pinMode(usbSense, OUTPUT);
-      digitalWrite(usbSense, LOW); // forces low if USB power pulled
-      pinMode(usbSense, INPUT);
-      delay(500);
-
-      // allow use of stop button to get out of this loop
-      if(digitalRead(STOP)==0){
-        delay(10); // simple deBounce
-        if(digitalRead(STOP)==0) break;
-      }
-    }
-  }
-
   
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
 
@@ -422,16 +407,9 @@ void setup() {
   if (printDiags==0){
     //  usbDisable();
   }
-  
-//
-//  cDisplay();
-//  display.println("Loggerhead");
-//  display.display();
-  
  
   //SdFile::dateTimeCallback(file_date_time);
 
-  
   mpuInit(1);; // update MPU with new settings
   setupDataStructures();
 
@@ -709,12 +687,16 @@ void loop() {
     { 
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+      if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&gpsBuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
     }
     if(time2writePT==2)
     {
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
+      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();  
+      if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
+      if(frec.write((uint8_t *)&gpsBuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
     }   
   
@@ -981,6 +963,15 @@ void setupDataStructures(void){
   sensor[3].cal[6] = magFullRange / 32768.0;
   sensor[3].cal[7] = magFullRange / 32768.0;
   sensor[3].cal[8] = magFullRange / 32768.0;
+
+  strncpy(sensor[4].chipName, "GPS", STR_MAX);
+  sensor[4].nChan = 2;
+  strncpy(sensor[4].name[0], "lat", STR_MAX);
+  strncpy(sensor[4].name[1], "lon", STR_MAX);
+  strncpy(sensor[4].units[0], "degrees", STR_MAX);
+  strncpy(sensor[4].units[1], "degrees", STR_MAX);
+  sensor[4].cal[0] = 1.0;
+  sensor[4].cal[1] = 1.0;
 }
 
 int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
@@ -1189,8 +1180,12 @@ void FileInit()
       sidCount++;
       addSid(sidCount, "3DAMG", RAW_SID, halfbufIMU / 2, sensor[3], DFORM_SHORT, imu_srate);
     }
+    if (gpsFlag) {
+      sidCount++;
+      addSid(sidCount, "GPS", RAW_SID, halfbufIMU / 2, sensor[4], DFORM_FLOAT32, sensor_srate);
+    }
     sidCount++;
-    addSid(sidCount, "END", 0, 0, sensor[4], 0, 0);
+    addSid(sidCount, "END", 0, 0, sensor[5], 0, 0);
   }
   if(printDiags > 0){
     Serial.print("Buffers: ");
@@ -1369,11 +1364,13 @@ void sampleSensors(void){  //interrupt at update_rate
         kellerConvert();  // start conversion for next reading
       }
 
-      // MS5803 pressure and temperature
+      // store pressure and temperature and GPS
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
+        if(gpsFlag) gpsBuffer[bufferposPT] = myGPS.getLatitude() / 10000000.0;
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
+        if(gpsFlag) gpsBuffer[bufferposPT] = myGPS.getLongitude() / 10000000.0;
         incrementPTbufpos();
       }
    /*   int saltValOn = checkSalt();
@@ -1527,54 +1524,8 @@ void sensorInit(){
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-
-
-  // GPS
-  int nCount = 0;
-  while(myGPS.begin() == false) //Connect to the Ublox module using Wire port
-  {
-    Serial.println(F("Ublox GPS not detected at default I2C address. Please check wiring. Freezing."));
-    cDisplay();
-    display.println();
-    display.println("GPS not detected");
-    delay(1000);
-    nCount++;
-    if(nCount>60) break; // give a way out
-  }
-  myGPS.setI2COutput(COM_TYPE_UBX); //Set the I2C port to output UBX only (turn off NMEA noise)
-  myGPS.saveConfiguration(); //Save the current settings to flash and BBR
-
-  // set time on AMX
   
-  unsigned int tday = 0;
-  unsigned int tmonth = 0;
-  unsigned int tyear = 0;
-  unsigned int thour = 0;
-  unsigned int tmin = 0;
-  unsigned int tsec = 0;
-  while(tyear < 2019){
-    cDisplay();
-    display.print("GPS:");
-    display.println(SIV);
-    display.println(latitude);
-    display.println(longitude);
-    display.display();
-    delay(1000);
-    latitude = myGPS.getLatitude();
-    longitude = myGPS.getLongitude();
-    SIV = myGPS.getSIV();
-    tyear = myGPS.getYear();
-    tmonth = myGPS.getMonth();
-    tday = myGPS.getDay();
-    thour = myGPS.getHour();
-    tmin = myGPS.getMinute();
-    tsec = myGPS.getSecond();
-  }
-  setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear);
-  
-  digitalWrite(ledGreen, LOW);
-  digitalWrite(BURN, LOW);
-  digitalWrite(VHF, LOW);
+
 
   // IMU
   if(imuFlag){
@@ -1719,7 +1670,64 @@ void sensorInit(){
     display.println("Pressure");
     display.println("None Detected");
     display.display();
+    delay(60000);
   }
+
+  // GPS
+  if(gpsFlag){
+    int nCount = 0;
+    while(myGPS.begin() == false) //Connect to the Ublox module using Wire port
+    {
+      Serial.println(F("GPS error"));
+      cDisplay();
+      display.println();
+      display.println("Init GPS");
+      display.display();
+      delay(1000);
+      nCount++;
+      if(nCount>60) break; // give a way out
+    }
+    myGPS.setI2COutput(COM_TYPE_UBX); //Set the I2C port to output UBX only (turn off NMEA noise)
+    myGPS.saveConfiguration(); //Save the current settings to flash and BBR
+  
+    // set time on AMX
+    
+    unsigned int tday = 0;
+    unsigned int tmonth = 0;
+    unsigned int tyear = 0;
+    unsigned int thour = 0;
+    unsigned int tmin = 0;
+    unsigned int tsec = 0;
+    while(tyear < 2019){
+      cDisplay();
+      display.print("GPS:");
+      display.println(SIV);
+      if(SIV==0) {
+        display.println("Searching");
+      }
+      else{
+        display.println(latitude);
+        display.println(longitude);
+      } 
+      displayClock(BOTTOM, getTeensy3Time());
+      display.display();
+      Serial.println(getTeensy3Time());
+      delay(1000);
+      latitude = myGPS.getLatitude();
+      longitude = myGPS.getLongitude();
+      SIV = myGPS.getSIV();
+      tyear = myGPS.getYear();
+      tmonth = myGPS.getMonth();
+      tday = myGPS.getDay();
+      thour = myGPS.getHour();
+      tmin = myGPS.getMinute();
+      tsec = myGPS.getSecond();
+    }
+    setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear);
+  }
+
+  digitalWrite(ledGreen, LOW);
+  digitalWrite(BURN, LOW);
 }
 
 void calcImu(){
