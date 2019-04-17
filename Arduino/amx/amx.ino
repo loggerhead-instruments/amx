@@ -301,8 +301,7 @@ volatile boolean firstwrittenPT;
 // GPS buffer 
 // uses same loop and timing as Pressure/Temp
 // so don't need to keep track of buffer location
-#define GPSBUFFERSIZE 40
-volatile float gpsBuffer[GPSBUFFERSIZE];
+volatile float gpsBuffer[PTBUFFERSIZE];
 
 // RGB buffer
 #define RGBBUFFERSIZE 120
@@ -1173,7 +1172,7 @@ void FileInit()
     }
     if (gpsFlag) {
       sidCount++;
-      addSid(sidCount, "GPS", RAW_SID, halfbufPT / 2, sensor[4], DFORM_FLOAT32, sensor_srate);
+      addSid(sidCount, "GPS", RAW_SID, halfbufPT, sensor[4], DFORM_FLOAT32, sensor_srate);
     }
     sidCount++;
     addSid(sidCount, "END", 0, 0, sensor[5], 0, 0);
