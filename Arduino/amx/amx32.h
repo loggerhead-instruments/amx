@@ -5,8 +5,8 @@
 #define DFORM_I24 3
 #define DFORM_SHORT 2
 #define DFORM_FLOAT32 5
-#define SID_MAX 5
-#define SENSOR_MAX 5
+#define SID_MAX 6
+#define SENSOR_MAX 6
 
 #define RAW_SID 0
 #define HISTOGRAM_SID 1

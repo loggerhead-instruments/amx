@@ -35,7 +35,6 @@
 #include <Adafruit_FeatherOLED.h>
 #include <EEPROM.h>
 #include <TimerOne.h>
-#include "SparkFun_Ublox_Arduino_Library.h" //http://librarymanager/All#SparkFun_Ublox_GPS
 
 
 #define CPU_RESTART_ADDR (uint32_t *)0xE000ED0C
@@ -52,7 +51,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 #define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
-#define HWSERIAL Serial1  // Rx: 0; Tx: 1
+#define gpsSerial Serial1  // Rx: 0; Tx: 1
 
 #define SPYCAM 1
 #define FLYCAM 2
@@ -72,7 +71,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 2;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
@@ -81,13 +80,11 @@ unsigned int delayStartHours = 0;
 boolean hallFlag = 0;
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
-
 int camFlag = 0;
 boolean camWave = 0; // one flag to swtich all settings to use camera control and wav files (camWave = 1)
-
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
-int moduloSeconds = 60; // round to nearest start time
+int moduloSeconds = 10; // round to nearest start time
 
 float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
@@ -179,16 +176,19 @@ boolean introperiod=1;  //flag for introductory period; used for keeping LED on 
 
 int update_rate = 50;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
-float imu_srate = 100.0;
+float imu_srate = 50.0;
 float audio_srate = 44100.0;
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
 
 // GPS
-SFE_UBLOX_GPS myGPS;
-long latitude, longitude;
-int SIV;
+float latitude = 0.0;
+float longitude = 0.0;
+char latHem, lonHem;
+int gpsYear = 19, gpsMonth = 4, gpsDay = 17, gpsHour = 22, gpsMinute = 5, gpsSecond = 0;
+int goodGPS = 0;
+long gpsTimeOutThreshold = 240000;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -313,12 +313,8 @@ volatile byte bufferposRGB=0;
 byte halfbufRGB = RGBBUFFERSIZE/2;
 volatile boolean firstwrittenRGB;
 
-
-
 // impeller spin counter
 volatile int spin;
-
-#define HWSERIAL Serial1
 
 IntervalTimer slaveTimer;
 
@@ -338,7 +334,8 @@ void setup() {
   read_myID();
   
   Serial.begin(baud);
-
+  gpsSerial.begin(9600);  // GPS
+  
   RTC_CR = 0; // disable RTC
   delay(100);
   Serial.println(RTC_CR,HEX);
@@ -456,49 +453,49 @@ void setup() {
   Serial.print("Start Time: ");
   printTime(startTime);
   
-  // Sleep here if won't start for 60 s
-  long time_to_first_rec = startTime - t;
-  Serial.print("Time to first record ");
-  Serial.println(time_to_first_rec);
-  for(int x = 0; x<10; x++){
-    cDisplay();
-    t = getTeensy3Time();
-    display.println("Sleep until:");
-    displayClock(14, startTime);
-    displayClock(BOTTOM, t);
-    display.display();
-    delay(1000);
-  }
+//  // Sleep here if won't start for 60 s
+//  long time_to_first_rec = startTime - t;
+//  Serial.print("Time to first record ");
+//  Serial.println(time_to_first_rec);
+//  for(int x = 0; x<10; x++){
+//    cDisplay();
+//    t = getTeensy3Time();
+//    display.println("Sleep until:");
+//    displayClock(14, startTime);
+//    displayClock(BOTTOM, t);
+//    display.display();
+//    delay(1000);
+//  }
 
-
-  if(time_to_first_rec>60){
-    // power things off
-    digitalWrite(hydroPowPin, LOW);
-    audio_power_down();
-
-    mpuInit(0); // sleep MPU
-    islSleep(); // RGB light sensor
-    
-    while(time_to_first_rec > 60){
-      displayOff();
-      
-      digitalWrite(ledGreen, HIGH);
-      //alarm.setAlarm(0, 0, 20); // sleep 20 seconds
-      alarm.setRtcTimer(0, 0, 20);
-      delay(10);
-      digitalWrite(ledGreen, LOW);
-      
-      Snooze.sleep(config_teensy32);
-      /// .... sleeping ...
-      
-      t = getTeensy3Time();
-      time_to_first_rec = startTime - t;
-    }
-
-    mpuInit(1); // start MPU
-    islInit();
-    audio_power_up(); // audio chip on
-  }
+//
+//  if(time_to_first_rec>60){
+//    // power things off
+//    digitalWrite(hydroPowPin, LOW);
+//    audio_power_down();
+//
+//    mpuInit(0); // sleep MPU
+//    islSleep(); // RGB light sensor
+//    
+//    while(time_to_first_rec > 60){
+//      displayOff();
+//      
+//      digitalWrite(ledGreen, HIGH);
+//      //alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+//      alarm.setRtcTimer(0, 0, 20);
+//      delay(10);
+//      digitalWrite(ledGreen, LOW);
+//      
+//      Snooze.sleep(config_teensy32);
+//      /// .... sleeping ...
+//      
+//      t = getTeensy3Time();
+//      time_to_first_rec = startTime - t;
+//    }
+//
+//    mpuInit(1); // start MPU
+//    islInit();
+//    audio_power_up(); // audio chip on
+//  }
 
 
   displayOn();
@@ -527,13 +524,13 @@ void setup() {
 int recLoopCount;  //for debugging when does not start record
 
 void loop() {
-  // if plug in USB power--get out of main loop
-  if(!printDiags){
-    if (digitalRead(usbSense)){  
-        if (mode==1) stopRecording();
-        resetFunc();
-      }
-  }
+//  // if plug in USB power--get out of main loop
+//  if(!printDiags){
+//    if (digitalRead(usbSense)){  
+//        if (mode==1) stopRecording();
+//        resetFunc();
+//      }
+//  }
 
   t = getTeensy3Time();
   if((t >= burnTime) & (burnFlag>0)){
@@ -836,12 +833,6 @@ void continueRecording() {
         frec.write(buffer, 512); 
       }
     }
-
-   // if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
-
-    if(printDiags == 2){
-      Serial.print(".");
-   }
 }
 
 void stopRecording() {
@@ -1367,10 +1358,10 @@ void sampleSensors(void){  //interrupt at update_rate
       // store pressure and temperature and GPS
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
-        if(gpsFlag) gpsBuffer[bufferposPT] = myGPS.getLatitude() / 10000000.0;
+        if(gpsFlag) gpsBuffer[bufferposPT] = latitude;
         incrementPTbufpos();
         PTbuffer[bufferposPT] = temperature;
-        if(gpsFlag) gpsBuffer[bufferposPT] = myGPS.getLongitude() / 10000000.0;
+        if(gpsFlag) gpsBuffer[bufferposPT] = longitude;
         incrementPTbufpos();
       }
    /*   int saltValOn = checkSalt();
@@ -1524,7 +1515,15 @@ void sensorInit(){
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-  
+
+
+
+  cDisplay();
+  display.println("GPS");
+  display.println();
+  display.println("Searching...");
+  display.display();
+
 
 
   // IMU
@@ -1582,9 +1581,9 @@ void sensorInit(){
     islInit(); 
     for(int x=0; x<20; x++){
       islRead();
-      Serial.print("R:"); Serial.println(islRed);
-      Serial.print("G:"); Serial.println(islGreen);
-      Serial.print("B:"); Serial.println(islBlue);
+      Serial.print("R:"); Serial.print(islRed);
+      Serial.print(" G:"); Serial.print(islGreen);
+      Serial.print(" B:"); Serial.println(islBlue);
       cDisplay();
       display.println("Light Init");
       display.print("R:"); display.println(islRed);
@@ -1675,55 +1674,27 @@ void sensorInit(){
 
   // GPS
   if(gpsFlag){
-    int nCount = 0;
-    while(myGPS.begin() == false) //Connect to the Ublox module using Wire port
-    {
-      Serial.println(F("GPS error"));
-      cDisplay();
-      display.println();
-      display.println("Init GPS");
-      display.display();
-      delay(1000);
-      nCount++;
-      if(nCount>60) break; // give a way out
-    }
-    myGPS.setI2COutput(COM_TYPE_UBX); //Set the I2C port to output UBX only (turn off NMEA noise)
-    myGPS.saveConfiguration(); //Save the current settings to flash and BBR
-  
-    // set time on AMX
-    
-    unsigned int tday = 0;
-    unsigned int tmonth = 0;
-    unsigned int tyear = 0;
-    unsigned int thour = 0;
-    unsigned int tmin = 0;
-    unsigned int tsec = 0;
-    while(tyear < 2019){
-      cDisplay();
-      display.print("GPS:");
-      display.println(SIV);
-      if(SIV==0) {
-        display.println("Searching");
-      }
-      else{
+    cDisplay();
+    display.println("GPS");
+    display.println("Searching");
+    display.display();
+      gpsGetTimeLatLon();
+      if(goodGPS) {
+        setTeensyTime(gpsHour, gpsMinute, gpsSecond, gpsDay, gpsMonth, gpsYear + 2000);
+        cDisplay();
+        display.println("GPS");
+        display.println();
         display.println(latitude);
         display.println(longitude);
-      } 
-      displayClock(BOTTOM, getTeensy3Time());
+      }
+      else{
+        cDisplay();
+        display.println("GPS");
+        display.println();
+        display.println("Failed to get fix");
+      }
       display.display();
-      Serial.println(getTeensy3Time());
-      delay(1000);
-      latitude = myGPS.getLatitude();
-      longitude = myGPS.getLongitude();
-      SIV = myGPS.getSIV();
-      tyear = myGPS.getYear();
-      tmonth = myGPS.getMonth();
-      tday = myGPS.getDay();
-      thour = myGPS.getHour();
-      tmin = myGPS.getMinute();
-      tsec = myGPS.getSecond();
-    }
-    setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear);
+      delay(5000);
   }
 
   digitalWrite(ledGreen, LOW);
@@ -1758,7 +1729,6 @@ void calcImu(){
 //  mag_z = imu.mz - magZoffset;
   
 }
-
 
 
 time_t getTeensy3Time()
