@@ -20,8 +20,6 @@
 // 1. Sleep GPS if depth < 1 m (can do with VHF)
 // 2. GPS only output RMC
 
-
-
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
 #include <Wire.h>
@@ -71,7 +69,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 //
 static boolean printDiags = 2;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 30; // seconds;
+long rec_dur = 300; // seconds;  // Note: Camera files are 5 minutes long
 long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
@@ -184,7 +182,7 @@ float longitude = 0.0;
 char latHem, lonHem;
 int gpsYear = 19, gpsMonth = 4, gpsDay = 17, gpsHour = 22, gpsMinute = 5, gpsSecond = 0;
 int goodGPS = 0;
-long gpsTimeOutThreshold = 240000;
+long gpsTimeOutThreshold = 600000;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -497,7 +495,7 @@ void setup() {
 
   // create first folder to hold data
   folderMonth = -1;  //set to -1 so when first file made will create directory
-  
+  if(camFlag) cam_on();
   //if (fileType) Timer1.initialize(1000000 / update_rate); // initialize with 100 ms period when update_rate = 10 Hz
   
 }
@@ -558,8 +556,8 @@ void loop() {
       display.display();
     }
 
-    //start camera 4 seconds before to give a chance to get going
-    if((t >= startTime - 4) & CAMON==1){ 
+    //start camera n seconds before to give a chance to get going
+    if((t >= startTime - 1) & CAMON==1){ 
       if (camFlag)  cam_start();
     }
     if(t >= startTime){      // time to start?
@@ -1472,7 +1470,7 @@ void sensorInit(){
   analogReference(DEFAULT);
 
   //digitalWrite(CAM_POW, HIGH);
-  digitalWrite(CAM_TRIG, HIGH);
+  digitalWrite(CAM_TRIG, LOW);
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   digitalWrite(displayPow, HIGH);  // also used as Salt output
@@ -1711,16 +1709,16 @@ void cam_on() {
 }
 
 void cam_start() {
-  digitalWrite(CAM_TRIG, LOW);
+  digitalWrite(CAM_TRIG, HIGH);
   delay(300);  // simulate  button press
-  digitalWrite(CAM_TRIG, HIGH);  
+  digitalWrite(CAM_TRIG, LOW);  
   CAMON = 2;
 }
 
 void cam_stop(){
-  digitalWrite(CAM_TRIG, LOW);
-  delay(400);  // simulate  button press
-  digitalWrite(CAM_TRIG, HIGH);  
+  digitalWrite(CAM_TRIG, HIGH);
+  delay(300);  // simulate  button press
+  digitalWrite(CAM_TRIG, LOW);  
 }
 
 void cam_off() {
