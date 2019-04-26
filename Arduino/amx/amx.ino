@@ -22,10 +22,10 @@
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
-#include <Wire.h>
-//#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
+//#include <Wire.h>
+#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3; Teensy Audio: control_sgtl5000.cpp needs to have Wire.h commented
 #include <SPI.h>
-#include <SdFat.h>
+#include "SdFat.h"
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
@@ -330,11 +330,12 @@ void setup() {
   delay(100);
 
   delay(500);
-  Wire.begin();
- // Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
- //Wire.setDefaultTimeout(10000);
- 
+  //Wire.begin();
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+  Wire.setDefaultTimeout(10000);
 
+  pinMode(displayPow, OUTPUT);
+  digitalWrite(displayPow, HIGH);  // also used as Salt output
   displayOn();
   cDisplay();
   display.println("Loggerhead");
@@ -1456,7 +1457,7 @@ void sensorInit(){
   pinMode(CAM_TRIG, OUTPUT);
   //pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
-  pinMode(displayPow, OUTPUT);
+
   pinMode(ledGreen, OUTPUT);
   pinMode(GPS_POW, OUTPUT);
   pinMode(STOP, INPUT);
@@ -1473,7 +1474,7 @@ void sensorInit(){
   digitalWrite(CAM_TRIG, LOW);
   //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
-  digitalWrite(displayPow, HIGH);  // also used as Salt output
+  
   digitalWrite(GPS_POW, HIGH);
 
 
