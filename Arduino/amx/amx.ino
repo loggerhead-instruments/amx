@@ -25,7 +25,7 @@
 //#include <Wire.h>
 #include <i2c_t3.h>  //https://github.com/nox771/i2c_t3; Teensy Audio: control_sgtl5000.cpp needs to have Wire.h commented
 #include <SPI.h>
-#include "SdFat.h"
+//#include "SdFat.h"
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
@@ -210,7 +210,6 @@ SnoozeBlock config_teensy32(snooze_audio, alarm);
 
 // The file where data is recorded
 File frec;
-SdFat sd;
 
 typedef struct {
     char    rId[4];
@@ -344,7 +343,7 @@ void setup() {
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
-  if (!(sd.begin(10))) {
+  if (!(SD.begin(10))) {
     // stop here if no SD card, but print a message
     Serial.println("Unable to access the SD card");
     
@@ -532,7 +531,7 @@ void loop() {
        digitalWrite(hydroPowPin, LOW); //hydrophone off
         
        while(1){
-          alarm.setRtcTimer(0, 2, 0);  // sleep for 2 minutes
+          alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
           Snooze.sleep(config_teensy32);
   
           // ... asleep ...
@@ -732,8 +731,8 @@ void loop() {
             //Snooze.deepSleep(snooze_config);
             //Snooze.hibernate( snooze_config);
   
-            //alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
-            alarm.setRtcTimer(snooze_hour, snooze_minute, snooze_second);
+            alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+            //alarm.setRtcTimer(snooze_hour, snooze_minute, snooze_second);
             Snooze.sleep(config_teensy32);
        
             /// ... Sleeping ....
@@ -988,7 +987,7 @@ void sdInit(){
 */
 
 void logFileHeader(){
-  if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+  if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
       logFile.close();
   }
@@ -1003,7 +1002,7 @@ void FileInit()
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     SdFile::dateTimeCallback(file_date_time);
-    sd.mkdir(dirname);
+    SD.mkdir(dirname);
    }
 
    // only audio save as wav file, otherwise save as AMX file
@@ -1019,7 +1018,7 @@ void FileInit()
 
    float voltage = readVoltage();
    
-   if(File logFile = sd.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       logFile.print(filename);
       logFile.print(',');
       for(int n=0; n<8; n++){
@@ -1068,7 +1067,7 @@ void FileInit()
     resetFunc();
    }
     
-   frec = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
+   frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
 
    if(printDiags > 0){
      Serial.println(filename);
@@ -1083,7 +1082,7 @@ void FileInit()
       sprintf(filename,"F%06d.wav",file_count); //if can't open just use count
       else
       sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
-    frec = sd.open(filename, O_WRITE | O_CREAT | O_EXCL);
+    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
     Serial.println(filename);
    }
 
