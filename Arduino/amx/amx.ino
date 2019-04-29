@@ -17,7 +17,7 @@
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
 // 
 // To do:
-// 1. Sleep GPS if depth < 1 m (can do with VHF)
+// 1. Sleep GPS if depth > 1 m (can do with VHF)
 // 2. GPS only output RMC
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -115,6 +115,7 @@ int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 
 // Pin Assignments
 #define CAM_TRIG 4
+#define CAM_POW 2
 #define hydroPowPin 21
 #define VHF 8
 #define displayPow 20
@@ -126,7 +127,6 @@ int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 #define vSense A14  // moved to Pin 21 for X1
 #define GPS_POW 16
 #define STOP 20
-//#define HALL 2
 
 // Pins used by audio shield
 // https://www.pjrc.com/store/teensy3_audio.html
@@ -529,6 +529,7 @@ void loop() {
        frec.close();
        audio_power_down();
        digitalWrite(hydroPowPin, LOW); //hydrophone off
+       
         
        while(1){
           alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
@@ -1042,15 +1043,15 @@ void FileInit()
       
       logFile.println();
       
-//      Camera uses its own battery, so don't worry about it dying
-//      if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
-//        cam_stop();
-//        cam_off();
-//        
-//        camFlag = 0; 
-//        if(printDiags) Serial.println("Camera disabled");
-//        logFile.println("Camera stopped");
-//      }
+      if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 10 hours
+        cam_stop();
+        delay(500);  //time to close file
+        cam_off();
+        
+        camFlag = 0; 
+        if(printDiags) Serial.println("Camera disabled");
+        logFile.println("Camera stopped");
+      }
       
       if(voltage < 3.0){
         logFile.println("Stopping because Voltage less than 3.0 V");
@@ -1454,43 +1455,34 @@ void sensorInit(){
   Serial.println("Sensor Init");
     
   pinMode(CAM_TRIG, OUTPUT);
-  //pinMode(CAM_POW, OUTPUT);
+  pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
-
   pinMode(ledGreen, OUTPUT);
   pinMode(GPS_POW, OUTPUT);
   pinMode(STOP, INPUT);
-  //pinMode(HALL, INPUT);
   pinMode(BURN, OUTPUT);
-  //pinMode(SDSW, OUTPUT);
   pinMode(VHF, OUTPUT);
   pinMode(vSense, INPUT);
   pinMode(SALT, INPUT);
   pinMode(saltSIG, INPUT);
   analogReference(DEFAULT);
 
-  //digitalWrite(CAM_POW, HIGH);
+  digitalWrite(CAM_POW, HIGH);
   digitalWrite(CAM_TRIG, LOW);
-  //digitalWrite(SDSW, HIGH); //low SD connected to microcontroller; HIGH SD connected to external pins
   digitalWrite(hydroPowPin, LOW);
   
   digitalWrite(GPS_POW, HIGH);
-
 
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
 
-
-
   cDisplay();
   display.println("GPS");
   display.println();
   display.println("Searching...");
   display.display();
-
-
 
   // IMU
   if(imuFlag){
@@ -1702,9 +1694,8 @@ time_t getTeensy3Time()
   return Teensy3Clock.get();
 }
 
-
 void cam_on() {
-  //digitalWrite(CAM_POW, HIGH);  
+  digitalWrite(CAM_POW, HIGH);  
   CAMON = 1;   
 }
 
@@ -1722,7 +1713,7 @@ void cam_stop(){
 }
 
 void cam_off() {
-  //digitalWrite(CAM_POW, LOW); //so doesn't draw power through trigger line
+  digitalWrite(CAM_POW, LOW);
   CAMON = 0;
 }
 
