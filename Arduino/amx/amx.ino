@@ -67,7 +67,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 2;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 300; // seconds;  // Note: Camera files are 5 minutes long
 long rec_int = 0;
@@ -524,7 +524,7 @@ void loop() {
      burnLog = 1;
 
     // if burning and voltage is low; stop recording
-     if(readVoltage() < 3.6){  
+     if(readVoltage() < 3.3){  
        if (mode == 1) stopRecording();
        frec.close();
        audio_power_down();
@@ -1043,7 +1043,7 @@ void FileInit()
       
       logFile.println();
       
-      if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 10 hours
+      if(((voltage < 3.3) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 10 hours
         cam_stop();
         delay(500);  //time to close file
         cam_off();
@@ -1437,7 +1437,7 @@ void read_myID() {
 
 float readVoltage(){
    float  voltage = 0;
-   float vDivider = 2.1; //when using 3.3 V ref R9 100K
+   float vDivider = 2.2; //when using 3.3 V ref R9 100K
    //float vDivider = 4.5;  // when using 1.2 V ref R9 301K
    float vRef = 3.3;
    pinMode(vSense, INPUT);  // get ready to read voltage
