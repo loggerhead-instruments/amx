@@ -557,14 +557,12 @@ void loop() {
       display.display();
     }
 
-    //start camera n seconds before to give a chance to get going
-    if((t >= startTime - 1) & CAMON==1){ 
-      if (camFlag)  cam_start();
-    }
     if(t >= startTime){      // time to start?
       Serial.println("Record Start.");
       cDisplay();
       display.display();
+
+      if (camFlag)  cam_start();
 
      if(noDC==0) {
         audio_freeze_adc_hp(); // this will lower the DC offset voltage, and reduce noise
@@ -1467,7 +1465,7 @@ void sensorInit(){
   pinMode(saltSIG, INPUT);
   analogReference(DEFAULT);
 
-  digitalWrite(CAM_POW, HIGH);
+  digitalWrite(CAM_POW, LOW);
   digitalWrite(CAM_TRIG, LOW);
   digitalWrite(hydroPowPin, LOW);
   
