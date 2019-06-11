@@ -417,11 +417,11 @@ int CAMX2WAVDlg::SaveWave(CString root, CString amxfilename, CString wavfilename
 			}
 			else {
 				wavFile[n].Write(data32, bytesread);
-				CString timeStamp;
-				timeStamp.Format(_T("%2d-%2d-%2d %2d:%2d:%2d,"), amx_df.RecStartTime.year, amx_df.RecStartTime.month, amx_df.RecStartTime.day, amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec);
-				if (amx_sid_spec[n].SID[0] != 'A') csvFile[n].WriteString(timeStamp);  //skip csv for Audio files
 				CString buf;
 				for (int i = 0; i < nsamples; i += amx_sid_spec[n].sensor.nChan) {
+					CString timeStamp;
+					timeStamp.Format(_T("%2d-%2d-%2d %2d:%2d:%2d,"), amx_df.RecStartTime.year, amx_df.RecStartTime.month, amx_df.RecStartTime.day, amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec);
+					if (amx_sid_spec[n].SID[0] != 'A') csvFile[n].WriteString(timeStamp);  //skip csv for Audio files
 					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
 						buf.Format(_T("%f,"), data32[i+k]);
 						csvFile[n].WriteString(buf);
