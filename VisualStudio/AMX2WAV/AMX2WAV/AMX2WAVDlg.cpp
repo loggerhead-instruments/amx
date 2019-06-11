@@ -345,7 +345,7 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 		bytesread = amxFile.Read(&amx_sid_rec.NU, 12);
 		n = amx_sid_rec.nSID; //easier to read
 
-		if (n<0 | n > 3) {
+		if (n<0 | n > numsids) {
 			AfxMessageBox(_T("Corrupted internal header. Skipping file."), MB_OK, NULL);
 			break;
 		}
