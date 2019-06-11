@@ -185,6 +185,9 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 	temppath = root + wavfilenamesel;
 	pathamx = root + _T("\\*.amx");
 	CreateDirectory(temppath, NULL);
+	CString  csvfilenamesel("\\csv\\");
+	temppath = root + csvfilenamesel;
+	CreateDirectory(temppath, NULL);
 
 	AfxGetApp()->DoWaitCursor(1);
 	WIN32_FIND_DATA FindFileData;
@@ -207,7 +210,7 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 		UpdateData(FALSE);
 		amxfilename = root + _T("\\") + m_filename;
 		wavfilename = root + wavfilenamesel + FindFileData.cFileName;
-		SaveWave(amxfilename , wavfilename);
+		SaveWave(root, amxfilename , wavfilename);
 
 		fsuccess = FindNextFile(hFind, &FindFileData);
 	}
@@ -218,7 +221,7 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 }
 
 
-int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
+int CAMX2WAVDlg::SaveWave(CString root, CString amxfilename, CString wavfilename)
 {
 	// There will be a wav file for each sensor with the number of channels 
 	// corresponding to the number of channels in that sensor
@@ -231,6 +234,7 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 	float data32[4096];
 	UINT bytesread;
 	CString wavfname[7], csvfname[7];
+	short firstTimeThrough = 1;
 
 	HdrStruct wav_hdr[7];  //wav header
 	float speriod[7];
@@ -265,41 +269,49 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 		wavfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.wav"), wavfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
 			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
 
-		csvfname[n] = wavfilename;
+		//csvfname[n] = wavfilename;
+		/*
 		csvfname[n].Format(_T("%s_%c%c_HMS_%2d_%2d_%2d__DMY_%2d_%2d_%2d.csv"), csvfname[n], amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec, amx_df.RecStartTime.day,
 			amx_df.RecStartTime.month, amx_df.RecStartTime.year);
+			*/
+
+		csvfname[n].Format(_T("%s\\csv\\%c%c%c.csv"), root, amx_sid_spec[n].SID[0], amx_sid_spec[n].SID[1], amx_sid_spec[n].SID[2]);
 
 		//open csv file for writing, except for audio file
 		if (amx_sid_spec[n].SID[0] != 'A') {
-			if (!csvFile[n].Open(csvfname[n], CStdioFile::modeCreate | CStdioFile::modeWrite, &e))
+			if (!csvFile[n].Open(csvfname[n], CStdioFile::modeCreate | CStdioFile::modeWrite | CStdioFile::modeNoTruncate, &e))
 			{
 				//unable to open wav file to write
 				AfxMessageBox(TEXT("Unable to open csv file for writing"));
 				return(0);
 			}
+			csvFile[n].SeekToEnd();
 			// write header
-			for (int i = 0; i < amx_sid_spec[n].sensor.nChan; i++) {
-				CString header;
-				for (int j = 0; j < 8; j++) {
-					if (amx_sid_spec[n].sensor.name[i][j] != NULL) {
-						header.Format(_T("%c"), amx_sid_spec[n].sensor.name[i][j]);
-						csvFile[n].WriteString(header);
+			if (firstTimeThrough==1) {
+				csvFile[n].WriteString(_T("Date,"));
+				for (int i = 0; i < amx_sid_spec[n].sensor.nChan; i++) {
+					CString header;
+					for (int j = 0; j < 8; j++) {
+						if (amx_sid_spec[n].sensor.name[i][j] != NULL) {
+							header.Format(_T("%c"), amx_sid_spec[n].sensor.name[i][j]);
+							csvFile[n].WriteString(header);
+						}
 					}
-				}
-				header.Format(_T(" "));
-				csvFile[n].WriteString(header);
-				for (int j = 0; j < 8; j++) {
-					if (amx_sid_spec[n].sensor.units[i][j] != NULL) {
-						header.Format(_T("%c"), amx_sid_spec[n].sensor.units[i][j]);
-						csvFile[n].WriteString(header);
+					header.Format(_T(" "));
+					csvFile[n].WriteString(header);
+					for (int j = 0; j < 8; j++) {
+						if (amx_sid_spec[n].sensor.units[i][j] != NULL) {
+							header.Format(_T("%c"), amx_sid_spec[n].sensor.units[i][j]);
+							csvFile[n].WriteString(header);
+						}
 					}
+					csvFile[n].WriteString(_T(","));
 				}
-				
-				csvFile[n].WriteString(_T(","));
+				csvFile[n].WriteString(_T("\n"));
 			}
-			csvFile[n].WriteString(_T("\n"));
 		}
 
+		
 
 		//open wav file for writing
 		if (!wavFile[n].Open(wavfname[n], CFile::modeCreate | CFile::modeWrite, &e))
@@ -337,6 +349,7 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 		wavFile[n].Write(&wav_hdr[n], 44);
 	}
 
+	firstTimeThrough = 0;
 	//loop through file reading and writing in chunks
 	UINT nbytes, nsamples;
 	do
@@ -387,6 +400,9 @@ int CAMX2WAVDlg::SaveWave(CString amxfilename, CString wavfilename)
 				wavFile[n].Write(data, bytesread);
 				CString buf;
 				for (int i = 0; i < nsamples; i+= amx_sid_spec[n].sensor.nChan) {
+					CString timeStamp;
+					timeStamp.Format(_T("%2d-%2d-%2d %2d:%2d:%2d,"), amx_df.RecStartTime.year, amx_df.RecStartTime.month, amx_df.RecStartTime.day, amx_df.RecStartTime.hour, amx_df.RecStartTime.minute, amx_df.RecStartTime.sec);
+					if (amx_sid_spec[n].SID[0] != 'A') csvFile[n].WriteString(timeStamp);  //skip csv for Audio files
 					for (int k = 0; k < amx_sid_spec[n].sensor.nChan; k++) {
 						float calData;
 						if (amx_sid_spec[n].SID[0] == 'A') calData = (float) data[i + k];
