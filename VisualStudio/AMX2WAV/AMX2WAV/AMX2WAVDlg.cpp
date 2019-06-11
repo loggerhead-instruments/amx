@@ -189,7 +189,7 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 	temppath = root + csvfilenamesel;
 	CreateDirectory(temppath, NULL);
 
-	AfxGetApp()->DoWaitCursor(1);
+	
 	WIN32_FIND_DATA FindFileData;
 	HANDLE hFind;
 
@@ -211,13 +211,15 @@ void CAMX2WAVDlg::OnBnClickedBatchConvert()
 		UpdateData(FALSE);
 		amxfilename = root + _T("\\") + m_filename;
 		wavfilename = root + wavfilenamesel + FindFileData.cFileName;
+		AfxGetApp()->DoWaitCursor(1);
 		SaveWave(root, amxfilename , wavfilename, writeHeader);
 		writeHeader = 0;
+		AfxGetApp()->DoWaitCursor(0);
 
 		fsuccess = FindNextFile(hFind, &FindFileData);
 	}
 	FindClose(hFind);
-	AfxGetApp()->DoWaitCursor(0);
+	
 	m_filename = CString("Done");
 	UpdateData(FALSE);
 }
