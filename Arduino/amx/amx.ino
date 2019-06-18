@@ -78,7 +78,7 @@ unsigned int delayStartHours = 0;
 int camFlag = 1;
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
-int moduloSeconds = 10; // round to nearest start time
+int moduloSeconds = 60; // round to nearest start time
 
 float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED

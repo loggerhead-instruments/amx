@@ -109,7 +109,7 @@ int gps(byte incomingByte){
 
         token = strtok(NULL, s);
         sprintf(rmcDate, "%s", token);
-        sscanf(token, "%2d%2d%2d", &gpsDay, &gpsMonth, &gpsYear);
+        sscanf(token, "%2d%2d%2d", &gpsYear, &gpsMonth, &gpsDay);
         //gpsYear += 2000;
 //        Serial.println(rmcDate);
 //        Serial.print("Day-Month-Year:");
