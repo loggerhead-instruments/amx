@@ -67,7 +67,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 300; // seconds;  // Note: Camera files are 5 minutes long
 long rec_int = 0;
@@ -505,6 +505,7 @@ void setup() {
 //
 
 int recLoopCount;  //for debugging when does not start record
+long gpsFixTime;
 
 void loop() {
 //  // if plug in USB power--get out of main loop
@@ -582,7 +583,7 @@ void loop() {
 
       //convert pressure and temperature for first reading
       updateTemp();
-      displayOff();
+      //displayOff();
 
       mode = 1;      
  //     if(hallFlag) attachInterrupt(HALL, spinCount, RISING);    
@@ -596,9 +597,15 @@ void loop() {
     continueRecording();  // download data  
 
     // parse GPS
+    goodGPS = 0;
     while (gpsSerial.available() > 0) { 
       gps(gpsSerial.read());  // parse incoming GPS data
     }
+    if(goodGPS) {
+      digitalWrite(ledGreen, HIGH);
+      gpsFixTime = millis();
+    }
+    if(millis()-gpsFixTime > 500) digitalWrite(ledGreen, LOW);
 
     // Check if stop button pressed
     if(digitalRead(STOP)==0){
@@ -636,14 +643,14 @@ void loop() {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
-      if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
+     // if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
-      digitalWrite(ledGreen, LOW);
+      //digitalWrite(ledGreen, LOW);
     } 
     
     // write Pressure & Temperature to file
