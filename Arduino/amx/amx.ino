@@ -73,9 +73,10 @@ long rec_dur = 300; // seconds;  // Note: Camera files are 5 minutes long
 long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
-//boolean hallFlag = 0;
 
-int camFlag = 1;
+//boolean hallFlag = 0;
+boolean gpsFlag = 0;
+int camFlag = 0;
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
@@ -155,7 +156,7 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
-boolean gpsFlag = 1;
+
 int burnFlag = 0; // set by setup.txt file if use BW or BM
 byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
@@ -311,7 +312,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190417; //unsigned long
+  dfh.Version = 20190702; //unsigned long
   dfh.UserID = 5555;
 
   read_myID();
@@ -583,7 +584,7 @@ void loop() {
 
       //convert pressure and temperature for first reading
       updateTemp();
-      //displayOff();
+      displayOff();
 
       mode = 1;      
  //     if(hallFlag) attachInterrupt(HALL, spinCount, RISING);    
@@ -643,14 +644,14 @@ void loop() {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
-     // if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
+      if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
       if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
-      //digitalWrite(ledGreen, LOW);
+      digitalWrite(ledGreen, LOW);
     } 
     
     // write Pressure & Temperature to file
@@ -687,7 +688,7 @@ void loop() {
     
     if(buf_count >= nbufs_per_file){       // time to stop?    
       total_hour_recorded += (float) rec_dur / 3600.0;
-      if(total_hour_recorded > 1.0) introperiod = 0;  //LEDS on for first file
+      if(total_hour_recorded > 0.16) introperiod = 0;  //LEDS on for 10 minutes
       if(rec_int == 0){
         if(printDiags > 0){
           Serial.print("Audio Memory Max");
