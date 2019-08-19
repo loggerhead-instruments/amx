@@ -173,7 +173,7 @@ int ProcCmd(char *pCmd)
 
 boolean LoadScript()
 {
-  char s[30];
+  char s[50];
   char c;
   short i;
   int j = 0;
@@ -183,7 +183,7 @@ boolean LoadScript()
   int comment_TM = 0;
 
   // Read card setup.txt file to set date and time, recording interval
-  file=SD.open("setup.txt");
+ file=SD.open("setup.txt");
  if(file)
  {
    do{
@@ -223,6 +223,35 @@ boolean LoadScript()
   {   
     Serial.println("setup.txt not opened");
   }
+
+
+  // Read geofence
+  Serial.println("Geofence file");
+  i = 0;
+  file = SD.open("geofence.txt");
+  if(file){
+    do{
+      j = 0;
+      do{ // scan next line
+        c = file.read();
+        Serial.write(c);
+        if(c!='\r') s[j] = c;
+        j++;
+        if(j>49) break;
+      }while(c!='\n');
+      Serial.print(i); Serial.print(" ");
+      sscanf(s,"%f,%f",&geoLongitude[i],&geoLatitude[i]);
+      Serial.print(geoLatitude[i]); Serial.print(" "); 
+      Serial.println(geoLongitude[i]);
+      i++;
+      if(i==20) break;
+    }while(file.available());
+    file.close();
+    nVertices = i;
+    Serial.print("Number vertices:");
+    Serial.println(nVertices);
+  }
+
 
 
  return 1;  

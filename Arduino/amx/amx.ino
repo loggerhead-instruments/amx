@@ -64,19 +64,23 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
   #define pressAddress 0x76
 #endif
 
+
+
 // 
 // Dev settings
 //
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
-long rec_dur = 300; // seconds;  // Note: Camera files are 5 minutes long
+long rec_dur = 300; // seconds;  // Note: B/W Camera files are 5 minutes long; RunCam color 17 minutes
 long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
 
 //boolean hallFlag = 0;
-boolean gpsFlag = 0;
-int camFlag = 0;
+boolean gpsFlag = 1;
+#define BLACKWHITE 1 // DVR
+#define RUNCAMCOLOR 2 // autostarts when gets power
+int camFlag = RUNCAMCOLOR; // run cam color autostarts recording after get power
 float max_cam_hours_rec = 10.0; // turn off camera after max_cam_hours_rec to save power; SPYCAM gets ~10 hours with 32 GB card--depends on compression
 byte fileType = 1; //0=wav, 1=amx
 int moduloSeconds = 60; // round to nearest start time
@@ -152,6 +156,7 @@ time_t stopTime;
 time_t t;
 time_t burnTime;
 time_t playTime;
+time_t camStopTime;
 byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 
 boolean imuFlag = 1;
@@ -184,6 +189,9 @@ char latHem, lonHem;
 int gpsYear = 19, gpsMonth = 4, gpsDay = 17, gpsHour = 22, gpsMinute = 5, gpsSecond = 0;
 int goodGPS = 0;
 long gpsTimeOutThreshold = 600000;
+int nVertices=0; // number of vertices read from geofence.txt file
+float geoLatitude[20];
+float geoLongitude[20];
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
@@ -315,10 +323,14 @@ void setup() {
   dfh.Version = 20190702; //unsigned long
   dfh.UserID = 5555;
 
+  pinMode(CAM_POW, OUTPUT); // don't let camera power up
+  digitalWrite(CAM_POW, LOW);
+
   read_myID();
   
   Serial.begin(baud);
   gpsSerial.begin(9600);  // GPS
+  delay(5000);
   
   RTC_CR = 0; // disable RTC
   delay(100);
@@ -496,7 +508,7 @@ void setup() {
 
   // create first folder to hold data
   folderMonth = -1;  //set to -1 so when first file made will create directory
-  if(camFlag) cam_on();
+  if(camFlag==BLACKWHITE) cam_on();
   //if (fileType) Timer1.initialize(1000000 / update_rate); // initialize with 100 ms period when update_rate = 10 Hz
   
 }
@@ -559,12 +571,13 @@ void loop() {
       display.display();
     }
 
+    if(t >= startTime - 10 & camFlag==RUNCAMCOLOR) cam_on();
     if(t >= startTime){      // time to start?
       Serial.println("Record Start.");
       cDisplay();
       display.display();
 
-      if (camFlag)  cam_start();
+      if (camFlag==BLACKWHITE)  cam_start();
 
      if(noDC==0) {
         audio_freeze_adc_hp(); // this will lower the DC offset voltage, and reduce noise
@@ -605,6 +618,11 @@ void loop() {
     if(goodGPS) {
       digitalWrite(ledGreen, HIGH);
       gpsFixTime = millis();
+      if(geoFence()==0) {
+        digitalWrite(BURN, HIGH);
+        digitalWrite(VHF, HIGH);
+      }
+       
     }
     if(millis()-gpsFixTime > 500) digitalWrite(ledGreen, LOW);
 
@@ -654,21 +672,26 @@ void loop() {
       digitalWrite(ledGreen, LOW);
     } 
     
-    // write Pressure & Temperature to file
+    // write Pressure & Temperature to file & optionally GPS
     if(time2writePT==1)
     { 
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
-      if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&gpsBuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+      if(gpsFlag){
+        if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
+        if(frec.write((uint8_t *)&gpsBuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+      }
+
       time2writePT = 0;
     }
     if(time2writePT==2)
     {
       if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
       if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();  
-      if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&gpsBuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
+      if(gpsFlag){
+        if(frec.write((uint8_t *)&sidRec[4],sizeof(SID_REC))==-1) resetFunc();
+        if(frec.write((uint8_t *)&gpsBuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc(); 
+      }  
       time2writePT = 0;
     }   
   
@@ -685,11 +708,20 @@ void loop() {
       if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
     } 
-    
-    if(buf_count >= nbufs_per_file){       // time to stop?    
+
+    // wait a second to turn on Runcam Color to start new file
+ //   if((camFlag==RUNCAMCOLOR) & (t > camStopTime + 2) & (CAMON==3)) cam_start();
+
+    //
+    // // time to stop? 
+    //
+    if(buf_count >= nbufs_per_file){          
       total_hour_recorded += (float) rec_dur / 3600.0;
       if(total_hour_recorded > 0.16) introperiod = 0;  //LEDS on for 10 minutes
       if(rec_int == 0){
+   //     if (camFlag==RUNCAMCOLOR) cam_stop();  // button press
+   //     camStopTime = getTeensy3Time();
+    
         if(printDiags > 0){
           Serial.print("Audio Memory Max");
           Serial.println(AudioMemoryUsageMax());
@@ -933,6 +965,7 @@ void setupDataStructures(void){
   strncpy(sensor[4].units[1], "degrees", STR_MAX);
   sensor[4].cal[0] = 1.0;
   sensor[4].cal[1] = 1.0;
+
 }
 
 int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
@@ -1049,7 +1082,7 @@ void FileInit()
       
       logFile.println();
       
-      if(((voltage < 3.3) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 10 hours
+      if(((voltage < 3.6) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 10 hours
         cam_stop();
         delay(500);  //time to close file
         cam_off();
@@ -1059,13 +1092,24 @@ void FileInit()
         logFile.println("Camera stopped");
       }
       
-      if(voltage < 3.0){
-        logFile.println("Stopping because Voltage less than 3.0 V");
+      if(voltage < 3.4){
+        logFile.println("Stopping because Voltage less than 3.4 V");
         logFile.close();  
+
+        digitalWrite(BURN, HIGH);  // burn on
+        digitalWrite(VHF, HIGH);   // VHF on
+        digitalWrite(ledGreen, LOW);
+        digitalWrite(GPS_POW, LOW);
+        
         // low voltage hang but keep checking voltage
-        while(readVoltage() < 3.0){
-            delay(30000);
+        while(readVoltage() < 3.5){
+           delay(10);
         }
+
+        // could have been bad voltage reading, turn BURN off, but leave VHF on
+          digitalWrite(BURN, LOW);  // burn on
+          digitalWrite(VHF, HIGH);   // VHF on
+          digitalWrite(GPS_POW, HIGH);
       }
       logFile.close();
    }
@@ -1461,7 +1505,6 @@ void sensorInit(){
   Serial.println("Sensor Init");
     
   pinMode(CAM_TRIG, OUTPUT);
-  pinMode(CAM_POW, OUTPUT);
   pinMode(hydroPowPin, OUTPUT);
   pinMode(ledGreen, OUTPUT);
   pinMode(GPS_POW, OUTPUT);
@@ -1473,7 +1516,6 @@ void sensorInit(){
   pinMode(saltSIG, INPUT);
   analogReference(DEFAULT);
 
-  digitalWrite(CAM_POW, LOW);
   digitalWrite(CAM_TRIG, LOW);
   digitalWrite(hydroPowPin, LOW);
   
@@ -1706,9 +1748,21 @@ void cam_on() {
 }
 
 void cam_start() {
-  digitalWrite(CAM_TRIG, HIGH);
-  delay(300);  // simulate  button press
-  digitalWrite(CAM_TRIG, LOW);  
+  if(camFlag == BLACKWHITE){
+    digitalWrite(CAM_TRIG, HIGH);
+    delay(300);  // simulate  button press
+    digitalWrite(CAM_TRIG, LOW);  
+  }
+
+  // only do runcam after a stop was called, because it autostarts on power
+  if(camFlag == RUNCAMCOLOR){
+    if(CAMON==3){
+        digitalWrite(CAM_TRIG, HIGH);
+        delay(100);  // simulate  button press
+        digitalWrite(CAM_TRIG, LOW); 
+    }
+  }
+
   CAMON = 2;
 }
 
@@ -1716,6 +1770,7 @@ void cam_stop(){
   digitalWrite(CAM_TRIG, HIGH);
   delay(300);  // simulate  button press
   digitalWrite(CAM_TRIG, LOW);  
+  CAMON = 3;
 }
 
 void cam_off() {
