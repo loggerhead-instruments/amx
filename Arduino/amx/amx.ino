@@ -375,6 +375,24 @@ void setup() {
   }
 
   LoadScript();
+
+//  // test geofence
+//  float testLat[6];
+//  float testLon[6];
+//  testLat[0] = 27.26; testLon[0] = -82.48;
+//  testLat[1] = 27.27; testLon[1] = -82.47;
+//  testLat[2] = 28; testLon[2] = -82.48;
+//  testLat[3] = 27.26; testLon[3] = -81;
+//  testLat[4] = 27.26; testLon[4] = -83;
+//  testLat[5] = 0; testLon[5] = 0;
+//
+//  for (int i=0; i<6; i++){
+//    Serial.print(testLat[i]); Serial.print(" ");
+//    Serial.print(testLon[i]); Serial.print(" In fence: ");
+//    latitude = testLat[i];
+//    longitude = testLon[i];
+//    Serial.println(geoFence());
+//  }
  
   sensorInit(); // initialize and test sensors
   logFileHeader();
@@ -621,6 +639,13 @@ void loop() {
       if(geoFence()==0) {
         digitalWrite(BURN, HIGH);
         digitalWrite(VHF, HIGH);
+        displayOn();
+        delay(100);
+        cDisplay();
+        display.println("GeoFence");
+        display.println();
+        display.print("Outside");
+        display.display();
       }
        
     }
