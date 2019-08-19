@@ -169,7 +169,7 @@ boolean CAMON = 0;
 
 boolean briteFlag = 0; // bright LED
 long burnMinutes = 0;
-int burnLog = 0; //burn status for log file
+int burnLog = 0; //burn status for log file; 1 = timed burn; 2 = geofence burn
 
 volatile boolean LEDSON = 1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
@@ -639,13 +639,8 @@ void loop() {
       if(geoFence()==0) {
         digitalWrite(BURN, HIGH);
         digitalWrite(VHF, HIGH);
-        displayOn();
-        delay(100);
-        cDisplay();
-        display.println("GeoFence");
-        display.println();
-        display.print("Outside");
-        display.display();
+        digitalWrite(ledGreen, LOW);
+        burnLog = 2;
       }
        
     }
@@ -1804,7 +1799,7 @@ void cam_off() {
 }
 
 void checkDepthVHF(){
-  if((depth < depthThreshold) | burnLog==1) {
+  if((depth < depthThreshold) | burnLog>0) {
     digitalWrite(VHF, HIGH);
   }
   else{
