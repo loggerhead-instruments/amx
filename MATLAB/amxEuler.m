@@ -27,6 +27,19 @@ magZoffset = (max(mag_z) + min(mag_z)) / 2;
 if isequal(FileName,0)|isequal(PathName,0)
    return
 end
+
+figure(1)
+subplot(2,1,1)
+plot(mag_x, mag_y);
+xlabel('Mag X');
+ylabel('Mag Y');
+title('Magnetometer offset');
+figure(1)
+subplot(2,1,2)
+plot(mag_x, mag_z);
+xlabel('Mag X');
+ylabel('Mag Z');
+
     
 FileName
 cd(PathName);
@@ -81,10 +94,31 @@ pitch = radtodeg(theta);
 roll = radtodeg(phi);
 yaw = -radtodeg(psi);
 
-figure(1)
+figure(2)
+subplot(2,1,1)
 plot(pitch)
 hold on
 plot(roll, 'g')
 plot(yaw, 'r')
 ylabel('Degrees');
 legend('pitch', 'roll', 'yaw')
+
+% this file is to analyze using offsets previously calculated
+[FileName,PathName,FilterIndex] = uigetfile({'*.CSV','CSV files (*.CSV)'},'Select PRT.csv depth file');
+if isequal(FileName,0)|isequal(PathName,0)
+   return
+end
+FileName
+cd(PathName);
+D = csvread(FileName, 1, 1);
+pressure = D(:, 1);
+temperature = D(:, 2);
+
+surfacePressure = 1010.0;
+mBarPerMeter = 111.377;
+depth = (surfacePressure - pressure) / mBarPerMeter;
+
+figure(2)
+subplot(2,1,2)
+plot(depth);
+ylabel('Depth (m)');

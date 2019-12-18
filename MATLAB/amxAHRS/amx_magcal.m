@@ -54,6 +54,6 @@ ylabel('Z corrected');
 %%
 % 3D plot
 %
-%figure(11)
-%plot3(INER.mag(startmag:stopmag,1:3:end)-magoffset(1),INER.mag(startmag:stopmag,2:3:end)-magoffset(2), INER.mag(startmag:stopmag,3:3:end)-magoffset(3),'.');
-%title('3D plot with offset corrected');
+figure(11)
+plot3(INER.mag(startmag:stopmag,1:3:end)-magoffset(1),INER.mag(startmag:stopmag,2:3:end)-magoffset(2), INER.mag(startmag:stopmag,3:3:end)-magoffset(3),'.');
+title('3D plot with offset corrected');
