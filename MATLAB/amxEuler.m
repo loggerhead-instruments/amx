@@ -93,27 +93,27 @@ subplot(2,1,1)
 plot(pitch)
 hold on
 plot(roll, 'g')
-plot(yaw, 'r')
+plot(unwrap(yaw), 'r')
 ylabel('Degrees');
 legend('pitch', 'roll', 'yaw')
 hold off
 
-% % Load pressure file
-% [FileName,PathName,FilterIndex] = uigetfile({'*.CSV','CSV files (*.CSV)'},'Select PRT.csv depth file');
-% if isequal(FileName,0)|isequal(PathName,0)
-%    return
-% end
-% FileName
-% cd(PathName);
-% D = csvread(FileName, 1, 1);
-% pressure = D(:, 1);
-% temperature = D(:, 2);
-% 
-% surfacePressure = 1010.0;
-% mBarPerMeter = 111.377;
-% depth = (surfacePressure - pressure) / mBarPerMeter;
-% 
-% figure(2)
-% subplot(2,1,2)
-% plot(depth);
-% ylabel('Depth (m)');
+% Load pressure file
+[FileName,PathName,FilterIndex] = uigetfile({'*.CSV','CSV files (*.CSV)'},'Select PRT.csv depth file');
+if isequal(FileName,0)|isequal(PathName,0)
+   return
+end
+FileName
+cd(PathName);
+D = csvread(FileName, 1, 1);
+pressure = D(:, 1);
+temperature = D(:, 2);
+
+surfacePressure = 1010.0;
+mBarPerMeter = 111.377;
+depth = (surfacePressure - pressure) / mBarPerMeter;
+
+figure(2)
+subplot(2,1,2)
+plot(depth);
+ylabel('Depth (m)');
