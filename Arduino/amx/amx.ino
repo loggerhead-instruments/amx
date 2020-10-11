@@ -12,7 +12,7 @@
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
-
+// Compile 72 MHz Fastest
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
@@ -64,7 +64,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static int printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static int printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
@@ -97,7 +97,6 @@ int moduloSeconds = 60; // round to nearest start time
 
 float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
-//
 //
 //
 
@@ -321,7 +320,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190326; //unsigned long
+  dfh.Version = 20200628; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -455,7 +454,7 @@ void setup() {
   startTime = t + delayStartSeconds;
   if(delayStartSeconds == 0){
     startTime = t + 10; // make sure have at least 10 seconds
-    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+    startTime -= startTime % moduloSeconds;  //modulo to nearest 60 seconds
     startTime += moduloSeconds; //move forward
   }
 
@@ -486,11 +485,11 @@ void setup() {
   Serial.print("Start Time: ");
   printTime(startTime);
   
-  // Sleep here if won't start for 60 s
+  // Sleep here if won't start for 120 s
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  for(int x = 0; x<10; x++){
+  for(int x = 0; x<5; x++){
     cDisplay();
     t = getTeensy3Time();
     display.println("Sleep until:");
@@ -501,7 +500,7 @@ void setup() {
   }
 
 
-  if(time_to_first_rec>60){
+  if(time_to_first_rec>120){
     // power things off
     digitalWrite(hydroPowPin, LOW);
     audio_power_down();
