@@ -1,4 +1,6 @@
+
 #include "control_sgtl5000.h"
+#include "Wire.h"
 
 #define SGTL5000_I2C_ADDR  0x0A  // CTRL_ADR0_CS pin low (normal configuration)
 
@@ -422,24 +424,25 @@ bool audio_enable(int fs_mode)
 //  delay(5);
 //  unsigned int n = read(CHIP_ID);
 //  Serial.println(n, HEX);
-  
+
   chipWrite(CHIP_ANA_POWER, 0x4060);  // VDDD is externally driven with 1.8V
   chipWrite(CHIP_LINREG_CTRL, 0x006C);  // VDDA & VDDIO both over 3.1V
-  chipWrite(CHIP_REF_CTRL, 0x01F0); // VAG=1.575, normal ramp, normal bias current; less pronounced noise in quiet
- // chipWrite(CHIP_REF_CTRL, 0x01F2); // VAG=1.575, normal ramp, +12.5% bias current; more pronounced noise in quiet
- // chipWrite(CHIP_REF_CTRL, 0x01F4); // VAG=1.575, normal ramp, -12.5% bias current
+  
+  chipWrite(CHIP_REF_CTRL, 0x01F0); // VAG=1.575, normal ramp, no bias current;
+  //chipWrite(CHIP_REF_CTRL, 0x01F2); // VAG=1.575, normal ramp, +12.5% bias current
+    
+  chipWrite(CHIP_MIC_CTRL, 0x00); // Mic bias off; Mic Amplifier gain 0 dB
 
   chipWrite(CHIP_LINE_OUT_CTRL, 0x0F22); // LO_VAGCNTRL=1.65V, OUT_CURRENT=0.54mA
+  chipWrite(CHIP_SHORT_CTRL, 0x4446);  // allow up to 125mA
+  chipWrite(CHIP_ANA_CTRL, 0x0137);  // enable zero cross detectors
   
-  chipWrite(CHIP_SHORT_CTRL, 0x0000); // disable headphone short control
-  //chipWrite(CHIP_SHORT_CTRL, 0x4446);  // allow up to 125mA
-  // chipWrite(CHIP_ANA_CTRL, 0x0137);  // enable zero cross detectors
-
   audio_power_up();
   
+  delay(400);
   //chipWrite(CHIP_LINE_OUT_VOL, 0x1D1D); // default approx 1.3 volts peak-to-peak
-  //chipWrite(CHIP_LINE_OUT_VOL, 0x1919); // default approx 1.3 volts peak-to-peak
-
+  chipWrite(CHIP_LINE_OUT_VOL, 0x1919); // default approx 1.3 volts peak-to-peak
+  //
   chipWrite(CHIP_CLK_CTRL, (sgtl_mode<<2));  // 256*Fs| sgtl_mode = 0:32 kHz; 1:44.1 kHz; 2:48 kHz; 3:96 kHz
   chipWrite(CHIP_I2S_CTRL, 0x0130); // SCLK=32*Fs, 16bit, I2S format
   
@@ -450,22 +453,19 @@ bool audio_enable(int fs_mode)
   chipWrite(CHIP_ADCDAC_CTRL, 0x0008); // DAC mute right; DAC left unmute; ADC HPF normal operation
   
   
-  chipWrite(CHIP_DAC_VOL, 0xFFFF); // dac mute right; DAC mute left
+  chipWrite(CHIP_DAC_VOL, 0xFF3C); // dac mute right; left 0 dB
   chipWrite(CHIP_ANA_HP_CTRL, 0x7F7F); // set headphone volume (lowest level)
   //chipWrite(CHIP_ANA_CTRL, 0x0036);  // enable zero cross detectors; line input
 
   chipWrite(DAP_AVC_CTRL, 0x0000); //no automatic volume control
- 
-  chipWrite(CHIP_ANA_CTRL, 0x0114);  // lineout mute, headphone mute, no zero cross detectors, line input selected
-  //chipWrite(CHIP_ANA_CTRL, 0x0014);  // lineout unmute, headphone mute, no zero cross detectors, line input selected
-  
+  //chipWrite(CHIP_ANA_CTRL, 0x0114);  // lineout mute, headphone mute, no zero cross detectors, line input selected
+  chipWrite(CHIP_ANA_CTRL, 0x0014);  // lineout unmute, headphone mute, no zero cross detectors, line input selected
   chipWrite(CHIP_MIC_CTRL, 0x0000); //microphone off
-  
   //chipWrite(CHIP_ANA_ADC_CTRL, 0x0000); // 0 dB gain
   //chipWrite(CHIP_ANA_ADC_CTRL, 0x0100); // -6 dB gain
   Serial.print("Set gain:");
   Serial.println(gainSetting);
-  Serial.println(chipWrite(CHIP_ANA_ADC_CTRL, gainSetting<<4 | gainSetting)); // set left and right gain
+  Serial.println(chipWrite(CHIP_ANA_ADC_CTRL, gainSetting)); // set left gain
   
    return true;
 }
@@ -485,12 +485,11 @@ void audio_power_down(void){
 }
 
 void audio_power_up(void){
- chipWrite(CHIP_ANA_POWER, 0x00A2); // power up: adc Stereo = E2; Mono (Left): A2
- //chipWrite(CHIP_ANA_POWER, 0x00AB); // power up: DAC; ADC; Mono (Left): Lineout amplifier; AB
+  chipWrite(CHIP_ANA_POWER, 0x00A2); // power up: adc Stereo = E2; Mono (Left): A2
+// chipWrite(CHIP_ANA_POWER, 0x00AB); // power up: DAC; ADC; Mono (Left): Lineout amplifier; AB
  
-//  chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
+  chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
 //  chipWrite(CHIP_DIG_POWER, 0x0063); // power up analag ADC, DAC, I2SIN, I2SOUT; disable DAP and IS2OUT
-    chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
 }
 
 bool chipWrite(unsigned int reg, unsigned int val)
@@ -504,7 +503,6 @@ bool chipWrite(unsigned int reg, unsigned int val)
   if (Wire.endTransmission() == 0) return true;
   return false;
 }
-
 
   //------------------------------modify I2S-------------------------------------------
 // attempt to generate dividers programmatically
@@ -538,10 +536,10 @@ void I2S_modification(uint32_t fsamp, uint16_t nbits)
   int fcpu=F_CPU;
   if((F_CPU==96000000) || (F_CPU==48000000) || (F_CPU==24000000)) fcpu=96000000; 
   float fs = (fcpu * (iscl[0]+1.0f)) / (iscl[1]+1l) / 2 / (iscl[2]+1l) / (2l*nbits);
-
-  Serial.printf("%d %d: %d %d %d %d %d %d\n\r",
+  #if DEBUG >0
+    Serial.printf("%d %d: %d %d %d %d %d %d\n\r",
         F_CPU, fcpu, fsamp, (int)fs, nbits,iscl[0]+1,iscl[1]+1,iscl[2]+1);
-  
+  #endif
 
   // stop I2S
   I2S0_RCSR &= ~(I2S_RCSR_RE | I2S_RCSR_BCE);

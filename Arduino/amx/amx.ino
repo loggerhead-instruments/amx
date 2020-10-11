@@ -120,10 +120,8 @@ unsigned long baud = 115200;
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
-//AudioAnalyzeFFT256       fft256_1; 
-LHIRecordQueue         queue1;         //xy=281,63
+LHIRecordQueue           queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
-//AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
@@ -175,7 +173,7 @@ byte startHour, startMinute, endHour, endMinute; //used in Diel mode
 boolean imuFlag = 1;
 boolean rgbFlag = 1;
 int burnFlag = 0; // set by setup.txt file if use BW or BM
-byte pressure_sensor = 0; //0=none, 1=MS5802, 2=Keller PA7LD; autorecognized 
+byte pressure_sensor = 0; //0=none, 1=MS5837, 2=Keller PA7LD; autorecognized 
 boolean audioFlag = 1;
 boolean CAMON = 0;
 
@@ -508,7 +506,7 @@ void setup() {
   
   if (recMode==MODE_DIEL) checkDielTime();  
   
-  nbufs_per_file = (long) (rec_dur * audio_srate / 256.0);
+  nbufs_per_file = (long) (ceil(((rec_dur * audio_srate / 256.0) / (float) NREC)) * (float) NREC);
   
   long ss = rec_int - wakeahead;
   if (ss<0) ss=0;
@@ -1541,14 +1539,17 @@ void sensorInit(){
   digitalWrite(displayPow, HIGH);  // also used as Salt output
 
   Serial.println("Sensor Init");
+  cDisplay();
+  display.println("Sensor Init");
+  display.display();
 
   // Digital IO
   digitalWrite(ledGreen, HIGH);
   digitalWrite(BURN, HIGH);
   digitalWrite(VHF, HIGH);
-  // playback
-  playBackOn();
-  Serial.println("Test playback");
+//  // playback
+//  playBackOn();
+//  Serial.println("Test playback");
   
   delay(3000);
   
@@ -1556,7 +1557,7 @@ void sensorInit(){
   digitalWrite(BURN, LOW);
   digitalWrite(VHF, LOW);
 
-  playTrackNumber(0);
+  //playTrackNumber(0);
   
 
   // IMU
@@ -1631,7 +1632,7 @@ void sensorInit(){
 // Pressure--auto identify which if any is present
   cDisplay();
   
-  pressure_sensor = 0;
+  pressure_sensor = 1;
   // Keller
   int nAvg = 11;
   float pressureSum;
