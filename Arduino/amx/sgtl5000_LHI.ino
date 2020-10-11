@@ -412,52 +412,60 @@
 #define DAP_AVC_CTRL        0x0124 //audio volume control
 // 0  Disable
 
-bool audio_enable(void)
-{
+bool audio_enable(int fs_mode)
+{ int sgtl_mode=fs_mode-2;
+  if(sgtl_mode>3) sgtl_mode=3;
+  if(sgtl_mode<0) sgtl_mode=0;
+  
 //  muted = true;
 //  Serial.print("audio ID = ");
 //  delay(5);
 //  unsigned int n = read(CHIP_ID);
 //  Serial.println(n, HEX);
-
+  
   chipWrite(CHIP_ANA_POWER, 0x4060);  // VDDD is externally driven with 1.8V
   chipWrite(CHIP_LINREG_CTRL, 0x006C);  // VDDA & VDDIO both over 3.1V
-  
-  chipWrite(CHIP_REF_CTRL, 0x01F0); // VAG=1.575, normal ramp, no bias current;
-  //chipWrite(CHIP_REF_CTRL, 0x01F2); // VAG=1.575, normal ramp, +12.5% bias current
-    
-  chipWrite(CHIP_MIC_CTRL, 0x00); // Mic bias off; Mic Amplifier gain 0 dB
+  chipWrite(CHIP_REF_CTRL, 0x01F0); // VAG=1.575, normal ramp, normal bias current; less pronounced noise in quiet
+ // chipWrite(CHIP_REF_CTRL, 0x01F2); // VAG=1.575, normal ramp, +12.5% bias current; more pronounced noise in quiet
+ // chipWrite(CHIP_REF_CTRL, 0x01F4); // VAG=1.575, normal ramp, -12.5% bias current
 
   chipWrite(CHIP_LINE_OUT_CTRL, 0x0F22); // LO_VAGCNTRL=1.65V, OUT_CURRENT=0.54mA
-  chipWrite(CHIP_SHORT_CTRL, 0x4446);  // allow up to 125mA
-  chipWrite(CHIP_ANA_CTRL, 0x0137);  // enable zero cross detectors
   
+  chipWrite(CHIP_SHORT_CTRL, 0x0000); // disable headphone short control
+  //chipWrite(CHIP_SHORT_CTRL, 0x4446);  // allow up to 125mA
+  // chipWrite(CHIP_ANA_CTRL, 0x0137);  // enable zero cross detectors
+
   audio_power_up();
   
-  delay(400);
   //chipWrite(CHIP_LINE_OUT_VOL, 0x1D1D); // default approx 1.3 volts peak-to-peak
-  chipWrite(CHIP_LINE_OUT_VOL, 0x1919); // default approx 1.3 volts peak-to-peak; higher codes have more attenuation
-  chipWrite(CHIP_CLK_CTRL, 0x0004);  // 44.1 kHz, 256*Fs
+  //chipWrite(CHIP_LINE_OUT_VOL, 0x1919); // default approx 1.3 volts peak-to-peak
+
+  chipWrite(CHIP_CLK_CTRL, (sgtl_mode<<2));  // 256*Fs| sgtl_mode = 0:32 kHz; 1:44.1 kHz; 2:48 kHz; 3:96 kHz
   chipWrite(CHIP_I2S_CTRL, 0x0130); // SCLK=32*Fs, 16bit, I2S format
-  // default signal routing is ok?D
   
+  // default signal routing is ok?
   //chipWrite(CHIP_SSS_CTRL, 0x0010); // ADC->I2S, I2S->DAC
   chipWrite(CHIP_SSS_CTRL, 0x0000); // ADC->I2S, ADC->DAC
 
-    chipWrite(CHIP_ADCDAC_CTRL, 0x0008); // DAC mute right; DAC left unmute; ADC HPF normal operation
+  chipWrite(CHIP_ADCDAC_CTRL, 0x0008); // DAC mute right; DAC left unmute; ADC HPF normal operation
   
   
-  chipWrite(CHIP_DAC_VOL, 0xFF3C); // dac mute right; left 0 dB
+  chipWrite(CHIP_DAC_VOL, 0xFFFF); // dac mute right; DAC mute left
   chipWrite(CHIP_ANA_HP_CTRL, 0x7F7F); // set headphone volume (lowest level)
   //chipWrite(CHIP_ANA_CTRL, 0x0036);  // enable zero cross detectors; line input
 
   chipWrite(DAP_AVC_CTRL, 0x0000); //no automatic volume control
-  //chipWrite(CHIP_ANA_CTRL, 0x0114);  // lineout mute, headphone mute, no zero cross detectors, line input selected
-  chipWrite(CHIP_ANA_CTRL, 0x0014);  // lineout unmute, headphone mute, no zero cross detectors, line input selected
-  chipWrite(CHIP_MIC_CTRL, 0x0000); //microphone off
-  chipWrite(CHIP_ANA_ADC_CTRL, 0x0000); // 0 dB gain
-  //chipWrite(CHIP_ANA_ADC_CTRL, 0x0100); // -6 dB gain
+ 
+  chipWrite(CHIP_ANA_CTRL, 0x0114);  // lineout mute, headphone mute, no zero cross detectors, line input selected
+  //chipWrite(CHIP_ANA_CTRL, 0x0014);  // lineout unmute, headphone mute, no zero cross detectors, line input selected
   
+  chipWrite(CHIP_MIC_CTRL, 0x0000); //microphone off
+  
+  //chipWrite(CHIP_ANA_ADC_CTRL, 0x0000); // 0 dB gain
+  //chipWrite(CHIP_ANA_ADC_CTRL, 0x0100); // -6 dB gain
+  Serial.print("Set gain:");
+  Serial.println(gainSetting);
+  Serial.println(chipWrite(CHIP_ANA_ADC_CTRL, gainSetting<<4 | gainSetting)); // set left and right gain
   
    return true;
 }
@@ -477,11 +485,12 @@ void audio_power_down(void){
 }
 
 void audio_power_up(void){
-  //chipWrite(CHIP_ANA_POWER, 0x00A2); // power up: adc Stereo = E2; Mono (Left): A2
- chipWrite(CHIP_ANA_POWER, 0x00AB); // power up: DAC; ADC; Mono (Left): Lineout amplifier; AB
+ chipWrite(CHIP_ANA_POWER, 0x00A2); // power up: adc Stereo = E2; Mono (Left): A2
+ //chipWrite(CHIP_ANA_POWER, 0x00AB); // power up: DAC; ADC; Mono (Left): Lineout amplifier; AB
  
 //  chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
-  chipWrite(CHIP_DIG_POWER, 0x0063); // power up analag ADC, DAC, I2SIN, I2SOUT; disable DAP and IS2OUT
+//  chipWrite(CHIP_DIG_POWER, 0x0063); // power up analag ADC, DAC, I2SIN, I2SOUT; disable DAP and IS2OUT
+    chipWrite(CHIP_DIG_POWER, 0x0043); // power up only analag ADC and I2S; disable DAC and DAP
 }
 
 bool chipWrite(unsigned int reg, unsigned int val)
@@ -494,4 +503,60 @@ bool chipWrite(unsigned int reg, unsigned int val)
   Wire.write(val);
   if (Wire.endTransmission() == 0) return true;
   return false;
+}
+
+
+  //------------------------------modify I2S-------------------------------------------
+// attempt to generate dividers programmatically
+// always better to check
+void I2S_dividers(uint32_t *iscl, uint32_t fsamp, uint32_t nbits)
+{
+    int64_t i1 = 1;
+    int64_t i2 = 1;
+    int64_t i3 = iscl[2]+1;
+    int fcpu=F_CPU;
+    if((F_CPU==96000000) || (F_CPU==48000000) || (F_CPU==24000000)) fcpu=96000000; 
+    float A=fcpu/2.0f/i3/(2.0f*nbits*fsamp);
+    float mn=1.0; 
+    for(int ii=1;ii<64;ii++) 
+    { float xx;
+      xx=A*ii-(int32_t)(A*ii); 
+      if(xx<mn && A*ii<256.0) { mn=xx; i1=ii; i2=A*ii;} //select first candidate
+    }
+    iscl[0] = (int) (i1-1);
+    iscl[1] = (int) (i2-1);
+    iscl[2] = (int) (i3-1);
+}
+
+void I2S_modification(uint32_t fsamp, uint16_t nbits)
+{ uint32_t iscl[3];
+  if(nbits==16)
+    iscl[2]=3;  // 16 bit I2S (256/2*(2*16)-1)
+  else if(nbits==32)
+    iscl[2]=1;  // 32 bit modified I2S (256/(2*(2*32)-1)
+  I2S_dividers(iscl, fsamp ,nbits);
+  int fcpu=F_CPU;
+  if((F_CPU==96000000) || (F_CPU==48000000) || (F_CPU==24000000)) fcpu=96000000; 
+  float fs = (fcpu * (iscl[0]+1.0f)) / (iscl[1]+1l) / 2 / (iscl[2]+1l) / (2l*nbits);
+
+  Serial.printf("%d %d: %d %d %d %d %d %d\n\r",
+        F_CPU, fcpu, fsamp, (int)fs, nbits,iscl[0]+1,iscl[1]+1,iscl[2]+1);
+  
+
+  // stop I2S
+  I2S0_RCSR &= ~(I2S_RCSR_RE | I2S_RCSR_BCE);
+
+  // modify sampling frequency
+  I2S0_MDR = I2S_MDR_FRACT(iscl[0]) | I2S_MDR_DIVIDE(iscl[1]);
+
+  // configure transmitter
+  I2S0_TCR2 = I2S_TCR2_SYNC(0) | I2S_TCR2_BCP | I2S_TCR2_MSEL(1)
+    | I2S_TCR2_BCD | I2S_TCR2_DIV(iscl[2]);
+
+  // configure receiver (sync'd to transmitter clocks)
+  I2S0_RCR2 = I2S_RCR2_SYNC(1) | I2S_TCR2_BCP | I2S_RCR2_MSEL(1)
+    | I2S_RCR2_BCD | I2S_RCR2_DIV(iscl[2]);
+
+  //restart I2S
+  I2S0_RCSR |= I2S_RCSR_RE | I2S_RCSR_BCE;
 }

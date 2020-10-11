@@ -12,15 +12,16 @@
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
-// Compile 72 MHz Fastest
+// Compile 96 MHz Fastest
 
-
+#include "LHI_record_queue.h"
+#include "control_sgtl5000.h"
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
-#include <analyze_fft256.h>
+//#include <analyze_fft256.h>
 #include <Wire.h>
 //#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
-//#include <SdFat.h>
+#include <SdFat.h>
 #include "amx32.h"
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
 #include <TimeLib.h>
@@ -34,17 +35,18 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-#define OLED_RESET 4
+#define OLED_RESET -1
 
 #define displayLine1 0
 #define displayLine2 8
 #define displayLine3 16
 #define displayLine4 25
 Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
-#define BOTTOM 25
 
 // set this to the hardware serial port you wish to use
 #define HWSERIAL Serial1  // Rx: 0; Tx: 1
+
+#define NREC 32 // increase disk buffer to speed up disk access
 
 #define SPYCAM 1
 #define FLYCAM 2
@@ -71,6 +73,7 @@ long rec_int = 0;
 unsigned int delayStartMinutes = 0;
 unsigned int delayStartHours = 0;
 boolean hallFlag = 0;
+#define MQ 100 // to be used with LHI record queue (modified local version)
 
 int nPlayBackFiles = 0; // number of playback files
 int minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
@@ -113,12 +116,14 @@ unsigned long baud = 115200;
 #define MODE_NORMAL 0
 #define MODE_DIEL 1
 
+
+
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
-AudioAnalyzeFFT256       fft256_1; 
-AudioRecordQueue         queue1;         //xy=281,63
+//AudioAnalyzeFFT256       fft256_1; 
+LHIRecordQueue         queue1;         //xy=281,63
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
-AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
+//AudioConnection          patchCord2(i2s2, 0, fft256_1, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
@@ -183,8 +188,13 @@ boolean introperiod=1;  //flag for introductory period; used for keeping LED on 
 
 int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
-float imu_srate = 100.0;
-float audio_srate = 44100.0;
+float imu_srate = 10.0;
+
+int32_t lhi_fsamps[9] = {8000, 16000, 32000, 44100, 48000, 96000, 200000, 250000, 300000};
+#define I_SAMP 9 
+int isf = 4; // default to 48 kHz
+float audio_srate = lhi_fsamps[4];
+
 
 int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
 
@@ -198,7 +208,7 @@ int nPlayed = 0;
 
 float audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 unsigned int audioIntervalCount = 0;
-int systemGain = 4; // SG in script file
+int gainSetting = 4; // SG in script file
 
 int recMode = MODE_NORMAL;
 
@@ -220,8 +230,44 @@ SnoozeAlarm alarm;
 SnoozeAudio snooze_audio;
 SnoozeBlock config_teensy32(snooze_audio, alarm);
 
-// The file where data is recorded
-File frec;
+
+// SD_FAT_TYPE = 0 for SdFat/File as defined in SdFatConfig.h,
+// 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
+#define SD_FAT_TYPE 3
+const uint8_t SD_CS_PIN = 10;
+#define SPI_CLOCK SD_SCK_MHZ(50)
+
+// Try to select the best SD card configuration.
+#if HAS_SDIO_CLASS
+#define SD_CONFIG SdioConfig(FIFO_SDIO)
+#elif ENABLE_DEDICATED_SPI
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
+#else  // HAS_SDIO_CLASS
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
+#endif  // HAS_SDIO_CLASS
+
+// Set PRE_ALLOCATE true to pre-allocate file clusters.
+const bool PRE_ALLOCATE = true;
+
+// Set SKIP_FIRST_LATENCY true if the first read/write to the SD can
+// be avoid by writing a file header or reading the first record.
+const bool SKIP_FIRST_LATENCY = true;
+
+#if SD_FAT_TYPE == 0
+SdFat sd;
+File file;
+#elif SD_FAT_TYPE == 1
+SdFat32 sd;
+File32 file;
+#elif SD_FAT_TYPE == 2
+SdExFat sd;
+ExFile file;
+#elif SD_FAT_TYPE == 3
+SdFs sd;
+FsFile file;
+#else  // SD_FAT_TYPE
+#error Invalid SD_FAT_TYPE
+#endif  // SD_FAT_TYPE
 
 typedef struct {
     char    rId[4];
@@ -320,8 +366,8 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20200628; //unsigned long
-  dfh.UserID = 5555;
+  dfh.Version = 20201011; //unsigned long
+  dfh.UserID = 5556;
 
   if (camWave){
     imuFlag = 0;
@@ -359,7 +405,7 @@ void setup() {
   // Initialize the SD card
   SPI.setMOSI(7);
   SPI.setSCK(14);
-  if (!(SD.begin(10))) {
+  if (!sd.begin(SD_CS_PIN, SD_SCK_MHZ(50))) {
     // stop here if no SD card, but print a message
     Serial.println("Unable to access the SD card");
     
@@ -380,8 +426,8 @@ void setup() {
   LoadScript();
  
   sensorInit(); // initialize and test sensors
-  logFileHeader();
-  setGain();
+  fileHeader();
+  calcGain();
 
   if(printDiags > 0){
       Serial.print("YY-MM-DD HH:MM:SS ");
@@ -494,7 +540,7 @@ void setup() {
     t = getTeensy3Time();
     display.println("Sleep until:");
     displayClock(14, startTime);
-    displayClock(BOTTOM, t);
+    displayClock(displayLine4, t);
     display.display();
     delay(1000);
   }
@@ -529,13 +575,12 @@ void setup() {
     audio_power_up(); // audio chip on
   }
 
-
   displayOn();
-
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
-  AudioMemory(100);
-  AudioInit(); // this calls Wire.begin() in control_sgtl5000.cpp
+  AudioMemory(MQ+10);
+  AudioInit(isf); // this calls Wire.begin() in control_sgtl5000.cpp
+  audio_srate = lhi_fsamps[isf];
  // fft256_1.averageTogether(160); // number of FFTs to average together
   
   digitalWrite(hydroPowPin, HIGH);
@@ -556,13 +601,13 @@ void setup() {
 int recLoopCount;  //for debugging when does not start record
 
 void loop() {
-  // if plug in USB power--get out of main loop
-  if(!printDiags){
-    if (digitalRead(usbSense)){  
-        if (amxMode==1) stopRecording();
-        resetFunc();
-      }
-  }
+//  // if plug in USB power--get out of main loop
+//  if(!printDiags){
+//    if (digitalRead(usbSense)){  
+//        if (amxMode==1) stopRecording();
+//        resetFunc();
+//      }
+//  }
 
   t = getTeensy3Time();
   if((t >= burnTime) & (burnFlag>0)){
@@ -578,7 +623,7 @@ void loop() {
         cam_stop();
         delay(100);
        }
-       frec.close();
+       file.close();
        audio_power_down();
        digitalWrite(hydroPowPin, LOW); //hydrophone off
        playOff(); // power down playback board
@@ -604,7 +649,7 @@ void loop() {
       if(dd){
         cDisplay();
         displaySettings();
-        displayClock(BOTTOM, t);
+        displayClock(displayLine4, t);
         display.display();
       }
       
@@ -691,7 +736,7 @@ void loop() {
 //          display.setTextSize(1);
 //          display.println(filename);
 //        }
-//        displayClock(t, BOTTOM);
+//        displayClock(t, displayLine4);
 //        display.display();
 //      }
 //    }
@@ -699,15 +744,15 @@ void loop() {
     // write IMU values to file
     if(time2writeIMU==1)
     {
-      if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
+      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
       time2writeIMU = 0;
       if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
-      if(frec.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
+      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
       time2writeIMU = 0;
       digitalWrite(ledGreen, LOW);
     } 
@@ -715,28 +760,28 @@ void loop() {
     // write Pressure & Temperature to file
     if(time2writePT==1)
     { 
-      if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
       time2writePT = 0;
     }
     if(time2writePT==2)
     {
-      if(frec.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
+      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
       time2writePT = 0;
     }   
   
     // write RGB values to file
     if(time2writeRGB==1)
     {
-      if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
+      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
       time2writeRGB = 0;
     }
     if(time2writeRGB==2)
     {
-      if(frec.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(frec.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
+      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
+      if(file.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
       time2writeRGB = 0;
     } 
 
@@ -755,7 +800,7 @@ void loop() {
           Serial.print("Current Time: ");
           printTime(t);
         }
-        frec.close();
+        file.close();
 
         FileInit();  // make a new file
         buf_count = 0;
@@ -842,27 +887,26 @@ void startRecording() {
   Serial.println("Queue Begin");
 }
 
+byte buffer[NREC*512];
 void continueRecording() {
-    byte buffer[512];
-    // Fetch 2 blocks from the audio library and copy
-    // into a 512 byte buffer.  The Arduino SD library
-    // is most efficient when full 512 byte sector size
-    // writes are used.
     // one buffer is 512 bytes = 256 samples
    // if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
-    if(queue1.available() >= 2) {
-      buf_count += 1;
-      audioIntervalCount += 1;
-      memcpy(buffer, queue1.readBuffer(), 256);
-      queue1.freeBuffer();
-      memcpy(buffer+256, queue1.readBuffer(), 256);
-      queue1.freeBuffer();
+    if(queue1.available() >= NREC*2) {
+      for(int ii=0;ii<NREC;ii++){
+        byte *ptr = buffer+ii*512;
+        memcpy(ptr, queue1.readBuffer(), 256);
+        queue1.freeBuffer();
+        memcpy(ptr+256, queue1.readBuffer(), 256);
+        queue1.freeBuffer();
+      }
+      buf_count += NREC;
+      
       if (fileType==0){
-        frec.write(buffer, 512); //audio to .wav file
+        file.write(buffer, NREC*512); //audio to .wav file
       }
       else{
-        frec.write((uint8_t *)&sidRec[0],sizeof(SID_REC)); //audio to .amx file
-        frec.write(buffer, 512); 
+        file.write((uint8_t *)&sidRec[0],sizeof(SID_REC)); //audio to .amx file
+        file.write(buffer, NREC*512); 
       }
     }
 
@@ -888,8 +932,8 @@ void stopRecording() {
   
   // to do: add flush for PTbuffer and Gyro
   
-  //frec.timestamp(T_WRITE,(uint16_t) year(t),month(t),day(t),hour(t),minute(t),second);
-  frec.close();
+  //file.timestamp(T_WRITE,(uint16_t) year(t),month(t),day(t),hour(t),minute(t),second);
+  file.close();
   delay(100);
   //calcRMS();
   //Serial.println(rms);
@@ -1024,7 +1068,7 @@ void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SEN
   sidSpec[i].srate = srate;
   sidSpec[i].sensor = sensor;  
   
-  if(frec.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
+  if(file.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
 
   sidRec[i].nSID = i;
   sidRec[i].NU[0] = 100; //put in something easy to find when searching raw file
@@ -1032,29 +1076,10 @@ void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SEN
   sidRec[i].NU[2] = 300; 
 }
 
-
-/*
-void sdInit(){
-     if (!(SD.begin(10))) {
-    // stop here if no SD card, but print a message
-    Serial.println("Unable to access the SD card");
-    
-    while (1) {
-      cDisplay();
-      display.println("SD error. Restart.");
-      displayClock(getTeensy3Time(), BOTTOM);
-      display.display();
-      delay(1000);
-      
-    }
-  }
-}
-*/
-
-void logFileHeader(){
-  if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
-      logFile.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
-      logFile.close();
+void fileHeader(){
+  if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+      file.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
+      file.close();
   }
 }
 
@@ -1066,8 +1091,12 @@ void FileInit()
     if(printDiags > 0) Serial.println("New Folder");
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
-    SdFile::dateTimeCallback(file_date_time);
-    SD.mkdir(dirname);
+    #if USE_SDFS==1
+      FsDateTime::callback = file_date_time;
+    #else
+      SdFile::dateTimeCallback(file_date_time);
+    #endif
+    sd.mkdir(dirname);
    }
 
    // only audio save as wav file, otherwise save as AMX file
@@ -1079,33 +1108,37 @@ void FileInit()
       sprintf(filename,"%s/%02d%02d%02d%02d.amx", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
 
    // log file
-   SdFile::dateTimeCallback(file_date_time);
+   #if USE_SDFS==1
+      FsDateTime::callback = file_date_time;
+    #else
+      SdFile::dateTimeCallback(file_date_time);
+    #endif
 
    float voltage = readVoltage();
-   
-   if(File logFile = SD.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
-      logFile.print(filename);
-      logFile.print(',');
+
+    if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
+      file.print(filename);
+      file.print(',');
       for(int n=0; n<8; n++){
-        logFile.print(myID[n]);
+        file.print(myID[n]);
       }
       
-      logFile.print(',');
-      logFile.print(gainDb); 
+      file.print(',');
+      file.print(gainDb); 
       
-      logFile.print(',');
-      logFile.print(voltage); 
+      file.print(',');
+      file.print(voltage); 
 
-      logFile.print(',');
-      logFile.print(burnLog);
+      file.print(',');
+      file.print(burnLog);
 
-      logFile.print(',');
-      logFile.print(pressureOffset_mbar);
+      file.print(',');
+      file.print(pressureOffset_mbar);
 
-      logFile.print(',');
-      logFile.print(dfh.Version);
+      file.print(',');
+      file.print(dfh.Version);
       
-      logFile.println();
+      file.println();
 
       if(((voltage < 3.76) | (total_hour_recorded > max_cam_hours_rec)) & camFlag) { //disable camera when power low or recorded more than 8 hours
         cam_stop();
@@ -1113,25 +1146,23 @@ void FileInit()
         
         camFlag = 0; 
         if(printDiags) Serial.println("Camera disabled");
-        logFile.println("Camera stopped");
+        file.println("Camera stopped");
       }
       
       if(voltage < 3.0){
-        logFile.println("Stopping because Voltage less than 3.0 V");
-        logFile.close();  
+        file.println("Stopping because Voltage less than 3.0 V");
+        file.close();  
         // low voltage hang but keep checking voltage
         while(readVoltage() < 3.0){
             delay(30000);
         }
       }
-      logFile.close();
+      file.close();
    }
    else{
     if(printDiags) Serial.print("Log open fail.");
     resetFunc();
    }
-    
-   frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
 
    if(printDiags > 0){
      Serial.println(filename);
@@ -1140,14 +1171,16 @@ void FileInit()
    }
 
    
-   while (!frec){
+   while (!file.open(filename, O_WRITE | O_CREAT | O_EXCL)){
     file_count += 1;
     if(fileType==0)
       sprintf(filename,"F%06d.wav",file_count); //if can't open just use count
       else
       sprintf(filename,"F%06d.amx",file_count); //if can't open just use count
-    frec = SD.open(filename, O_WRITE | O_CREAT | O_EXCL);
+    file.open(filename, O_WRITE | O_CREAT | O_EXCL);
     Serial.println(filename);
+    delay(10);
+    if(file_count>1000) resetFunc(); // give up after many tries
    }
 
    if(fileType==0){
@@ -1167,7 +1200,7 @@ void FileInit()
       wav_hdr.rLen = 36 + nbufs_per_file * 256 * 2;
       wav_hdr.dLen = nbufs_per_file * 256 * 2;
     
-      frec.write((uint8_t *)&wav_hdr, 44);
+      file.write((uint8_t *)&wav_hdr, 44);
    }
 
    //amx file header
@@ -1182,11 +1215,11 @@ void FileInit()
     dfh.RecStartTime.month = month(t);  
     dfh.RecStartTime.year = (int16_t) year(t);  
     dfh.RecStartTime.tzOffset = 0; //offset from GMT
-    frec.write((uint8_t *) &dfh, sizeof(dfh));
+    file.write((uint8_t *) &dfh, sizeof(dfh));
     
     // write SID_SPEC depending on sensors chosen
     int sidCount=0;
-    addSid(sidCount, "AUDIO", RAW_SID, 256, sensor[0], DFORM_SHORT, audio_srate); // SID_SPEC is in samples per buffer
+    addSid(sidCount, "AUDIO", RAW_SID, 256 * NREC, sensor[0], DFORM_SHORT, audio_srate); // SID_SPEC is in samples per buffer
     if (pressure_sensor>0) {
       sidCount++;
       addSid(sidCount, "PRTMP", RAW_SID, halfbufPT, sensor[1], DFORM_FLOAT32, sensor_srate);  
@@ -1212,66 +1245,26 @@ void FileInit()
 void file_date_time(uint16_t* date, uint16_t* time) 
 {
   t = getTeensy3Time();
-  *date=FAT_DATE(year(t),month(t),day(t));
-  *time=FAT_TIME(hour(t),minute(t),second(t));
+  #if USE_SDFS==1
+    *date=FS_DATE(year(t),month(t),day(t));
+    *time=FS_TIME(hour(t),minute(t),second(t));
+  #else
+    *date=FAT_DATE(year(t),month(t),day(t));
+    *time=FAT_TIME(hour(t),minute(t),second(t));
+  #endif
 }
 
 
-void AudioInit(){
+void AudioInit(int ifs){
     // Enable the audio shield, select input, and enable output
  // sgtl5000_1.enable();
-
+  I2S_modification(lhi_fsamps[ifs], 16);
  // Instead of using audio library enable; do custom so only power up what is needed in sgtl5000_LHI
-  audio_enable();
- 
-  sgtl5000_1.inputSelect(myInput);
-  sgtl5000_1.volume(0.0);
-  sgtl5000_1.lineInLevel(systemGain);  //default = 4
-  // CHIP_ANA_ADC_CTRL
-// Actual measured full-scale peak-to-peak sine wave input for max signal
-//  0: 3.12 Volts p-p
-//  1: 2.63 Volts p-p
-//  2: 2.22 Volts p-p
-//  3: 1.87 Volts p-p
-//  4: 1.58 Volts p-p
-//  5: 1.33 Volts p-p
-//  6: 1.11 Volts p-p
-//  7: 0.94 Volts p-p
-//  8: 0.79 Volts p-p (+8.06 dB)
-//  9: 0.67 Volts p-p
-// 10: 0.56 Volts p-p
-// 11: 0.48 Volts p-p
-// 12: 0.40 Volts p-p
-// 13: 0.34 Volts p-p
-// 14: 0.29 Volts p-p
-// 15: 0.24 Volts p-p
-  sgtl5000_1.autoVolumeDisable();
-  sgtl5000_1.audioProcessorDisable();
+  audio_enable(ifs);
 }
 
-void setGain(){
-    sgtl5000_1.lineInLevel(systemGain);  //default = 4
-  // CHIP_ANA_ADC_CTRL
-  // Actual measured full-scale peak-to-peak sine wave input for max signal
-  //  0: 3.12 Volts p-p
-  //  1: 2.63 Volts p-p
-  //  2: 2.22 Volts p-p
-  //  3: 1.87 Volts p-p
-  //  4: 1.58 Volts p-p (0.79 Vpeak)
-  //  5: 1.33 Volts p-p
-  //  6: 1.11 Volts p-p
-  //  7: 0.94 Volts p-p
-  //  8: 0.79 Volts p-p (+8.06 dB)
-  //  9: 0.67 Volts p-p
-  // 10: 0.56 Volts p-p
-  // 11: 0.48 Volts p-p
-  // 12: 0.40 Volts p-p
-  // 13: 0.34 Volts p-p
-  // 14: 0.29 Volts p-p
-  // 15: 0.24 Volts p-p
-  //sgtl5000_1.autoVolumeDisable();
- // sgtl5000_1.audioProcessorDisable();
-  switch(systemGain){
+void calcGain(){
+    switch(gainSetting){
     case 0: gainDb = -20 * log10(3.12 / 2.0); break;
     case 1: gainDb = -20 * log10(2.63 / 2.0); break;
     case 2: gainDb = -20 * log10(2.22 / 2.0); break;
@@ -1465,7 +1458,9 @@ void incrementIMU(){
   }
 }
 void resetFunc(void){
-  CPU_RESTART
+  
+  Serial.println("Reset called....reset disabled for debug");
+ // CPU_RESTART
 }
 
 

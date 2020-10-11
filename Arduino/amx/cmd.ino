@@ -49,6 +49,26 @@ int ProcCmd(char *pCmd)
       break;
     }
 
+   // Sample rate in Hz
+    case ('H' + ('Z'<<8)):
+    {
+      sscanf(&pCmd[3],"%d",&lv1);
+      // lhi_fsamps[9] = {8000, 16000, 32000, 44100, 48000, 96000, 200000, 250000, 300000};
+      switch(lv1){
+        case 8000: isf = 0; break;
+        case 16000: isf = 1; break;
+        case 32000: isf = 1; break;
+        case 44100: isf = 1; break;
+        case 48000: isf = 1; break;
+        case 96000: isf = 1; break;
+        case 200000: isf = 1; break;
+        case 250000: isf = 1; break;
+        case 300000: isf = 1; break;
+      }
+      break;
+    }
+
+
     // Keller Pressure and Temperature
     case ('K' + ('P'<<8)):
     {
@@ -155,7 +175,7 @@ int ProcCmd(char *pCmd)
       case ('S' + ('G'<<8)):
       {
         sscanf(&pCmd[3],"%d",&lv1);
-        systemGain = lv1;
+        gainSetting = lv1;
         break;
       } 
 
@@ -235,12 +255,16 @@ boolean LoadScript()
   short i;
   int j = 0;
 
+  #if USE_SDFS==1
+  FsFile file;
+#else
   File file;
+#endif
   unsigned long TM_byte;
   int comment_TM = 0;
 
   // Read card setup.txt file to set date and time, recording interval
-  file=SD.open("setup.txt");
+  file.open("setup.txt");
  if(file)
  {
    do{
@@ -269,7 +293,7 @@ boolean LoadScript()
       {
         Serial.print("Comment TM ");
         Serial.println(TM_byte);
-        file = SD.open("setup.txt", FILE_WRITE);
+        file.open("setup.txt", FILE_WRITE);
         file.seek(TM_byte);
         file.print("//");
         file.close();
@@ -285,7 +309,7 @@ boolean LoadScript()
   }
 
   // Read simulated depth file
-  file = SD.open("depth.txt");
+  file.open("depth.txt");
   Serial.println("Depth file");
   if(file){
     do{
