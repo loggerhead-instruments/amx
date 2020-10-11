@@ -26,17 +26,13 @@ void displaySettings(){
   display.setTextSize(1);
   display.setTextColor(WHITE);
   display.setCursor(0, displayLine1);
-  if(amxMode==0) {
+  if(mode==0) {
     display.print("Standby ");
     display.print(startTime - t);
     display.println("s");
   }
-  if(amxMode==1) display.print("Running ");
+  if(mode==1) display.print("Running ");
   display.setCursor(0, displayLine2);
-  if(burnFlag){
-    displayClock(displayLine2, burnTime);
-    display.print("*B");
-  }
 
   display.print(audio_srate, 0);
   display.print(" Hz");

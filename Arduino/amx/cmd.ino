@@ -6,7 +6,7 @@ int ProcCmd(char *pCmd)
 {
   short *pCV;
   short n;
-  long lv1, lv2;
+  long lv1;
   char s[22];
         unsigned int tday;
         unsigned int tmonth;
@@ -23,139 +23,24 @@ int ProcCmd(char *pCmd)
 
   switch(*pCV)
   {                     
-    // IMU
-    case ('I' + ('M'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      imu_srate = lv1;
-      fileType = 1;
-      imuFlag = 1;
-      break;
-    }
-
-  // Accelerometer full scale
-    case ('A' + ('G'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      accel_scale = lv1;
-      break;
-    }
-
-  // Hydrophone sensitivity if not default -180
-    case ('H' + ('C'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      hydroCal = lv1;
-      break;
-    }
-
-   // Sample rate in Hz
-    case ('H' + ('Z'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      // lhi_fsamps[9] = {8000, 16000, 32000, 44100, 48000, 96000, 200000, 250000, 300000};
-      switch(lv1){
-        case 8000: isf = 0; break;
-        case 16000: isf = 1; break;
-        case 32000: isf = 1; break;
-        case 44100: isf = 1; break;
-        case 48000: isf = 1; break;
-        case 96000: isf = 1; break;
-        case 200000: isf = 1; break;
-        case 250000: isf = 1; break;
-        case 300000: isf = 1; break;
-      }
-      break;
-    }
-
-
-    // Keller Pressure and Temperature
-    case ('K' + ('P'<<8)):
-    {
-      pressure_sensor = 2;
-      fileType = 1;
-      break;
-    }
-
-    // Measurement Specialities Pressure and Temperature
-    case ('M' + ('P'<<8)):
-    {
-      pressure_sensor = 1;
-      fileType = 1;
-      break;
-    }
-
-    // RGB light sensor setup
-    case ('L' + ('S'<<8)):
-    {
-      rgbFlag = 1;
-      fileType = 1;
-      break;
-    }
-
-    // Disable LEDs
-    case ('L' + ('D'<<8)):
-    {
-      LEDSON = 0;
-      break;
-    }
-    
-    // Enable bright LED
-    case ('B' + ('L'<<8)):
-    {
-      briteFlag = 1;
-    }
-
     // Set of Real Time Clock
     case ('T' + ('M'<<8)):
     {
          //set time
          sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         setTeensyTime(thour, tmin, tsec, tday, tmonth, tyear + 2000);
-         Serial.print("Clock Set (now): ");
-         Serial.println(now());
-         Serial.print("Clock set (getTeensyTime): ");
-         Serial.println(getTeensy3Time());
+         TIME_HEAD NewTime;
+         NewTime.sec = tsec;
+         NewTime.minute = tmin;
+         NewTime.hour = thour;
+         NewTime.day = tday;
+         NewTime.month = tmonth;
+         NewTime.year = tyear-2000;
+         unsigned long newtime=RTCToUNIXTime(&NewTime);  //get new time in seconds
+         startTime=RTCToUNIXTime(&NewTime);
+         Teensy3Clock.set(newtime); 
+         Serial.print("Clock Set: ");
+         Serial.println(newtime);
          break;
-      }
-
-    case ('B' + ('W'<<8)):
-    {
-         //set time
-         sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
-         tmElements_t NewTime;
-         NewTime.Second = tsec;
-         NewTime.Minute = tmin;
-         NewTime.Hour = thour;
-         NewTime.Day = tday;
-         NewTime.Month = tmonth;
-         NewTime.Year = tyear + 2000 - 1970;
-         burnTime = makeTime(NewTime); // makeTime is offset from 1970
-         burnFlag = 1;
-         Serial.print("Burn Time:");
-         Serial.println(burnTime);
-         break;
-      }
-
-    // Burn Minutes (burn set number of minutes after start)
-    case ('B' + ('M'<<8)):
-    {
-         sscanf(&pCmd[3],"%d",&lv1);
-         burnMinutes = lv1;
-         burnFlag = 2;
-         break;
-      }
-
-      case ('N' + ('D'<<8)):
-      {
-        noDC = 1;
-        break;
-      }
-
-    case ('D' + ('I'<<8)):
-      {
-        printDiags = 1;
-        break;
       }
       
       case ('R' + ('D'<<8)):
@@ -175,75 +60,52 @@ int ProcCmd(char *pCmd)
       case ('S' + ('G'<<8)):
       {
         sscanf(&pCmd[3],"%d",&lv1);
-        gainSetting = lv1;
+        gainSetting = (unsigned int) lv1;
+        if((gainSetting<0) | (gainSetting>15)) gainSetting = 4;
+        EEPROM.write(14, gainSetting); //byte
         break;
+      }
+      
+      case ('N' + ('D'<<8)):
+      {
+        noDC = 1;
+        break;
+      }
+      
+      case ('S' + ('R'<<8)):
+      {
+        //start time
+         sscanf(&pCmd[3],"%d-%d-%d %d:%d:%d",&tyear,&tmonth,&tday,&thour,&tmin,&tsec);
+         TIME_HEAD NewTime;
+         NewTime.sec = tsec;
+         NewTime.minute = tmin;
+         NewTime.hour = thour;
+         NewTime.day = tday;
+         NewTime.month = tmonth;
+         NewTime.year = tyear-2000;
+         startTime=RTCToUNIXTime(&NewTime);
+         Serial.print("Start Record Set: ");
+         Serial.println(startTime);
+         break;
       } 
-
-    case ('D' + ('S'<<8)):
-    {
-      sscanf(&pCmd[3],"%d:%d",&lv1, &lv2);
-      delayStartHours = lv1;
-      delayStartMinutes = lv2;
-      break;
-    }  
-
-
-    //default nPlayBackFiles = 0; // number of playback files
-    case ('P' + ('F'<<8)):
+         // Sample rate in Hz
+    case ('H' + ('Z'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
-      nPlayBackFiles = lv1;
+      // lhi_fsamps[9] = {8000, 16000, 32000, 44100, 48000, 96000, 200000, 250000, 300000};
+      switch(lv1){
+        case 8000: isf = 0; break;
+        case 16000: isf = 1; break;
+        case 32000: isf = 2; break;
+        case 44100: isf = 3; break;
+        case 48000: isf = 4; break;
+        case 96000: isf = 5; break;
+        case 200000: isf = 6; break;
+        case 250000: isf = 7; break;
+        case 300000: isf = 8; break;
+      }
       break;
     }
-    //default minPlayBackInterval = 120; // keep playbacks from being closer than x seconds
-    case ('P' + ('I'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      minPlayBackInterval = lv1;
-      break;
-    }
-    //default longestPlayback = 30; // longest file for playback, used to power down playback board
-    case ('P' + ('D'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      longestPlayback = lv1;
-      break;
-    }
-    //default playBackDepthThreshold = 10.0; // tag must go deeper than this depth to trigger threshold
-    case ('P' + ('T'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      playBackDepthThreshold = lv1;
-      break;
-    }
-    //default ascentDepthTrigger = 5.0; // after exceed playBackDepthThreshold, must ascend this amount to trigger playback
-    case ('P' + ('A'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      ascentDepthTrigger = lv1;
-      break;
-    }
-    //default playBackResetDepth = 2.0; // tag needs to come back above this depth before next playback can happen
-    case ('P' + ('R'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      playBackResetDepth = lv1;
-      break;
-    }
-    //default maxPlayBacks = 20; // tag needs to come back above this depth before next playback can happen
-    case ('P' + ('M'<<8)):
-    {
-      sscanf(&pCmd[3],"%d",&lv1);
-      maxPlayBacks = lv1;
-      break;
-    }
-    // default simulateDepth = 0
-    case ('S' + ('D'<<8)):
-    {
-      simulateDepth = 1;
-      break;
-    }
-    
   } 
   return TRUE;
 }
@@ -253,27 +115,22 @@ boolean LoadScript()
   char s[30];
   char c;
   short i;
-  int j = 0;
 
-  #if USE_SDFS==1
-  FsFile file;
-#else
-  File file;
-#endif
   unsigned long TM_byte;
   int comment_TM = 0;
 
   // Read card setup.txt file to set date and time, recording interval
-  file.open("setup.txt");
- if(file)
- {
-   do{
+  sd.chdir(); // only to be sure to star from root
+  file=sd.open("setup.txt");
+  if(file)
+  {
+    do{
         i = 0;
         s[i] = 0;
         do{
             c = file.read();
             if(c!='\r') s[i++] = c;
-            if((c=='T') & (i==1)) 
+            if(c=='T') 
             {
               TM_byte = file.position() - 1;
               comment_TM = 1;
@@ -287,48 +144,28 @@ boolean LoadScript()
           }
       }while(file.available());
       file.close();  
+
       
       // comment out TM line if it exists
       if (comment_TM)
       {
         Serial.print("Comment TM ");
         Serial.println(TM_byte);
-        file.open("setup.txt", FILE_WRITE);
+        
+        sd.chdir(); // only to be sure to star from root
+        file = sd.open("setup.txt", FILE_WRITE); // WMXZ check mod
         file.seek(TM_byte);
         file.print("//");
         file.close();
+
       }
       
   }
   else
   {   
     Serial.println("setup.txt not opened");
-
-   // display.println("no setup file");
+    display.println("no setup file");
     return 0;
   }
-
-//  // Read simulated depth file
-//  file.open("depth.txt");
-//  Serial.println("Depth file");
-//  if(file){
-//    do{
-//      j = 0;
-//      do{ // scan next line
-//        c = file.read();
-//        if(c!='\r') s[j] = c;
-//        j++;
-//        if(j>29) break;
-//      }while(c!='\n');
-//      Serial.print(c);
-//      sscanf(s,"%f",&depthProfile[i]);
-//      Serial.print(i); Serial.print(" ");
-//      Serial.print(depthProfile[i]);
-//      i++;
-//      if(i==60) break;
-//    }while(file.available());
-//    file.close();
-//  }
-  
  return 1;  
 }

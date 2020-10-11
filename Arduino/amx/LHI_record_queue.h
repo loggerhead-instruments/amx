@@ -129,5 +129,3 @@ void LHIRecordQueue::update(void)
 }
 
 #endif
-
-
