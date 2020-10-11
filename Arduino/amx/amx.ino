@@ -103,7 +103,7 @@ int saltThreshold = 10; // if voltage difference with digital out ON - digital o
 //
 //
 
-static uint8_t myID[8];
+static uint32_t myID[2];
 
 unsigned long baud = 115200;
 
@@ -222,8 +222,8 @@ long nbufs_per_file;
 boolean settingsChanged = 0;
 
 long file_count;
-char filename[25];
-char dirname[8];
+char filename[60];
+char dirname[20];
 int folderMonth;
 //SnoozeBlock snooze_config;
 SnoozeAlarm alarm;
@@ -535,18 +535,17 @@ void setup() {
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  for(int x = 0; x<5; x++){
-    cDisplay();
-    t = getTeensy3Time();
-    display.println("Sleep until:");
-    displayClock(14, startTime);
-    displayClock(displayLine4, t);
-    display.display();
-    delay(1000);
-  }
-
-
   if(time_to_first_rec>120){
+    for(int x = 0; x<5; x++){
+      cDisplay();
+      t = getTeensy3Time();
+      display.println("Sleep until:");
+      displayClock(displayLine3, startTime);
+      displayClock(displayLine4, t);
+      display.display();
+      delay(1000);
+    }
+
     // power things off
     digitalWrite(hydroPowPin, LOW);
     audio_power_down();
@@ -744,15 +743,15 @@ void loop() {
     // write IMU values to file
     if(time2writeIMU==1)
     {
-      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(); 
+      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc(1);
+      if(file.write((uint8_t *) & imuBuffer[0], halfbufIMU)==-1) resetFunc(2); 
       time2writeIMU = 0;
       if ((LEDSON==1) & (introperiod==1)) digitalWrite(ledGreen, HIGH);  //LEDS on for first file) digitalWrite(ledGreen, HIGH);
     }
     if(time2writeIMU==2)
     {
-      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc();     
+      if(file.write((uint8_t *) & sidRec[3],sizeof(SID_REC))==-1) resetFunc(3);
+      if(file.write((uint8_t *) & imuBuffer[halfbufIMU], halfbufIMU)==-1) resetFunc(4);     
       time2writeIMU = 0;
       digitalWrite(ledGreen, LOW);
     } 
@@ -760,28 +759,28 @@ void loop() {
     // write Pressure & Temperature to file
     if(time2writePT==1)
     { 
-      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(); 
+      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc(5);
+      if(file.write((uint8_t *)&PTbuffer[0], halfbufPT * 4)==-1) resetFunc(6); 
       time2writePT = 0;
     }
     if(time2writePT==2)
     {
-      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc();     
+      if(file.write((uint8_t *)&sidRec[1],sizeof(SID_REC))==-1) resetFunc(7);
+      if(file.write((uint8_t *)&PTbuffer[halfbufPT], halfbufPT * 4)==-1) resetFunc(8);     
       time2writePT = 0;
     }   
   
     // write RGB values to file
     if(time2writeRGB==1)
     {
-      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(); 
+      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc(9);
+      if(file.write((uint8_t *)&RGBbuffer[0], halfbufRGB)==-1) resetFunc(10); 
       time2writeRGB = 0;
     }
     if(time2writeRGB==2)
     {
-      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc();
-      if(file.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc();     
+      if(file.write((uint8_t *)&sidRec[2],sizeof(SID_REC))==-1) resetFunc(11);
+      if(file.write((uint8_t *)&RGBbuffer[halfbufRGB], halfbufRGB)==-1) resetFunc(12);     
       time2writeRGB = 0;
     } 
 
@@ -1068,7 +1067,7 @@ void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SEN
   sidSpec[i].srate = srate;
   sidSpec[i].sensor = sensor;  
   
-  if(file.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc();
+  if(file.write((uint8_t *)&sidSpec[i], sizeof(SID_SPEC))==-1)  resetFunc(20);
 
   sidRec[i].nSID = i;
   sidRec[i].NU[0] = 100; //put in something easy to find when searching raw file
@@ -1077,6 +1076,7 @@ void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SEN
 }
 
 void fileHeader(){
+  sd.chdir(); // only to be sure to star from root
   if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       file.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
       file.close();
@@ -1086,27 +1086,7 @@ void fileHeader(){
 void FileInit()
 {
    t = getTeensy3Time();
-   
-   if (folderMonth != month(t)){
-    if(printDiags > 0) Serial.println("New Folder");
-    folderMonth = month(t);
-    sprintf(dirname, "%04d-%02d", year(t), folderMonth);
-    #if USE_SDFS==1
-      FsDateTime::callback = file_date_time;
-    #else
-      SdFile::dateTimeCallback(file_date_time);
-    #endif
-    sd.mkdir(dirname);
-   }
-
-   // only audio save as wav file, otherwise save as AMX file
-   
-   // open file 
-   if(fileType==0)
-      sprintf(filename,"%s/%02d%02d%02d%02d.wav", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
-    else
-      sprintf(filename,"%s/%02d%02d%02d%02d.amx", dirname, day(t), hour(t), minute(t), second(t));  //filename is DDHHMM
-
+   sd.chdir(); // only to be sure to star from root
    // log file
    #if USE_SDFS==1
       FsDateTime::callback = file_date_time;
@@ -1161,7 +1141,7 @@ void FileInit()
    }
    else{
     if(printDiags) Serial.print("Log open fail.");
-    resetFunc();
+    resetFunc(19);
    }
 
    if(printDiags > 0){
@@ -1170,6 +1150,26 @@ void FileInit()
      Serial.print(voltage); Serial.println("V");
    }
 
+   
+   if (folderMonth != month(t)){
+    if(printDiags > 0) Serial.println("New Folder");
+    folderMonth = month(t);
+    sprintf(dirname, "%04d-%02d", year(t), folderMonth);
+    #if USE_SDFS==1
+      FsDateTime::callback = file_date_time;
+    #else
+      SdFile::dateTimeCallback(file_date_time);
+    #endif
+    sd.mkdir(dirname);
+   }
+
+   // open file 
+   sd.chdir(dirname);
+   if(fileType==0)
+      sprintf(filename,"%04d%02d%02dT%02d%02d%02d_%lu%lu_%2.1f.wav", year(t), month(t), day(t), hour(t), minute(t), second(t), myID[0], myID[1], gainDb);  //filename is DDHHMMSS
+
+    else
+      sprintf(filename,"%04d%02d%02dT%02d%02d%02d_%lu%lu_%2.1f.amx", year(t), month(t), day(t), hour(t), minute(t), second(t), myID[0], myID[1], gainDb);  //filename is DDHHMMSS
    
    while (!file.open(filename, O_WRITE | O_CREAT | O_EXCL)){
     file_count += 1;
@@ -1180,7 +1180,7 @@ void FileInit()
     file.open(filename, O_WRITE | O_CREAT | O_EXCL);
     Serial.println(filename);
     delay(10);
-    if(file_count>1000) resetFunc(); // give up after many tries
+    if(file_count>1000) resetFunc(100); // give up after many tries
    }
 
    if(fileType==0){
@@ -1457,9 +1457,9 @@ void incrementIMU(){
     firstwrittenIMU = 1;  //flag to prevent first half from being written more than once; reset when reach end of double buffer
   }
 }
-void resetFunc(void){
-  
-  Serial.println("Reset called....reset disabled for debug");
+void resetFunc(int resetCode){
+  Serial.print("Reset called. Reset disabled for debug. Code: ");
+  Serial.println(resetCode);
  // CPU_RESTART
 }
 
@@ -1482,9 +1482,10 @@ void read_EE(uint8_t word, uint8_t *buf, uint8_t offset)  {
 
     
 void read_myID() {
-  read_EE(0xe,myID,0); // should be 04 E9 E5 xx, this being PJRC's registered OUI
-  read_EE(0xf,myID,4); // xx xx xx xx
-
+//  myID[0] = SIM_UIDH;
+  myID[0] = SIM_UIDMH;
+  myID[1] = SIM_UIDML;
+//  myID[3] = SIM_UIDL;
 }
 
 float readVoltage(){
