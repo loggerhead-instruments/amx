@@ -308,27 +308,27 @@ boolean LoadScript()
     return 0;
   }
 
-  // Read simulated depth file
-  file.open("depth.txt");
-  Serial.println("Depth file");
-  if(file){
-    do{
-      j = 0;
-      do{ // scan next line
-        c = file.read();
-        if(c!='\r') s[j] = c;
-        j++;
-        if(j>29) break;
-      }while(c!='\n');
-      Serial.print(c);
-      sscanf(s,"%f",&depthProfile[i]);
-      Serial.print(i); Serial.print(" ");
-      Serial.print(depthProfile[i]);
-      i++;
-      if(i==60) break;
-    }while(file.available());
-    file.close();
-  }
+//  // Read simulated depth file
+//  file.open("depth.txt");
+//  Serial.println("Depth file");
+//  if(file){
+//    do{
+//      j = 0;
+//      do{ // scan next line
+//        c = file.read();
+//        if(c!='\r') s[j] = c;
+//        j++;
+//        if(j>29) break;
+//      }while(c!='\n');
+//      Serial.print(c);
+//      sscanf(s,"%f",&depthProfile[i]);
+//      Serial.print(i); Serial.print(" ");
+//      Serial.print(depthProfile[i]);
+//      i++;
+//      if(i==60) break;
+//    }while(file.available());
+//    file.close();
+//  }
   
  return 1;  
 }

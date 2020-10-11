@@ -84,9 +84,9 @@ float playBackResetDepth = 2.0; // tag needs to come back above this depth befor
 int maxPlayBacks = 20; // maximum number of times to play
 
 int simulateDepth = 0;
-float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 40.0, 11.0, 5.0, 2.0, 0.0, 50.0, 2.0, 4.0,
-                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 60.0, 2.0, 4.0,
-                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 70.0, 2.0, 4.0}; //simulated depth profile; one value per minute
+// float depthProfile[] = {0.0, 12.0, 1.0, 12.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 40.0, 11.0, 5.0, 2.0, 0.0, 50.0, 2.0, 4.0,
+//                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 60.0, 2.0, 4.0,
+//                      0.0, 12.0, 1.0, 20.0, 4.0, 3.0, 10.0, 20.0, 50.0, 10.0, 0.0, 1.0, 12.0, 11.0, 5.0, 2.0, 0.0, 70.0, 2.0, 4.0}; //simulated depth profile; one value per minute
 
 
 int camType = SPYCAM; // when on continuously cameras make a new file every 10 minutes
@@ -186,7 +186,7 @@ int burnLog = 0; //burn status for log file
 volatile boolean LEDSON = 1;
 boolean introperiod=1;  //flag for introductory period; used for keeping LED on for a little while
 
-int update_rate = 100;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
+int update_rate = 10;  // rate (Hz) at which interrupt to read RGB and P/T sensors will run, so sensor_srate needs to <= update_rate
 float sensor_srate = 1.0;
 float imu_srate = 10.0;
 
@@ -222,8 +222,8 @@ long nbufs_per_file;
 boolean settingsChanged = 0;
 
 long file_count;
-char filename[60];
-char dirname[20];
+char filename[22];
+char dirname[10];
 int folderMonth;
 //SnoozeBlock snooze_config;
 SnoozeAlarm alarm;
@@ -577,7 +577,7 @@ void setup() {
   displayOn();
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
-  AudioMemory(MQ+10);
+  AudioMemory(MQ);
   AudioInit(isf); // this calls Wire.begin() in control_sgtl5000.cpp
   audio_srate = lhi_fsamps[isf];
  // fft256_1.averageTogether(160); // number of FFTs to average together
@@ -1078,7 +1078,7 @@ void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SEN
 void fileHeader(){
   sd.chdir(); // only to be sure to star from root
   if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
-      file.println("filename,ID,gain (dB),Voltage,Burn,mBar Offset,Version");
+      file.println("filename,serial,gain (dB),Voltage,Burn,mBar Offset,Version");
       file.close();
   }
 }
@@ -1086,6 +1086,16 @@ void fileHeader(){
 void FileInit()
 {
    t = getTeensy3Time();
+   if(fileType==0)
+      sprintf(filename,"%04d%02d%02dT%02d%02d%02d.wav", year(t), month(t), day(t), hour(t), minute(t), second(t));  //filename is DDHHMMSS
+    else
+      sprintf(filename,"%04d%02d%02dT%02d%02d%02d.amx", year(t), month(t), day(t), hour(t), minute(t), second(t));  //filename is DDHHMMSS
+    if(printDiags > 0) {
+      Serial.print("filename: ");
+      Serial.println(filename);
+    }
+
+   
    sd.chdir(); // only to be sure to star from root
    // log file
    #if USE_SDFS==1
@@ -1099,9 +1109,9 @@ void FileInit()
     if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
       file.print(filename);
       file.print(',');
-      for(int n=0; n<8; n++){
-        file.print(myID[n]);
-      }
+      
+      file.print(myID[0]);
+      file.print(myID[1]);
       
       file.print(',');
       file.print(gainDb); 
@@ -1152,7 +1162,7 @@ void FileInit()
 
    
    if (folderMonth != month(t)){
-    if(printDiags > 0) Serial.println("New Folder");
+    
     folderMonth = month(t);
     sprintf(dirname, "%04d-%02d", year(t), folderMonth);
     #if USE_SDFS==1
@@ -1161,15 +1171,15 @@ void FileInit()
       SdFile::dateTimeCallback(file_date_time);
     #endif
     sd.mkdir(dirname);
+    if(printDiags > 0) {
+      Serial.print("New Folder: ");
+      Serial.println(dirname);
+    }
    }
 
    // open file 
    sd.chdir(dirname);
-   if(fileType==0)
-      sprintf(filename,"%04d%02d%02dT%02d%02d%02d_%lu%lu_%2.1f.wav", year(t), month(t), day(t), hour(t), minute(t), second(t), myID[0], myID[1], gainDb);  //filename is DDHHMMSS
-
-    else
-      sprintf(filename,"%04d%02d%02dT%02d%02d%02d_%lu%lu_%2.1f.amx", year(t), month(t), day(t), hour(t), minute(t), second(t), myID[0], myID[1], gainDb);  //filename is DDHHMMSS
+   if(printDiags > 0) Serial.println("Directory changed");
    
    while (!file.open(filename, O_WRITE | O_CREAT | O_EXCL)){
     file_count += 1;
@@ -1182,6 +1192,8 @@ void FileInit()
     delay(10);
     if(file_count>1000) resetFunc(100); // give up after many tries
    }
+
+   if(printDiags > 0) Serial.println("File opened");
 
    if(fileType==0){
       //intialize .wav file header
@@ -1366,12 +1378,12 @@ void sampleSensors(void){  //interrupt at update_rate
         kellerRead();
         kellerConvert();  // start conversion for next reading
       }
-
-      if(simulateDepth) depth = depthProfile[minute(t)];
-      if(printDiags){
-        Serial.print("D:");
-        Serial.println(depth);
-      }
+//
+//      if(simulateDepth) depth = depthProfile[minute(t)];
+//      if(printDiags){
+//        Serial.print("D:");
+//        Serial.println(depth);
+//      }
       // MS5803 pressure and temperature
       if (pressure_sensor>0){
         PTbuffer[bufferposPT] = pressure_mbar;
@@ -1536,7 +1548,7 @@ void sensorInit(){
   digitalWrite(VHF, HIGH);
   // playback
   playBackOn();
-  Serial.println("Playback On");
+  Serial.println("Test playback");
   
   delay(3000);
   
