@@ -887,8 +887,7 @@ void startRecording() {
 byte buffer[NREC*512];
 void continueRecording() {
     // one buffer is 512 bytes = 256 samples
-   // if(LEDSON | introperiod) digitalWrite(ledGreen,HIGH);
-    if(queue1.available() >= NREC*2) {
+    if(queue1.available() >= NREC) {
       for(int ii=0;ii<NREC;ii++){
         byte *ptr = buffer+ii*512;
         memcpy(ptr, queue1.readBuffer(), 256);
@@ -905,13 +904,12 @@ void continueRecording() {
         file.write((uint8_t *)&sidRec[0],sizeof(SID_REC)); //audio to .amx file
         file.write(buffer, NREC*512); 
       }
+      if(printDiags == 2) Serial.print(".");
     }
 
    // if(LEDSON | introperiod) digitalWrite(ledGreen,LOW);
 
-    if(printDiags == 2){
-      Serial.print(".");
-   }
+
 }
 
 void stopRecording() {
