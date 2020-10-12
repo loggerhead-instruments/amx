@@ -292,7 +292,10 @@ void setup() {
     }
   }
   //SdFile::dateTimeCallback(file_date_time);
+
+  readEEPROM();
   LoadScript(); // secret settings accessible from the card
+  writeEEPROM();
   
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.

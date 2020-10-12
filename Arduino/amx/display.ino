@@ -126,6 +126,7 @@ void readEEPROM(){
   endHour = EEPROM.read(10);
   endMinute = EEPROM.read(11);
   recMode = EEPROM.read(12);
+  isf = EEPROM.read(13);
 }
 
 union {
@@ -157,4 +158,5 @@ void writeEEPROM(){
   EEPROM.write(10, endHour); //byte
   EEPROM.write(11, endMinute); //byte
   EEPROM.write(12, recMode); //byte
+  EEPROM.write(13, isf); // byte
 }
