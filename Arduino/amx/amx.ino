@@ -139,6 +139,34 @@ int buf_count;
 long nbufs_per_file;
 boolean settingsChanged = 0;
 
+
+// Pressure/Temp
+byte Tbuff[3];
+byte Pbuff[3];
+int pressureSensor = 0; // flag to indicate which pressure sensor
+volatile float pressure_mbar, temperature, depth, pressureOffset_mbar;
+volatile boolean togglePress; //flag to toggle conversion of pressure and temperature
+
+// Select which MS58xx sensor is used on board to correctly calculate pressure in mBar
+#define MS5837_30bar
+
+#ifdef MS5837_02bar
+  #define MS58xx_constant 327680.0
+  #define pressAddress 0x76
+#endif
+#ifdef MS5837_30bar
+  #define MS58xx_constant 8192.0
+  #define pressAddress 0x76
+#endif
+
+//Pressure and temp calibration coefficients
+uint16_t PSENS; //pressure sensitivity C1
+uint16_t POFF;  //Pressure offset C2
+uint16_t TCSENS; //Temp coefficient of pressure sensitivity C3
+uint16_t TCOFF; //Temp coefficient of pressure offset C4
+uint16_t TREF;  //Ref temperature C5
+uint16_t TEMPSENS; //Temperature sensitivity coefficient C6
+
 long file_count;
 char filename[40];
 char dirname[20];
@@ -250,11 +278,12 @@ void setup() {
   
   Wire.begin();
 
+  
+
   pinMode(hydroPowPin, OUTPUT);
   pinMode(STOP, INPUT_PULLUP);
   pinMode(vSense, INPUT);
   analogReference(DEFAULT);
-
   digitalWrite(hydroPowPin, HIGH);
 
   setSyncProvider(getTeensy3Time); //use Teensy RTC to keep time
@@ -267,7 +296,8 @@ void setup() {
   display.println("Loggerhead");
   display.display();
 
-
+  sensorInit();
+  
   pinMode(ledGreen, OUTPUT);
   digitalWrite(ledGreen, HIGH);
 
@@ -558,6 +588,13 @@ void sdInit(){
 void FileInit()
 {
    t = getTeensy3Time();
+
+
+// MS5803 start temperature conversion
+  if(pressureSensor==1){ 
+    readPress();   
+    updateTemp();
+  }
    
    if (folderMonth != month(t)){
     if(printDiags) Serial.println("New Folder");
@@ -585,6 +622,19 @@ void FileInit()
   #endif
 
    float voltage = readVoltage();
+
+  // MS5803 pressure and temperature
+  if (pressureSensor==1){
+      readTemp(); 
+      updatePress();
+      calcPressTemp();
+  }
+  // Keller PA7LD pressure and temperature
+  if (pressureSensor==2){
+    kellerRead();
+    kellerConvert();  // start conversion for next reading
+  }
+
    
   sd.chdir(); // only to be sure to start from root
   #if USE_SDFS==1
@@ -603,6 +653,15 @@ void FileInit()
       file.print(voltage); 
       file.print(',');
       file.println(codeVersion);
+      file.print(',');
+      file.print(pressure_mbar); 
+      file.print(',');
+      file.print(depth); 
+      file.print(',');
+      file.print(temperature); 
+
+
+      
       if(voltage < 3.0){
         file.println("Stopping because Voltage less than 3.0 V");
         file.close();  
@@ -665,7 +724,7 @@ void fileHeader(){
 #else
   if(file.open("LOG.CSV",  O_CREAT | O_APPEND | O_WRITE)){
 #endif
-      file.println("filename, ID, gain (dB), Voltage, Version");
+      file.println("filename,ID,gain (dB),Voltage,Version, pressure mBar,depth,temp");
       file.close();
   }
 }
@@ -796,4 +855,82 @@ float readVoltage(){
    voltage = vDivider * vRef * voltage / 1024.0 / navg;  
    pinMode(vSense, OUTPUT);  // done reading voltage
    return voltage;
+}
+
+void sensorInit(){
+  // Pressure--auto identify which if any is present
+  cDisplay();
+
+  // Keller
+  int nAvg = 11;
+  float pressureSum;
+  if(kellerInit()) {
+    pressureSensor = 2;   // 2 if present
+    Serial.println("Keller Pressure Detected");
+    kellerConvert();
+    delay(20);
+    kellerRead();
+    for(int n=1; n<nAvg; n++){
+      kellerConvert();
+      delay(20);
+      kellerRead();
+      delay(100);
+      
+      pressureSum+= pressure_mbar;
+      pressureOffset_mbar = pressureSum / n;
+
+      cDisplay();
+      display.println("Press Deep");
+      display.print("Offset mBar:"); display.println(pressureOffset_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+      display.display();
+    }
+  }
+
+  // Measurement Specialties
+  if(pressInit()){
+    pressureSensor = 1;
+    Serial.println("MS Pressure Detected");
+    updatePress();
+    delay(50);
+    readPress();
+    updateTemp();
+    delay(50);
+    readTemp();
+    for(int n=1; n<nAvg; n++){
+      updatePress();
+      delay(50);
+      readPress();
+      updateTemp();
+      delay(50);
+      readTemp();
+      calcPressTemp();
+      pressureSum+= pressure_mbar;
+      pressureOffset_mbar = pressureSum / n;
+      delay(100);
+
+      cDisplay();
+      display.println("MS Pressure");
+      display.print("Offset mBar:"); display.println(pressureOffset_mbar);
+      display.print("Depth:"); display.println(depth);
+      display.print("Temp:"); display.println(temperature);
+      display.display(); 
+    }
+    calcPressTemp();
+    pressureOffset_mbar = pressureOffset_mbar / nAvg;
+  }
+  
+  Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);
+  Serial.print("Depth: "); Serial.println(depth);
+  Serial.print("Temperature: "); Serial.println(temperature);
+
+
+  if(pressureSensor==0) {
+    cDisplay();
+    display.println("Pressure");
+    display.println("None Detected");
+    display.display();
+  }
+  delay(5000);
 }
