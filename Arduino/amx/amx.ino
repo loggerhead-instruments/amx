@@ -652,15 +652,13 @@ void FileInit()
       file.print(',');
       file.print(voltage); 
       file.print(',');
-      file.println(codeVersion);
+      file.print(codeVersion);
       file.print(',');
       file.print(pressure_mbar); 
       file.print(',');
       file.print(depth); 
       file.print(',');
-      file.print(temperature); 
-
-
+      file.println(temperature); 
       
       if(voltage < 3.0){
         file.println("Stopping because Voltage less than 3.0 V");
