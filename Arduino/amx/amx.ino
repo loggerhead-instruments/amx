@@ -12,7 +12,7 @@
 
 // Modified by WMXZ 15-05-2018 for SdFS anf multiple sampling frequencies
 
-char codeVersion[12] = "2020-10-11";
+char codeVersion[12] = "2020-10-13";
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 #define MQ 100 // to be used with LHI record queue (modified local version)
@@ -30,7 +30,8 @@ static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostic
 //#else
   #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 //#endif
-#include <Wire.h>
+//#include <Wire.h>
+#include <i2c_t3.h>  // MS5837 pressure sensor doesn't work with Wire.h
 #include <SPI.h>
 
 #include <Snooze.h>  //using https://github.com/duff2013/Snooze; uncomment line 62 #define USE_HIBERNATE
@@ -276,9 +277,8 @@ void setup() {
   delay(1000);
   Serial.println(RTC_TSR);
   
-  Wire.begin();
-
-  
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+  Wire.setDefaultTimeout(10000);
 
   pinMode(hydroPowPin, OUTPUT);
   pinMode(STOP, INPUT_PULLUP);
@@ -745,7 +745,6 @@ void file_date_time(uint16_t* date, uint16_t* time)
 void AudioInit(int ifs){
  // Instead of using audio library enable; do custom so only power up what is needed in sgtl5000_LHI
   I2S_modification(lhi_fsamps[ifs], 16);
-  Wire.begin();
   audio_enable(ifs);
 }
 
