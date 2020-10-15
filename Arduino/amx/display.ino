@@ -135,6 +135,8 @@ void readEEPROM(){
   if(tempVal>0) recMode=tempVal;
   tempVal = EEPROM.read(13);
   if(tempVal>0) isf=tempVal;
+  tempVal = EEPROM.read(14);
+  if(tempVal>0) gainSetting=tempVal;
 }
 
 union {
@@ -167,4 +169,5 @@ void writeEEPROM(){
   EEPROM.write(11, endMinute); //byte
   EEPROM.write(12, recMode); //byte
   EEPROM.write(13, isf); // byte
+  
 }
