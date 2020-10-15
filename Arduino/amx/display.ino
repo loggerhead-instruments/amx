@@ -119,14 +119,22 @@ void printTime(time_t t){
 }
 
 void readEEPROM(){
-  rec_dur = readEEPROMlong(0);
-  rec_int = readEEPROMlong(4);
-  startHour = EEPROM.read(8);
-  startMinute = EEPROM.read(9);
-  endHour = EEPROM.read(10);
-  endMinute = EEPROM.read(11);
-  recMode = EEPROM.read(12);
-  isf = EEPROM.read(13);
+  long tempVar = readEEPROMlong(0);
+  if(tempVar>0) rec_dur = tempVar;
+  tempVar = readEEPROMlong(4);
+  if(tempVar>0) rec_int = tempVar;
+  int tempVal = EEPROM.read(8);
+  if(tempVal>0) startHour = tempVal;
+  tempVal = EEPROM.read(9);
+  if(tempVal>0)  startMinute=tempVal;
+  tempVal = EEPROM.read(10);
+  if(tempVal>0)  endHour=tempVal;
+  tempVal = EEPROM.read(11);
+  if(tempVal>0)  endMinute=tempVal;
+  tempVal = EEPROM.read(12);
+  if(tempVal>0) recMode=tempVal;
+  tempVal = EEPROM.read(13);
+  if(tempVal>0) isf=tempVal;
 }
 
 union {

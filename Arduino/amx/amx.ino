@@ -12,7 +12,7 @@
 
 // Modified by WMXZ 15-05-2018 for SdFS anf multiple sampling frequencies
 
-char codeVersion[12] = "2020-10-13";
+char codeVersion[12] = "2020-10-15";
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 #define MQ 100 // to be used with LHI record queue (modified local version)
@@ -130,8 +130,8 @@ int isf = I_SAMP;
 float gainDb;
 
 int recMode = MODE_NORMAL;
-long rec_dur = 10;
-long rec_int = 30;
+long rec_dur = 60;
+long rec_int = 60;
 int wakeahead = 5;  //wake from snooze to give hydrophone and camera time to power up
 int snooze_hour;
 int snooze_minute;

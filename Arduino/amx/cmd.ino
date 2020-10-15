@@ -23,7 +23,7 @@ int ProcCmd(char *pCmd)
 
   switch(*pCV)
   {                     
-    // Set of Real Time Clock
+    // Set Real Time Clock
     case ('T' + ('M'<<8)):
     {
          //set time
