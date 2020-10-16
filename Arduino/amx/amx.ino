@@ -406,13 +406,16 @@ void loop() {
       //
       //static uint32_t to; if(t >to) Serial.println(t); to=t;
       //
-      if ((t >= startTime-2) && pressureSensor==1 && tempSensorUpdate == 0) {
+      if ((t >= startTime-2) & (pressureSensor==1) & (tempSensorUpdate == 0)) {
         updateTemp(); // temperature conversion
-        tempSensorUpdate == 1;
+        tempSensorUpdate = 1;
+      //  Serial.println("Temp update");
       }
-      if ((t >= startTime-1) && pressureSensor==1 && pressureSensorUpdate == 0) {
+      if ((t >= startTime-1) & (pressureSensor==1) & (pressureSensorUpdate == 0)) {
+      //  Serial.println("Press update");
+        readTemp();
         updatePress(); // pressure conversion
-        pressureSensorUpdate == 1;
+        pressureSensorUpdate = 1;
       }
 
       if(t >= startTime){      // time to start?
@@ -423,9 +426,12 @@ void loop() {
         tempSensorUpdate = 0;
         pressureSensorUpdate = 0;
         if (pressureSensor==1){
-          readTemp();
           readPress();
           calcPressTemp();
+//          Serial.print(pressure_mbar);
+//          Serial.println(" mbar");
+//          Serial.print(depth);
+//          Serial.println(" m");
         }
         // Keller PA7LD pressure and temperature
         if (pressureSensor==2){
