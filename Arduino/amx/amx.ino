@@ -12,7 +12,7 @@
 
 // Modified by WMXZ 15-05-2018 for SdFS anf multiple sampling frequencies
 
-char codeVersion[12] = "2020-10-15";
+char codeVersion[12] = "2020-10-16";
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 #define MQ 100 // to be used with LHI record queue (modified local version)
@@ -80,7 +80,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
 const int myInput = AUDIO_INPUT_LINEIN;
-unsigned int gainSetting = 4; //default gain setting; can be overridden in setup file
+unsigned int gainSetting = 6; //default gain setting; can be overridden in setup file
 int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 
 // Pin Assignments
@@ -342,7 +342,7 @@ void setup() {
   cDisplay();
 
   int roundSeconds = 10;//modulo to nearest x seconds
-  if(rec_int > 60) roundSeconds = 60;
+  if(rec_int >= 60) roundSeconds = 60;
   if(rec_int > 300) roundSeconds = 300;
   
   t = getTeensy3Time();
@@ -392,6 +392,7 @@ void setup() {
 //
 
 int recLoopCount;  //for debugging when does not start record
+boolean pressureSensorUpdate = 0, tempSensorUpdate = 0;
   
 void loop() {
   // Standby mode
@@ -405,11 +406,31 @@ void loop() {
       //
       //static uint32_t to; if(t >to) Serial.println(t); to=t;
       //
+      if ((t >= startTime-2) && pressureSensor==1 && tempSensorUpdate == 0) {
+        updateTemp(); // temperature conversion
+        tempSensorUpdate == 1;
+      }
+      if ((t >= startTime-1) && pressureSensor==1 && pressureSensorUpdate == 0) {
+        updatePress(); // pressure conversion
+        pressureSensorUpdate == 1;
+      }
 
       if(t >= startTime){      // time to start?
         if(noDC==0) {
           audio_freeze_adc_hp(); // this will lower the DC offset voltage, and reduce noise
           noDC = -1;
+        }
+        tempSensorUpdate = 0;
+        pressureSensorUpdate = 0;
+        if (pressureSensor==1){
+          readTemp();
+          readPress();
+          calcPressTemp();
+        }
+        // Keller PA7LD pressure and temperature
+        if (pressureSensor==2){
+          kellerRead();
+          kellerConvert();  // start conversion for next reading
         }
         Serial.println("Record Start.");
         
@@ -426,6 +447,7 @@ void loop() {
         digitalWrite(ledGreen, LOW);
         mode = 1;
         displayOff();
+        
         startRecording();
       }
   }
@@ -588,13 +610,6 @@ void sdInit(){
 void FileInit()
 {
    t = getTeensy3Time();
-
-
-// MS5803 start temperature conversion
-  if(pressureSensor==1){ 
-    readPress();   
-    updateTemp();
-  }
    
    if (folderMonth != month(t)){
     if(printDiags) Serial.println("New Folder");
@@ -622,18 +637,6 @@ void FileInit()
   #endif
 
    float voltage = readVoltage();
-
-  // MS5803 pressure and temperature
-  if (pressureSensor==1){
-      readTemp(); 
-      updatePress();
-      calcPressTemp();
-  }
-  // Keller PA7LD pressure and temperature
-  if (pressureSensor==2){
-    kellerRead();
-    kellerConvert();  // start conversion for next reading
-  }
 
    
   sd.chdir(); // only to be sure to start from root
@@ -740,7 +743,8 @@ void file_date_time(uint16_t* date, uint16_t* time)
   #endif
 }
 
-void AudioInit(int ifs){
+void AudioInit(int ifs){ 
+  calcGain();
  // Instead of using audio library enable; do custom so only power up what is needed in sgtl5000_LHI
   I2S_modification(lhi_fsamps[ifs], 16);
   audio_enable(ifs);
@@ -860,7 +864,7 @@ void sensorInit(){
 
   // Keller
   int nAvg = 11;
-  float pressureSum;
+  float pressureSum = 0;
   if(kellerInit()) {
     pressureSensor = 2;   // 2 if present
     Serial.println("Keller Pressure Detected");
@@ -895,7 +899,8 @@ void sensorInit(){
     updateTemp();
     delay(50);
     readTemp();
-    for(int n=1; n<nAvg; n++){
+    calcPressTemp();
+    for(int n=0; n<nAvg; n++){
       updatePress();
       delay(50);
       readPress();
@@ -904,7 +909,7 @@ void sensorInit(){
       readTemp();
       calcPressTemp();
       pressureSum+= pressure_mbar;
-      pressureOffset_mbar = pressureSum / n;
+      pressureOffset_mbar = pressureSum / (n + 1);
       delay(100);
 
       cDisplay();
@@ -914,8 +919,6 @@ void sensorInit(){
       display.print("Temp:"); display.println(temperature);
       display.display(); 
     }
-    calcPressTemp();
-    pressureOffset_mbar = pressureOffset_mbar / nAvg;
   }
   
   Serial.print("Pressure (mBar): "); Serial.println(pressure_mbar);

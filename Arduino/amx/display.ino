@@ -35,7 +35,11 @@ void displaySettings(){
   display.setCursor(0, displayLine2);
 
   display.print(audio_srate, 0);
-  display.print(" Hz");
+  display.print(" Hz ");
+
+  display.print(gainDb);
+  display.print(" dB");
+  
   
   display.setCursor(0, displayLine3);
   display.print("Rec ");
