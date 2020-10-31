@@ -234,8 +234,8 @@ int CAMX2WAVDlg::SaveWave(CString root, CString amxfilename, CString wavfilename
 	AMX_DF amx_df;
 	AMX_SID_REC amx_sid_rec;
 	AMX_SID_SPEC amx_sid_spec[8];
-	short data[4096];
-	float data32[4096];
+	short data[8192];
+	float data32[8192];
 	UINT bytesread;
 	CString wavfname[7], csvfname[7];
 
@@ -510,8 +510,8 @@ int CAMX2WAVDlg::SaveDebugInfo(CString amxfilename, CString debugfilename)
 	AMX_DF amx_df;
 	AMX_SID_REC amx_sid_rec;
 	AMX_SID_SPEC amx_sid_spec[8];
-	short data[4096];
-	float data32[4096];
+	short data[8192];
+	float data32[8192];
 	UINT bytesread;
 
 	float speriod[7];
