@@ -12,15 +12,13 @@
 //
 
 // Note: Need to change Pressure/Temperature coefficient for MS5801 1 Bar versus 30 Bar sensor
-// 
-// To do:
-// 1. Look at Hall sensor input
+// Compile 72 MHz Fastest
 
 
 #include <Audio.h>  //this also includes SD.h from lines 89 & 90
 #include <analyze_fft256.h>
-//#include <Wire.h>
-#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
+#include <Wire.h>
+//#include <i2c_t3.h>  //https://github.com/nox771/i2c_t3
 #include <SPI.h>
 //#include <SdFat.h>
 #include "amx32.h"
@@ -66,7 +64,7 @@ Adafruit_FeatherOLED display = Adafruit_FeatherOLED();
 // 
 // Dev settings
 //
-static boolean printDiags = 0;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
+static int printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics 2=verbose
 int dd = 1; //display on
 long rec_dur = 3600; // seconds;
 long rec_int = 0;
@@ -99,7 +97,6 @@ int moduloSeconds = 60; // round to nearest start time
 
 float depthThreshold = 1.0; //depth threshold is given as a positive depth (e.g. 2: if depth < 2 m VHF will go on)
 int saltThreshold = 10; // if voltage difference with digital out ON - digital out OFF is less than this turn off LED
-//
 //
 //
 
@@ -161,8 +158,8 @@ int noDC = 0; // 0 = freezeDC offset; 1 = remove DC offset
 // TX 22
 // LRCLK 23
 
-// Remember which mode we're doing
-int mode = 0;  // 0=stopped, 1=recording, 2=playing
+// Remember which amxMode we're doing
+int amxMode = 0;  // 0=stopped, 1=recording, 2=playing
 time_t startTime;
 time_t stopTime;
 time_t t;
@@ -323,7 +320,7 @@ volatile int spin;
 IntervalTimer slaveTimer;
 
 void setup() {
-  dfh.Version = 20190326; //unsigned long
+  dfh.Version = 20200628; //unsigned long
   dfh.UserID = 5555;
 
   if (camWave){
@@ -350,9 +347,9 @@ void setup() {
   delay(100);
 
   delay(500);
- // Wire.begin();
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
-  Wire.setDefaultTimeout(10000);
+  Wire.begin();
+  //Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, I2C_RATE_400);
+ // Wire.setDefaultTimeout(10000);
 
   displayOn();
   cDisplay();
@@ -457,7 +454,7 @@ void setup() {
   startTime = t + delayStartSeconds;
   if(delayStartSeconds == 0){
     startTime = t + 10; // make sure have at least 10 seconds
-    startTime -= startTime % moduloSeconds;  //modulo to nearest 5 minutes
+    startTime -= startTime % moduloSeconds;  //modulo to nearest 60 seconds
     startTime += moduloSeconds; //move forward
   }
 
@@ -488,11 +485,11 @@ void setup() {
   Serial.print("Start Time: ");
   printTime(startTime);
   
-  // Sleep here if won't start for 60 s
+  // Sleep here if won't start for 120 s
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  for(int x = 0; x<10; x++){
+  for(int x = 0; x<5; x++){
     cDisplay();
     t = getTeensy3Time();
     display.println("Sleep until:");
@@ -503,7 +500,7 @@ void setup() {
   }
 
 
-  if(time_to_first_rec>60){
+  if(time_to_first_rec>120){
     // power things off
     digitalWrite(hydroPowPin, LOW);
     audio_power_down();
@@ -515,11 +512,12 @@ void setup() {
       displayOff();
       
       digitalWrite(ledGreen, HIGH);
-      alarm.setAlarm(0, 0, 20); // sleep 20 seconds
+      alarm.setRtcTimer(0, 0, 20); // sleep 20 seconds
       delay(10);
       digitalWrite(ledGreen, LOW);
       
       Snooze.sleep(config_teensy32);
+      //Snooze.deepSleep( config_teensy32 );
       /// .... sleeping ...
       
       t = getTeensy3Time();
@@ -542,7 +540,7 @@ void setup() {
   
   digitalWrite(hydroPowPin, HIGH);
   if (camFlag) cam_wake();
-  mode = 0;
+  amxMode = 0;
 
   // create first folder to hold data
   folderMonth = -1;  //set to -1 so when first file made will create directory
@@ -561,7 +559,7 @@ void loop() {
   // if plug in USB power--get out of main loop
   if(!printDiags){
     if (digitalRead(usbSense)){  
-        if (mode==1) stopRecording();
+        if (amxMode==1) stopRecording();
         resetFunc();
       }
   }
@@ -575,7 +573,7 @@ void loop() {
 
     // if burning and voltage is low; stop recording
      if(readVoltage() < 3.6){  
-       if (mode == 1) stopRecording();
+       if (amxMode == 1) stopRecording();
        if (camFlag) {
         cam_stop();
         delay(100);
@@ -586,7 +584,7 @@ void loop() {
        playOff(); // power down playback board
         
        while(1){
-          alarm.setAlarm(0, 2, 0);  // sleep for 2 minutes
+          alarm.setRtcTimer(0, 2, 0);  // sleep for 2 minutes
           Snooze.sleep(config_teensy32);
   
           // ... asleep ...
@@ -601,7 +599,7 @@ void loop() {
   }
   
   // Standby mode
-  if(mode == 0)
+  if(amxMode == 0)
   {
       if(dd){
         cDisplay();
@@ -638,7 +636,7 @@ void loop() {
         updateTemp();
         displayOff();
 
-        mode = 1;      
+        amxMode = 1;      
         if(hallFlag) attachInterrupt(HALL, spinCount, RISING);      
         startRecording();
       }
@@ -647,7 +645,7 @@ void loop() {
 
 
   // Record mode
-  if (mode == 1) {
+  if (amxMode == 1) {
     continueRecording();  // download data  
 
     // Check if stop button pressed
@@ -803,7 +801,7 @@ void loop() {
             //Snooze.deepSleep(snooze_config);
             //Snooze.hibernate( snooze_config);
   
-            alarm.setAlarm(snooze_hour, snooze_minute, snooze_second);
+            alarm.setRtcTimer(snooze_hour, snooze_minute, snooze_second);
             Snooze.sleep(config_teensy32);
        
             /// ... Sleeping ....
@@ -823,7 +821,7 @@ void loop() {
             //sdInit();  //reinit SD because voltage can drop in hibernate
          }
         if(dd) displayOn();
-        mode = 0;
+        amxMode = 0;
       }
     }
   }
@@ -880,7 +878,6 @@ void stopRecording() {
   int maxblocks = AudioMemoryUsageMax();
   Serial.print("Audio Memory Max");
   Serial.println(maxblocks);
-  byte buffer[512];
   queue1.end();
   digitalWrite(ledGreen, LOW);
   //queue1.clear();
@@ -996,7 +993,7 @@ void setupDataStructures(void){
   sensor[3].cal[8] = magFullRange / 32768.0;
 }
 
-int addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
+void addSid(int i, char* sid,  unsigned int sidType, unsigned long nSamples, SENSOR sensor, unsigned long dForm, float srate)
 {
   unsigned long nBytes;
 //  memcpy(&_sid, sid, 5);
@@ -1334,11 +1331,6 @@ void checkDielTime(){
     }
   }
 }
-
-unsigned long processSyncMessage() {
-  unsigned long pctime = 0L;
-  const unsigned long DEFAULT_TIME = 1451606400; // Jan 1 2016
-} 
 
 void sampleSensors(void){  //interrupt at update_rate
   ptCounter++;
@@ -1828,4 +1820,3 @@ int checkSalt(){
 void spinCount(){
   spin++;
 }
-
