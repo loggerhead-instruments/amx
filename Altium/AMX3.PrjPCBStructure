@@ -1,1 +1,3 @@
-Record=TopLevelDocument|FileName=AMX30.SchDoc
+Record=TopLevelDocument|FileName=AMX30.SchDoc|SheetNumber= 
+Record=NoMainPathDocument|SourceDocument=AMX30.SchDoc|FileName=AMX_audio30.SchDoc|SheetNumber= 
+Record=NoMainPathDocument|SourceDocument=AMX30.SchDoc|FileName=AMX_sensors30.SchDoc|SheetNumber= 

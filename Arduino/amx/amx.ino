@@ -34,7 +34,7 @@
 #define CPU_RESTART_VAL 0x5FA0004
 #define CPU_RESTART (*CPU_RESTART_ADDR = CPU_RESTART_VAL);
 
-#define OLED_RESET 4
+#define OLED_RESET -1
 
 #define displayLine1 0
 #define displayLine2 8
