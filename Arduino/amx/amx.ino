@@ -348,10 +348,8 @@ void setup() {
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   // initialize now to estimate DC offset during setup
-  AudioMemory(MQ+10);
-  
+  AudioMemory(MQ+10); 
   audio_srate = lhi_fsamps[isf];
-//WMXZ  audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 
   cDisplay();
 
@@ -417,6 +415,7 @@ void setup() {
       time_to_first_rec = startTime - t;
     }
   }
+  digitalWrite(hydroPowPin, HIGH);
   AudioInit(isf); // this calls Wire.begin() in control_sgtl5000.cpp
   fileHeader();
   mode = 0;
@@ -466,10 +465,6 @@ void loop() {
         if (pressureSensor==1){
           readPress();
           calcPressTemp();
-//          Serial.print(pressure_mbar);
-//          Serial.println(" mbar");
-//          Serial.print(depth);
-//          Serial.println(" m");
         }
         // Keller PA7LD pressure and temperature
         if (pressureSensor==2){
@@ -480,7 +475,6 @@ void loop() {
         
         stopTime = startTime + rec_dur;
         startTime = stopTime + rec_int;
-      //  if (recMode==MODE_DIEL) checkDielTime();
 
         Serial.print("Current Time: ");
         printTime(getTeensy3Time());
