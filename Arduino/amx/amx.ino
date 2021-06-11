@@ -2,7 +2,7 @@
 // AMX Wav
 //
 // Loggerhead Instruments
-// 2020
+// 2021
 // David Mann
 // 
 // Modified from PJRC audio code
@@ -10,9 +10,14 @@
 //
 // Compile with 96 MHz Fastest
 
-// Modified by WMXZ 15-05-2018 for SdFS anf multiple sampling frequencies
+// Modified by WMXZ 15-05-2018 for SdFS and multiple sampling frequencies
 
-char codeVersion[12] = "2020-10-16";
+
+// To do:
+// - add delay start in hours
+// - add sleep while delay start
+
+char codeVersion[12] = "2021-06-11";
 static boolean printDiags = 1;  // 1: serial print diagnostics; 0: no diagnostics
 
 #define MQ 100 // to be used with LHI record queue (modified local version)
@@ -71,6 +76,9 @@ unsigned long baud = 115200;
 
 #define MODE_NORMAL 0
 #define MODE_DIEL 1
+
+unsigned int delayStartMinutes = 0;
+unsigned int delayStartHours = 0;
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2;           //xy=105,63
@@ -177,6 +185,13 @@ SnoozeAlarm alarm;
 SnoozeAudio snooze_audio;
 SnoozeBlock config_teensy32(snooze_audio, alarm);
 
+// RGB
+int16_t islRed;
+int16_t islBlue;
+int16_t islGreen;
+
+int accel_scale = 16; //full scale on accelerometer [2, 4, 8, 16] (example cmd code: AS 8)
+volatile uint8_t imuTempBuffer[20];
 
 // SD_FAT_TYPE = 0 for SdFat/File as defined in SdFatConfig.h,
 // 1 for FAT16/FAT32, 2 for exFAT, 3 for FAT16/FAT32 and exFAT.
@@ -297,6 +312,9 @@ void setup() {
   display.display();
 
   sensorInit();
+  mpuInit(0); // sleep MPU
+  islSleep(); // RGB light sensor
+    
   
   pinMode(ledGreen, OUTPUT);
   digitalWrite(ledGreen, HIGH);
@@ -335,10 +353,6 @@ void setup() {
   audio_srate = lhi_fsamps[isf];
 //WMXZ  audioIntervalSec = 256.0 / audio_srate; //buffer interval in seconds
 
-  AudioInit(isf); // this calls Wire.begin() in control_sgtl5000.cpp
-
-  fileHeader();
-  
   cDisplay();
 
   int roundSeconds = 10;//modulo to nearest x seconds
@@ -346,13 +360,16 @@ void setup() {
   if(rec_int > 300) roundSeconds = 300;
   
   t = getTeensy3Time();
-  startTime = t;
-  //startTime = getTeensy3Time();
-  startTime -= startTime % roundSeconds;  
-  startTime += roundSeconds; //move forward
+
+  long delayStartSeconds = (60 * delayStartMinutes) + (3600 * delayStartHours);
+  startTime = t + delayStartSeconds;
+  if(delayStartSeconds == 0){
+    startTime = t + 10; // make sure have at least 10 seconds
+    startTime -= startTime % 60;  //modulo to nearest 60 seconds
+    startTime += 60; //move forward
+  }
   stopTime = startTime + rec_dur;  // this will be set on start of recording
   
- // if (recMode==MODE_DIEL) checkDielTime();  
   
   nbufs_per_file = (long) (ceil(((rec_dur * audio_srate / 256.0) / (float) NREC)) * (float) NREC);
   long ss = rec_int - wakeahead;
@@ -380,7 +397,28 @@ void setup() {
   long time_to_first_rec = startTime - t;
   Serial.print("Time to first record ");
   Serial.println(time_to_first_rec);
-  
+  if(time_to_first_rec>120){
+    // power things off
+    digitalWrite(hydroPowPin, LOW);
+
+    while(time_to_first_rec > 60){
+      displayOff();
+      
+      digitalWrite(ledGreen, HIGH);
+      alarm.setRtcTimer(0, 0, 20); // sleep 20 seconds
+      delay(10);
+      digitalWrite(ledGreen, LOW);
+      
+      Snooze.sleep(config_teensy32);
+      //Snooze.deepSleep( config_teensy32 );
+      /// .... sleeping ...
+      
+      t = getTeensy3Time();
+      time_to_first_rec = startTime - t;
+    }
+  }
+  AudioInit(isf); // this calls Wire.begin() in control_sgtl5000.cpp
+  fileHeader();
   mode = 0;
 
   // create first folder to hold data

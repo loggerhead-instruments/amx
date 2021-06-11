@@ -7,6 +7,7 @@ int ProcCmd(char *pCmd)
   short *pCV;
   short n;
   long lv1;
+  long lv2;
   char s[22];
         unsigned int tday;
         unsigned int tmonth;
@@ -88,7 +89,15 @@ int ProcCmd(char *pCmd)
          Serial.println(startTime);
          break;
       } 
-         // Sample rate in Hz
+
+    case ('D' + ('S'<<8)):
+    {
+      sscanf(&pCmd[3],"%d:%d",&lv1, &lv2);
+      delayStartHours = lv1;
+      delayStartMinutes = lv2;
+      break;
+    }  
+    // Sample rate in Hz
     case ('H' + ('Z'<<8)):
     {
       sscanf(&pCmd[3],"%d",&lv1);
